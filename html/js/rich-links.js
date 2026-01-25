@@ -84,9 +84,6 @@ var RichLinks = {
     modal.innerHTML = 
       '<div class="rich-link-container">' +
         '<button id="richLinkCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>' +
-        '<div class="rich-link-header">' +
-          '<span id="richLinkPlatform" class="rich-link-platform"></span>' +
-        '</div>' +
         '<div class="rich-link-body">' +
           '<div id="richLinkLoading" class="rich-link-loading">' +
             '<div class="spinner"></div>' +
@@ -96,7 +93,7 @@ var RichLinks = {
             '<div class="rich-link-error-text">Unable to load video</div>' +
             '<a id="richLinkOpenExternal" class="rich-link-external-btn" href="#" target="_blank" rel="noopener">Open in App</a>' +
           '</div>' +
-          '<iframe id="richLinkFrame" class="rich-link-frame" allowfullscreen allow="autoplay; encrypted-media"></iframe>' +
+          '<iframe id="richLinkFrame" class="rich-link-frame" allowfullscreen allow="autoplay; encrypted-media; fullscreen"></iframe>' +
         '</div>' +
       '</div>';
 
@@ -319,15 +316,8 @@ var RichLinks = {
     var loading = document.getElementById('richLinkLoading');
     var errorDiv = document.getElementById('richLinkError');
     var externalLink = document.getElementById('richLinkOpenExternal');
-    var platformLabel = document.getElementById('richLinkPlatform');
 
     if (!modal || !frame) return;
-
-    // Set platform label
-    if (platformLabel) {
-      platformLabel.innerHTML = platform.icon + ' ' + platform.name;
-      platformLabel.style.color = platform.color;
-    }
 
     // Reset state
     if (loading) loading.style.display = 'flex';

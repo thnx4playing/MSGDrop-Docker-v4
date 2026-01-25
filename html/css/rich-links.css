@@ -143,7 +143,7 @@
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background: var(--overlay);
+  background: rgba(0, 0, 0, 0.95);
   z-index: 10000;
   opacity: 0;
   visibility: hidden;
@@ -151,7 +151,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 12px;
   overflow: hidden !important;
 }
 
@@ -161,52 +161,72 @@
 }
 
 .rich-link-container {
-  background: var(--panel);
+  background: #000;
   border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
   width: 100%;
-  max-width: 560px;
-  max-height: 90vh;
-  max-height: 90dvh;
+  max-width: 400px;
+  /* Taller modal - maximizes content */
+  height: 92vh;
+  height: 92dvh;
+  max-height: 920px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transform: scale(0.9);
+  transform: scale(0.95);
   transition: transform 0.3s;
   position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .rich-link-modal.show .rich-link-container {
   transform: scale(1);
 }
 
-.rich-link-header {
-  padding: 16px 56px 12px 20px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.rich-link-platform {
-  font-size: 14px;
-  font-weight: 700;
+/* Close button - floating over content */
+.rich-link-modal .modal-close-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  z-index: 20;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+.rich-link-modal .modal-close-badge:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.1);
+}
+
+.rich-link-modal .modal-close-badge:active {
+  transform: scale(0.95);
 }
 
 .rich-link-body {
   position: relative;
   background: #000;
   width: 100%;
-  /* 9:16 aspect ratio for vertical videos (TikTok/Reels) with max height */
-  aspect-ratio: 9 / 16;
-  max-height: 70vh;
-  max-height: 70dvh;
-}
-
-/* For YouTube (horizontal), override aspect ratio */
-.rich-link-modal[data-platform="youtube"] .rich-link-body {
-  aspect-ratio: 16 / 9;
+  height: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .rich-link-frame {
@@ -214,6 +234,7 @@
   height: 100%;
   border: none;
   display: none;
+  background: #000;
 }
 
 .rich-link-loading {
@@ -224,6 +245,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* YouTube gets wider container for horizontal video */
+.rich-link-modal[data-platform="youtube"] .rich-link-container {
+  max-width: 900px;
+  height: auto;
+  max-height: 90vh;
+  max-height: 90dvh;
+  aspect-ratio: 16 / 9;
+}
+
+/* TikTok/Instagram stay tall and narrow like the apps */
+.rich-link-modal[data-platform="tiktok"] .rich-link-container,
+.rich-link-modal[data-platform="instagram"] .rich-link-container {
+  max-width: 400px;
+  aspect-ratio: 9 / 16;
 }
 
 /* ================== ERROR STATE ================== */
@@ -238,52 +275,63 @@
   align-items: center;
   justify-content: center;
   gap: 16px;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  background: #000;
   color: #ffffff;
   padding: 24px;
   text-align: center;
 }
 
 .rich-link-error-icon {
-  font-size: 48px;
-  opacity: 0.8;
+  font-size: 56px;
+  opacity: 0.7;
 }
 
 .rich-link-error-text {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
   opacity: 0.9;
 }
 
 .rich-link-external-btn {
   display: inline-block;
-  padding: 12px 24px;
-  background: linear-gradient(135deg, #FE2C55 0%, #25F4EE 100%);
+  padding: 14px 32px;
+  background: linear-gradient(135deg, #FE2C55 0%, #FF0050 100%);
   color: white;
   text-decoration: none;
-  border-radius: 8px;
+  border-radius: 24px;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
   transition: transform 0.2s, box-shadow 0.2s;
-  margin-top: 8px;
+  margin-top: 12px;
+  box-shadow: 0 4px 20px rgba(254, 44, 85, 0.4);
 }
 
 .rich-link-external-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(254, 44, 85, 0.3);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 30px rgba(254, 44, 85, 0.5);
 }
 
 .rich-link-external-btn:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.98);
 }
 
 /* Platform-specific external button colors */
 .rich-link-modal[data-platform="youtube"] .rich-link-external-btn {
-  background: #FF0000;
+  background: linear-gradient(135deg, #FF0000 0%, #CC0000 100%);
+  box-shadow: 0 4px 20px rgba(255, 0, 0, 0.4);
+}
+
+.rich-link-modal[data-platform="youtube"] .rich-link-external-btn:hover {
+  box-shadow: 0 8px 30px rgba(255, 0, 0, 0.5);
 }
 
 .rich-link-modal[data-platform="instagram"] .rich-link-external-btn {
-  background: linear-gradient(135deg, #E4405F 0%, #C13584 100%);
+  background: linear-gradient(135deg, #833AB4 0%, #E4405F 50%, #FCAF45 100%);
+  box-shadow: 0 4px 20px rgba(225, 48, 108, 0.4);
+}
+
+.rich-link-modal[data-platform="instagram"] .rich-link-external-btn:hover {
+  box-shadow: 0 8px 30px rgba(225, 48, 108, 0.5);
 }
 
 /* ================== MOBILE OPTIMIZATIONS ================== */
@@ -306,14 +354,39 @@
     height: 40px;
   }
   
-  .rich-link-container {
-    max-width: 95vw;
-    border-radius: 20px;
+  /* Modal takes almost full screen on mobile - more app-like */
+  .rich-link-modal {
+    padding: 4px;
   }
   
-  .rich-link-body {
-    max-height: 65vh;
-    max-height: 65dvh;
+  .rich-link-container {
+    border-radius: 12px;
+    height: 96vh;
+    height: 96dvh;
+  }
+  
+  .rich-link-modal[data-platform="youtube"] .rich-link-container {
+    height: auto;
+    max-height: 96vh;
+    max-height: 96dvh;
+  }
+  
+  .rich-link-modal[data-platform="tiktok"] .rich-link-container,
+  .rich-link-modal[data-platform="instagram"] .rich-link-container {
+    max-width: 100%;
+    width: 100%;
+    height: 96vh;
+    height: 96dvh;
+    border-radius: 0;
+  }
+  
+  /* Larger close button on mobile for easier tapping */
+  .rich-link-modal .modal-close-badge {
+    width: 44px;
+    height: 44px;
+    font-size: 28px;
+    top: 16px;
+    right: 16px;
   }
 }
 
