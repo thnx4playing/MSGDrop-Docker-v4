@@ -51,15 +51,17 @@ CAMERA_STREAM_URL = "https://cam.efive.org/api/reolink_e1_zoom"
 
 # TikTok URL resolution pattern
 TIKTOK_VIDEO_ID_PATTERN = re.compile(r'/video/(\d+)')
-_tiktok_cache = {}
-_CACHE_TTL = timedelta(minutes=30)
 
-def _clean_tiktok_cache():
-    """Remove expired entries from TikTok cache."""
+# TikTok video URL cache
+_tiktok_video_cache = {}
+_TIKTOK_CACHE_TTL = timedelta(minutes=30)
+
+def _clean_tiktok_video_cache():
+    """Remove expired cache entries"""
     now = datetime.now()
-    expired = [k for k, v in _tiktok_cache.items() if now - v['timestamp'] > _CACHE_TTL]
+    expired = [k for k, v in _tiktok_video_cache.items() if now - v['timestamp'] > _TIKTOK_CACHE_TTL]
     for k in expired:
-        del _tiktok_cache[k]
+        del _tiktok_video_cache[k]
 
 # Secret to sign sessions; derive from env or generate stable file-based secret
 SESSION_SIGN_KEY = os.environ.get("SESSION_SIGN_KEY")
@@ -869,7 +871,10 @@ async def camera_stream(request: Request):
 # --- TikTok Video Extraction ---
 @app.get("/api/tiktok-video")
 async def get_tiktok_video(url: str, req: Request):
-    """Extract direct video URL from TikTok using yt-dlp."""
+    """
+    Extract direct video URL from TikTok using yt-dlp.
+    Returns a video URL that can be played in an HTML5 video element.
+    """
     require_session(req)
     
     if not url:
@@ -881,50 +886,78 @@ async def get_tiktok_video(url: str, req: Request):
     if not url.startswith('http'):
         url = 'https://' + url
     
-    _clean_tiktok_cache()
-    if url in _tiktok_cache:
-        return _tiktok_cache[url]['data']
+    # Check cache first
+    _clean_tiktok_video_cache()
+    if url in _tiktok_video_cache:
+        logger.info(f"[TikTok] Cache hit for {url}")
+        return _tiktok_video_cache[url]['data']
     
     try:
+        # Run yt-dlp to extract video info
         result = await asyncio.to_thread(
             subprocess.run,
-            ['yt-dlp', '--dump-json', '--no-download', '--no-playlist', '--no-warnings', '--quiet', url],
-            capture_output=True, text=True, timeout=15
+            [
+                'yt-dlp',
+                '--dump-json',
+                '--no-download',
+                '--no-playlist',
+                '--no-warnings',
+                '--quiet',
+                url
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15
         )
         
         if result.returncode != 0:
+            logger.error(f"[TikTok] yt-dlp error: {result.stderr}")
             raise HTTPException(502, "Failed to extract video info")
         
+        # Parse JSON output
         video_info = json.loads(result.stdout)
+        
+        # Get direct video URL
         video_url = video_info.get('url')
         if not video_url:
-            for fmt in reversed(video_info.get('formats', [])):
+            # Try to get from formats list
+            formats = video_info.get('formats', [])
+            for fmt in reversed(formats):
                 if fmt.get('ext') == 'mp4' and fmt.get('url'):
                     video_url = fmt['url']
                     break
         
         if not video_url:
+            logger.error(f"[TikTok] No video URL found in response")
             raise HTTPException(404, "Could not extract video URL")
         
         response_data = {
             "videoUrl": video_url,
             "title": video_info.get('title', ''),
-            "author": video_info.get('uploader', ''),
+            "author": video_info.get('uploader', video_info.get('creator', '')),
             "thumbnail": video_info.get('thumbnail', ''),
             "duration": video_info.get('duration', 0),
         }
         
-        _tiktok_cache[url] = {'data': response_data, 'timestamp': datetime.now()}
+        # Cache the result
+        _tiktok_video_cache[url] = {
+            'data': response_data,
+            'timestamp': datetime.now()
+        }
+        
+        logger.info(f"[TikTok] Extracted video: {video_info.get('title', 'Unknown')}")
         return response_data
         
     except subprocess.TimeoutExpired:
+        logger.error(f"[TikTok] Timeout extracting: {url}")
         raise HTTPException(504, "Request timeout")
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.error(f"[TikTok] JSON parse error: {e}")
         raise HTTPException(502, "Failed to parse video info")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[TikTok] Error: {e}")
+        logger.error(f"[TikTok] Unexpected error: {e}")
         raise HTTPException(500, "Internal error")
 
 @app.get("/api/resolve-tiktok")
