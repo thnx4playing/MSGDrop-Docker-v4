@@ -12,6 +12,9 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install yt-dlp for TikTok video extraction
+RUN pip install --no-cache-dir yt-dlp
+
 # App code
 COPY main.py /app/main.py
 # Static UI (serve your provided html/ under /msgdrop)
@@ -27,4 +30,3 @@ EXPOSE 443
 
 ENTRYPOINT ["/usr/bin/tini","--"]
 CMD ["python","-u","/app/main.py"]
-
