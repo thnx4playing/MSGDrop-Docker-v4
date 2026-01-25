@@ -25,7 +25,8 @@ var RichLinks = {
         return 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg';
       },
       getEmbed: function(videoId) {
-        return 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0';
+        // autoplay=1, mute=0 requests unmuted playback (browser may still block)
+        return 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0&mute=0';
       }
     },
     tiktok: {
@@ -43,7 +44,9 @@ var RichLinks = {
         return null;
       },
       getEmbed: function(videoId) {
-        return 'https://www.tiktok.com/embed/v2/' + videoId;
+        // Try various parameters for dark theme - TikTok doesn't officially document these
+        // Adding embedFrom and theme params that some have reported working
+        return 'https://www.tiktok.com/embed/v2/' + videoId + '?autoplay=1&muted=0&embedFrom=embed_page&theme=dark';
       }
     },
     instagram: {

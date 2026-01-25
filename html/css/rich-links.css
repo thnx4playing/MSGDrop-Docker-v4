@@ -227,6 +227,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+/* Dark background layer behind iframe */
+.rich-link-body::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #000;
+  z-index: 0;
 }
 
 .rich-link-frame {
@@ -235,6 +248,9 @@
   border: none;
   display: none;
   background: #000;
+  color-scheme: dark;
+  position: relative;
+  z-index: 1;
 }
 
 .rich-link-loading {
@@ -261,6 +277,26 @@
 .rich-link-modal[data-platform="instagram"] .rich-link-container {
   max-width: 400px;
   aspect-ratio: 9 / 16;
+}
+
+/* Try to mask white edges on TikTok embeds with inset shadow */
+.rich-link-modal[data-platform="tiktok"] .rich-link-body::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: inset 0 0 0 1px #000;
+  border-radius: inherit;
+}
+
+/* Scale TikTok iframe slightly to crop white borders */
+.rich-link-modal[data-platform="tiktok"] .rich-link-frame {
+  transform: scale(1.02);
+  transform-origin: center center;
 }
 
 /* ================== ERROR STATE ================== */
