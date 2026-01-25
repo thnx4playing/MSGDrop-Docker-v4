@@ -338,51 +338,84 @@ var RichLinks = {
 
     // Long-press detection for message actions (like Giphy)
     var longPressTimer = null;
-    var isLongPress = false;
+    var longPressTriggered = false;
+    var touchHandled = false;
+    var touchStartX = 0;
+    var touchStartY = 0;
     var LONG_PRESS_DURATION = 500;
+    var MOVE_THRESHOLD = 10;
+
+    function openActionsModal() {
+      var bubble = preview.closest('.chat-bubble');
+      if (bubble && typeof Reactions !== 'undefined' && Reactions.openPicker) {
+        Reactions.openPicker(bubble);
+      }
+    }
+
+    function clearLongPress() {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    }
 
     preview.addEventListener('touchstart', function(e) {
-      isLongPress = false;
+      longPressTriggered = false;
+      touchHandled = false;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      
       longPressTimer = setTimeout(function() {
-        isLongPress = true;
-        // Trigger message actions modal via bubbling
-        var bubble = preview.closest('.chat-bubble');
-        if (bubble && typeof Messages !== 'undefined' && Messages.showMessageActions) {
-          var msgId = bubble.getAttribute('data-msg-id');
-          if (msgId) {
-            e.preventDefault();
-            e.stopPropagation();
-            Messages.showMessageActions(msgId);
-          }
+        longPressTriggered = true;
+        touchHandled = true;
+        if (navigator.vibrate) {
+          navigator.vibrate(50);
         }
+        openActionsModal();
       }, LONG_PRESS_DURATION);
-    }, { passive: false });
+    }, { passive: true });
+
+    preview.addEventListener('touchmove', function(e) {
+      var dx = Math.abs(e.touches[0].clientX - touchStartX);
+      var dy = Math.abs(e.touches[0].clientY - touchStartY);
+      if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+        clearLongPress();
+      }
+    }, { passive: true });
 
     preview.addEventListener('touchend', function(e) {
-      clearTimeout(longPressTimer);
-      if (isLongPress) {
+      clearLongPress();
+      if (!longPressTriggered) {
+        touchHandled = true;
         e.preventDefault();
         e.stopPropagation();
+        self.showModal(linkData.platform, linkData.videoId, linkData.needsResolution, linkData.originalUrl);
       }
-    });
-
-    preview.addEventListener('touchmove', function() {
-      clearTimeout(longPressTimer);
+      longPressTriggered = false;
     });
 
     preview.addEventListener('touchcancel', function() {
-      clearTimeout(longPressTimer);
+      clearLongPress();
+      longPressTriggered = false;
+      touchHandled = false;
     });
 
-    // Click handler (only fires if not long-press)
+    // Click handler (for desktop, only fires if not touch-handled)
     preview.addEventListener('click', function(e) {
-      if (isLongPress) {
-        isLongPress = false;
+      e.stopPropagation();
+      e.preventDefault();
+      if (touchHandled) {
+        touchHandled = false;
         return;
       }
+      self.showModal(linkData.platform, linkData.videoId, linkData.needsResolution, linkData.originalUrl);
+    });
+
+    // Right-click context menu opens actions modal on desktop
+    preview.addEventListener('contextmenu', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      self.showModal(linkData.platform, linkData.videoId, linkData.needsResolution, linkData.originalUrl);
+      openActionsModal();
     });
 
     return preview;
