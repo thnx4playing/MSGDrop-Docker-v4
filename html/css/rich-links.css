@@ -226,6 +226,66 @@
   justify-content: center;
 }
 
+/* ================== ERROR STATE ================== */
+.rich-link-error {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  color: #ffffff;
+  padding: 24px;
+  text-align: center;
+}
+
+.rich-link-error-icon {
+  font-size: 48px;
+  opacity: 0.8;
+}
+
+.rich-link-error-text {
+  font-size: 16px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.rich-link-external-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #FE2C55 0%, #25F4EE 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-top: 8px;
+}
+
+.rich-link-external-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(254, 44, 85, 0.3);
+}
+
+.rich-link-external-btn:active {
+  transform: translateY(0);
+}
+
+/* Platform-specific external button colors */
+.rich-link-modal[data-platform="youtube"] .rich-link-external-btn {
+  background: #FF0000;
+}
+
+.rich-link-modal[data-platform="instagram"] .rich-link-external-btn {
+  background: linear-gradient(135deg, #E4405F 0%, #C13584 100%);
+}
+
 /* ================== MOBILE OPTIMIZATIONS ================== */
 @media (max-width: 640px) {
   .rich-link-preview {

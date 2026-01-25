@@ -6,6 +6,9 @@
 // ============================================================================
 
 var RichLinks = {
+  // Cache for resolved TikTok URLs
+  tiktokCache: {},
+
   // Platform configurations
   platforms: {
     youtube: {
@@ -13,10 +16,10 @@ var RichLinks = {
       icon: '▶️',
       color: '#FF0000',
       patterns: [
-        /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/i,
-        /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/i,
-        /(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]{11})/i,
-        /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/i
+        { regex: /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})(?:[&\?][^\s]*)?/i, type: 'watch' },
+        { regex: /(?:https?:\/\/)?(?:www\.)?youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})(?:[&\?][^\s]*)?/i, type: 'shorts' },
+        { regex: /(?:https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]{11})(?:[&\?][^\s]*)?/i, type: 'short' },
+        { regex: /(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})(?:[&\?][^\s]*)?/i, type: 'embed' }
       ],
       getThumbnail: function(videoId) {
         return 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg';
@@ -30,12 +33,13 @@ var RichLinks = {
       icon: '🎵',
       color: '#000000',
       patterns: [
-        /(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@[^\/]+\/video\/(\d+)/i,
-        /(?:https?:\/\/)?(?:vm\.)?tiktok\.com\/([a-zA-Z0-9]+)/i,
-        /(?:https?:\/\/)?(?:www\.)?tiktok\.com\/t\/([a-zA-Z0-9]+)/i
+        // Full URL with numeric video ID (these work directly with embed)
+        { regex: /(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@([^\/]+)\/video\/(\d+)(?:[&\?][^\s]*)?/i, type: 'full', hasUsername: true },
+        // Short URLs (need resolution)
+        { regex: /(?:https?:\/\/)?vm\.tiktok\.com\/([a-zA-Z0-9]+)\/?(?:[&\?][^\s]*)?/i, type: 'vm' },
+        { regex: /(?:https?:\/\/)?(?:www\.)?tiktok\.com\/t\/([a-zA-Z0-9]+)\/?(?:[&\?][^\s]*)?/i, type: 'short' }
       ],
       getThumbnail: function(videoId) {
-        // TikTok doesn't provide free thumbnails, return null for placeholder
         return null;
       },
       getEmbed: function(videoId) {
@@ -47,12 +51,11 @@ var RichLinks = {
       icon: '📸',
       color: '#E4405F',
       patterns: [
-        /(?:https?:\/\/)?(?:www\.)?instagram\.com\/p\/([a-zA-Z0-9_-]+)/i,
-        /(?:https?:\/\/)?(?:www\.)?instagram\.com\/reel\/([a-zA-Z0-9_-]+)/i,
-        /(?:https?:\/\/)?(?:www\.)?instagram\.com\/reels\/([a-zA-Z0-9_-]+)/i
+        { regex: /(?:https?:\/\/)?(?:www\.)?instagram\.com\/p\/([a-zA-Z0-9_-]+)\/?(?:[&\?][^\s]*)?/i, type: 'post' },
+        { regex: /(?:https?:\/\/)?(?:www\.)?instagram\.com\/reel\/([a-zA-Z0-9_-]+)\/?(?:[&\?][^\s]*)?/i, type: 'reel' },
+        { regex: /(?:https?:\/\/)?(?:www\.)?instagram\.com\/reels\/([a-zA-Z0-9_-]+)\/?(?:[&\?][^\s]*)?/i, type: 'reels' }
       ],
       getThumbnail: function(videoId) {
-        // Instagram doesn't provide free thumbnails, return null for placeholder
         return null;
       },
       getEmbed: function(videoId) {
@@ -73,7 +76,6 @@ var RichLinks = {
 
   // Create the embed modal
   createModal: function() {
-    // Check if modal already exists
     if (document.getElementById('richLinkModal')) return;
 
     var modal = document.createElement('div');
@@ -89,6 +91,11 @@ var RichLinks = {
           '<div id="richLinkLoading" class="rich-link-loading">' +
             '<div class="spinner"></div>' +
           '</div>' +
+          '<div id="richLinkError" class="rich-link-error" style="display:none;">' +
+            '<div class="rich-link-error-icon">⚠️</div>' +
+            '<div class="rich-link-error-text">Unable to load video</div>' +
+            '<a id="richLinkOpenExternal" class="rich-link-external-btn" href="#" target="_blank" rel="noopener">Open in App</a>' +
+          '</div>' +
           '<iframe id="richLinkFrame" class="rich-link-frame" allowfullscreen allow="autoplay; encrypted-media"></iframe>' +
         '</div>' +
       '</div>';
@@ -100,14 +107,12 @@ var RichLinks = {
   setupEventListeners: function() {
     var self = this;
 
-    // Close button
     document.addEventListener('click', function(e) {
       if (e.target.id === 'richLinkCloseBtn') {
         self.hideModal();
       }
     });
 
-    // Click outside to close
     document.addEventListener('click', function(e) {
       var modal = document.getElementById('richLinkModal');
       if (e.target === modal) {
@@ -115,7 +120,6 @@ var RichLinks = {
       }
     });
 
-    // Escape key
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         self.hideModal();
@@ -123,20 +127,42 @@ var RichLinks = {
     });
   },
 
-  // Detect if text contains a supported video link
+  // Detect if text contains a supported video link (returns first match only)
   detectLink: function(text) {
     if (!text || typeof text !== 'string') return null;
 
     for (var platformKey in this.platforms) {
       var platform = this.platforms[platformKey];
       for (var i = 0; i < platform.patterns.length; i++) {
-        var match = text.match(platform.patterns[i]);
-        if (match && match[1]) {
+        var patternObj = platform.patterns[i];
+        var match = text.match(patternObj.regex);
+        if (match) {
+          var videoId;
+          var originalUrl = match[0];
+          var needsResolution = false;
+          var username = null;
+
+          if (platformKey === 'tiktok') {
+            if (patternObj.hasUsername) {
+              // Full URL: match[1] is username, match[2] is video ID
+              username = match[1];
+              videoId = match[2];
+            } else {
+              // Short URL: needs resolution
+              videoId = match[1];
+              needsResolution = true;
+            }
+          } else {
+            videoId = match[1];
+          }
+
           return {
             platform: platformKey,
-            videoId: match[1],
-            originalUrl: match[0],
-            fullMatch: match
+            videoId: videoId,
+            originalUrl: originalUrl,
+            needsResolution: needsResolution,
+            username: username,
+            patternType: patternObj.type
           };
         }
       }
@@ -144,33 +170,88 @@ var RichLinks = {
     return null;
   },
 
-  // Extract all links from text
+  // Extract all UNIQUE links from text (no duplicates)
   detectAllLinks: function(text) {
     if (!text || typeof text !== 'string') return [];
 
     var links = [];
-    var found = {};
+    var foundUrls = new Set();
 
+    // Process each platform
     for (var platformKey in this.platforms) {
       var platform = this.platforms[platformKey];
+      
+      // Try each pattern for this platform
       for (var i = 0; i < platform.patterns.length; i++) {
-        var regex = new RegExp(platform.patterns[i].source, 'gi');
+        var patternObj = platform.patterns[i];
+        var regex = new RegExp(patternObj.regex.source, 'gi');
         var match;
+        
         while ((match = regex.exec(text)) !== null) {
-          var videoId = match[1];
-          var key = platformKey + ':' + videoId;
-          if (!found[key]) {
-            found[key] = true;
-            links.push({
-              platform: platformKey,
-              videoId: videoId,
-              originalUrl: match[0]
-            });
+          var originalUrl = match[0];
+          
+          // Skip if we've already processed this exact URL string
+          if (foundUrls.has(originalUrl)) continue;
+          foundUrls.add(originalUrl);
+
+          var videoId;
+          var needsResolution = false;
+          var username = null;
+
+          if (platformKey === 'tiktok') {
+            if (patternObj.hasUsername) {
+              username = match[1];
+              videoId = match[2];
+            } else {
+              videoId = match[1];
+              needsResolution = true;
+            }
+          } else {
+            videoId = match[1];
           }
+
+          links.push({
+            platform: platformKey,
+            videoId: videoId,
+            originalUrl: originalUrl,
+            needsResolution: needsResolution,
+            username: username,
+            patternType: patternObj.type
+          });
         }
       }
     }
+    
     return links;
+  },
+
+  // Resolve TikTok short URL to full video ID via backend
+  resolveTikTokUrl: async function(shortCode, originalUrl) {
+    // Check cache first
+    if (this.tiktokCache[shortCode]) {
+      return this.tiktokCache[shortCode];
+    }
+
+    try {
+      var response = await fetch('/api/resolve-tiktok?url=' + encodeURIComponent(originalUrl), {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        console.warn('TikTok resolution failed:', response.status);
+        return null;
+      }
+
+      var data = await response.json();
+      if (data.videoId) {
+        this.tiktokCache[shortCode] = data.videoId;
+        return data.videoId;
+      }
+    } catch (e) {
+      console.error('TikTok resolution error:', e);
+    }
+    
+    return null;
   },
 
   // Create a preview element for a link
@@ -183,13 +264,16 @@ var RichLinks = {
     preview.className = 'rich-link-preview rich-link-' + linkData.platform;
     preview.setAttribute('data-platform', linkData.platform);
     preview.setAttribute('data-video-id', linkData.videoId);
+    preview.setAttribute('data-original-url', linkData.originalUrl);
+    if (linkData.needsResolution) {
+      preview.setAttribute('data-needs-resolution', 'true');
+    }
 
     var thumbnailUrl = platform.getThumbnail(linkData.videoId);
 
     var inner = document.createElement('div');
     inner.className = 'rich-link-inner';
 
-    // Thumbnail or placeholder
     var thumb = document.createElement('div');
     thumb.className = 'rich-link-thumb';
     
@@ -200,12 +284,10 @@ var RichLinks = {
       thumb.setAttribute('data-platform', linkData.platform);
     }
 
-    // Play overlay
     var playOverlay = document.createElement('div');
     playOverlay.className = 'rich-link-play';
     playOverlay.innerHTML = '<svg viewBox="0 0 24 24" width="48" height="48"><path fill="white" d="M8 5v14l11-7z"/></svg>';
 
-    // Platform badge
     var badge = document.createElement('div');
     badge.className = 'rich-link-badge';
     badge.style.backgroundColor = platform.color;
@@ -220,20 +302,23 @@ var RichLinks = {
     preview.addEventListener('click', function(e) {
       e.preventDefault();
       e.stopPropagation();
-      self.showModal(linkData.platform, linkData.videoId);
+      self.showModal(linkData.platform, linkData.videoId, linkData.needsResolution, linkData.originalUrl);
     });
 
     return preview;
   },
 
   // Show the embed modal
-  showModal: function(platformKey, videoId) {
+  showModal: async function(platformKey, videoId, needsResolution, originalUrl) {
+    var self = this;
     var platform = this.platforms[platformKey];
     if (!platform) return;
 
     var modal = document.getElementById('richLinkModal');
     var frame = document.getElementById('richLinkFrame');
     var loading = document.getElementById('richLinkLoading');
+    var errorDiv = document.getElementById('richLinkError');
+    var externalLink = document.getElementById('richLinkOpenExternal');
     var platformLabel = document.getElementById('richLinkPlatform');
 
     if (!modal || !frame) return;
@@ -244,12 +329,42 @@ var RichLinks = {
       platformLabel.style.color = platform.color;
     }
 
-    // Show loading
+    // Reset state
     if (loading) loading.style.display = 'flex';
+    if (errorDiv) errorDiv.style.display = 'none';
     frame.style.display = 'none';
+    frame.src = '';
+
+    // Set external link
+    if (externalLink && originalUrl) {
+      externalLink.href = originalUrl;
+      externalLink.textContent = 'Open in ' + platform.name;
+      externalLink.style.display = 'none';
+    }
+
+    // Show modal
+    modal.classList.add('show');
+    modal.setAttribute('data-platform', platformKey);
+    document.body.classList.add('no-scroll');
+
+    // Resolve TikTok short URLs if needed
+    var resolvedVideoId = videoId;
+    if (platformKey === 'tiktok' && needsResolution) {
+      resolvedVideoId = await this.resolveTikTokUrl(videoId, originalUrl);
+      
+      if (!resolvedVideoId) {
+        // Resolution failed - show error with external link
+        if (loading) loading.style.display = 'none';
+        if (errorDiv) {
+          errorDiv.style.display = 'flex';
+          if (externalLink) externalLink.style.display = 'inline-block';
+        }
+        return;
+      }
+    }
 
     // Set iframe src
-    var embedUrl = platform.getEmbed(videoId);
+    var embedUrl = platform.getEmbed(resolvedVideoId);
     frame.src = embedUrl;
 
     // Handle iframe load
@@ -258,25 +373,39 @@ var RichLinks = {
       frame.style.display = 'block';
     };
 
-    // Show modal
-    modal.classList.add('show');
-    document.body.classList.add('no-scroll');
+    // Handle iframe error (timeout fallback)
+    setTimeout(function() {
+      if (loading && loading.style.display !== 'none') {
+        // Still loading after 10s - might be an issue
+        if (platformKey === 'tiktok') {
+          loading.style.display = 'none';
+          if (errorDiv) {
+            errorDiv.style.display = 'flex';
+            if (externalLink) externalLink.style.display = 'inline-block';
+          }
+        }
+      }
+    }, 10000);
 
-    this.currentEmbed = { platform: platformKey, videoId: videoId };
+    this.currentEmbed = { platform: platformKey, videoId: resolvedVideoId, originalUrl: originalUrl };
   },
 
   // Hide the embed modal
   hideModal: function() {
     var modal = document.getElementById('richLinkModal');
     var frame = document.getElementById('richLinkFrame');
+    var errorDiv = document.getElementById('richLinkError');
 
     if (modal) {
       modal.classList.remove('show');
     }
 
-    // Clear iframe to stop video
     if (frame) {
       frame.src = '';
+    }
+
+    if (errorDiv) {
+      errorDiv.style.display = 'none';
     }
 
     document.body.classList.remove('no-scroll');
@@ -288,7 +417,6 @@ var RichLinks = {
     var links = this.detectAllLinks(text);
     if (links.length === 0) return;
 
-    // Create container for previews
     var container = document.createElement('div');
     container.className = 'rich-links-container';
 
@@ -310,7 +438,6 @@ var RichLinks = {
     var trimmed = text.trim();
     var link = this.detectLink(trimmed);
     if (!link) return false;
-    // Check if the trimmed text is essentially just the URL
     return trimmed.replace(link.originalUrl, '').trim().length < 5;
   }
 };

@@ -1,4 +1,4 @@
-import os, json, hmac, hashlib, time, secrets, mimetypes, logging
+import os, json, hmac, hashlib, time, secrets, mimetypes, logging, re
 from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request, HTTPException, Response
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
@@ -45,6 +45,9 @@ UNLOCK_CODE      = os.environ.get("UNLOCK_CODE", "")
 
 # Camera stream URL for proxying
 CAMERA_STREAM_URL = "https://cam.efive.org/api/reolink_e1_zoom"
+
+# TikTok URL resolution pattern
+TIKTOK_VIDEO_ID_PATTERN = re.compile(r'/video/(\d+)')
 
 # Secret to sign sessions; derive from env or generate stable file-based secret
 SESSION_SIGN_KEY = os.environ.get("SESSION_SIGN_KEY")
@@ -850,6 +853,58 @@ async def camera_stream(request: Request):
         generate(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
+
+# --- TikTok URL Resolver ---
+@app.get("/api/resolve-tiktok")
+async def resolve_tiktok(url: str, req: Request):
+    """
+    Resolve a TikTok short URL to get the numeric video ID.
+    """
+    require_session(req)
+    
+    if not url:
+        raise HTTPException(400, "url parameter required")
+    
+    if 'tiktok.com' not in url.lower():
+        raise HTTPException(400, "Not a TikTok URL")
+    
+    if not url.startswith('http'):
+        url = 'https://' + url
+    
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            response = await client.head(url)
+            final_url = str(response.url)
+            
+            logger.info(f"[TikTok] Resolved {url} -> {final_url}")
+            
+            match = TIKTOK_VIDEO_ID_PATTERN.search(final_url)
+            if match:
+                video_id = match.group(1)
+                return {"videoId": video_id, "resolvedUrl": final_url}
+            else:
+                response = await client.get(url)
+                final_url = str(response.url)
+                
+                match = TIKTOK_VIDEO_ID_PATTERN.search(final_url)
+                if match:
+                    video_id = match.group(1)
+                    return {"videoId": video_id, "resolvedUrl": final_url}
+                
+                logger.warning(f"[TikTok] Could not extract video ID from: {final_url}")
+                raise HTTPException(404, "Could not extract video ID")
+                
+    except httpx.TimeoutException:
+        logger.error(f"[TikTok] Timeout resolving: {url}")
+        raise HTTPException(504, "Request timeout")
+    except httpx.RequestError as e:
+        logger.error(f"[TikTok] Request error: {e}")
+        raise HTTPException(502, "Failed to resolve URL")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[TikTok] Unexpected error: {e}")
+        raise HTTPException(500, "Internal error")
 
 # --- WebSocket Hub with presence ---
 class Hub:
