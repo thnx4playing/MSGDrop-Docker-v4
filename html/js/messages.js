@@ -1,8 +1,6 @@
 // Path: html/js/messages.js
-// Uploaded: 2026-01-16T01:07:13.472Z
-
 // ============================================================================
-// MESSAGES.JS - Production Version with Read Receipts
+// MESSAGES.JS - Production Version with Read Receipts + Rich Links
 // ============================================================================
 
 var Messages = {
@@ -86,6 +84,12 @@ var Messages = {
       var previewText = msg.message || '';
       if(msg.messageType === 'gif') previewText = '🎬 GIF';
       if(msg.messageType === 'image') previewText = '📷 Photo';
+      // Check for rich links
+      if(typeof RichLinks !== 'undefined' && RichLinks.detectLink(previewText)){
+        var link = RichLinks.detectLink(previewText);
+        var platform = RichLinks.platforms[link.platform];
+        previewText = platform.icon + ' ' + platform.name + ' Video';
+      }
       if(previewText.length > 50) previewText = previewText.substring(0, 50) + '...';
       
       replyPreviewText.textContent = previewText;
@@ -194,6 +198,30 @@ var Messages = {
     }
   },
 
+  // Check if message text contains rich links
+  hasRichLinks: function(text){
+    if(typeof RichLinks === 'undefined') return false;
+    return RichLinks.detectLink(text) !== null;
+  },
+
+  // Check if message is only a rich link (no other text)
+  isOnlyRichLink: function(text){
+    if(typeof RichLinks === 'undefined') return false;
+    return RichLinks.isOnlyLink(text);
+  },
+
+  // Get display text for message (strip URLs if rich link preview is shown)
+  getDisplayText: function(msg){
+    var text = msg.message || '';
+    
+    // If it's only a link, we'll hide the text entirely
+    if(this.isOnlyRichLink(text)){
+      return '';
+    }
+    
+    return text;
+  },
+
   render: function(){
     if(!UI.els.chatContainer) return;
     
@@ -233,6 +261,12 @@ var Messages = {
           var replyTextContent = repliedMsg.message || '';
           if(repliedMsg.messageType === 'gif') replyTextContent = '🎬 GIF';
           if(repliedMsg.messageType === 'image') replyTextContent = '📷 Photo';
+          // Check for rich links in replied message
+          if(typeof RichLinks !== 'undefined' && RichLinks.detectLink(replyTextContent)){
+            var link = RichLinks.detectLink(replyTextContent);
+            var platform = RichLinks.platforms[link.platform];
+            replyTextContent = platform.icon + ' ' + platform.name + ' Video';
+          }
           if(replyTextContent.length > 40) replyTextContent = replyTextContent.substring(0, 40) + '...';
           replyText.textContent = replyTextContent;
           
@@ -270,10 +304,8 @@ var Messages = {
         img.className = 'image-thumbnail';
         img.loading = 'lazy';
         
-        // Store the full URL for lightbox
         var originalUrl = msg.imageUrl || msg.imageThumb || '';
         
-        // Scroll to bottom when image loads (fixes partial visibility)
         img.addEventListener('load', function(){
           if(UI.els.chatContainer){
             var atBottom = UI.els.chatContainer.scrollHeight - UI.els.chatContainer.scrollTop <= UI.els.chatContainer.clientHeight + 100;
@@ -283,158 +315,10 @@ var Messages = {
           }
         });
         
-        // ============================================================
-        // IMAGE TAP BEHAVIOR:
-        // - Single tap = Open fullscreen lightbox
-        // - Long press = Open actions modal (reactions, reply, delete)
-        // ============================================================
-        
         (function(imgEl, fullUrl, bubbleEl){
           var longPressTimer = null;
           var longPressTriggered = false;
-          var touchHandled = false; // Track if touch already handled this interaction
-          var touchStartX = 0;
-          var touchStartY = 0;
-          var LONG_PRESS_DURATION = 500; // ms
-          var MOVE_THRESHOLD = 10; // px - cancel if finger moves too much
-          
-          function openLightbox(){
-            if(fullUrl && UI.openLightbox){
-              UI.openLightbox(fullUrl + '?t=' + Date.now());
-            }
-          }
-          
-          function openActionsModal(){
-            var group = bubbleEl.closest('.message-group');
-            if(group && Reactions && Reactions.openPicker){
-              Reactions.openPicker(bubbleEl);
-            }
-          }
-          
-          function clearLongPress(){
-            if(longPressTimer){
-              clearTimeout(longPressTimer);
-              longPressTimer = null;
-            }
-          }
-          
-          // Touch events for mobile
-          imgEl.addEventListener('touchstart', function(e){
-            longPressTriggered = false;
-            touchHandled = false;
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            
-            longPressTimer = setTimeout(function(){
-              longPressTriggered = true;
-              touchHandled = true;
-              // Haptic feedback if available
-              if(navigator.vibrate){
-                navigator.vibrate(50);
-              }
-              openActionsModal();
-            }, LONG_PRESS_DURATION);
-          }, { passive: true });
-          
-          imgEl.addEventListener('touchmove', function(e){
-            // Cancel long press if finger moves too much
-            var dx = Math.abs(e.touches[0].clientX - touchStartX);
-            var dy = Math.abs(e.touches[0].clientY - touchStartY);
-            if(dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD){
-              clearLongPress();
-            }
-          }, { passive: true });
-          
-          imgEl.addEventListener('touchend', function(e){
-            clearLongPress();
-            
-            // If long press wasn't triggered, treat as tap = open lightbox
-            if(!longPressTriggered){
-              touchHandled = true;
-              e.preventDefault();
-              e.stopPropagation();
-              openLightbox();
-            }
-            longPressTriggered = false;
-          });
-          
-          imgEl.addEventListener('touchcancel', function(){
-            clearLongPress();
-            longPressTriggered = false;
-            touchHandled = false;
-          });
-          
-          // Mouse events for desktop (and synthetic click after touch)
-          imgEl.addEventListener('click', function(e){
-            e.stopPropagation();
-            e.preventDefault();
-            
-            // Skip if this click follows a touch we already handled
-            if(touchHandled){
-              touchHandled = false;
-              return;
-            }
-            
-            // On desktop, single click opens lightbox
-            openLightbox();
-          });
-          
-          // Right-click on desktop opens actions modal
-          imgEl.addEventListener('contextmenu', function(e){
-            e.preventDefault();
-            e.stopPropagation();
-            openActionsModal();
-          });
-          
-        })(img, originalUrl, bubble);
-        
-        imageContainer.appendChild(img);
-        bubble.appendChild(imageContainer);
-        
-        if(msg.message && msg.message !== '[Image]'){
-          var caption = document.createElement('div');
-          caption.className = 'image-caption';
-          caption.textContent = msg.message;
-          bubble.appendChild(caption);
-        }
-      }
-      else if(msg.messageType === 'gif' && msg.gifUrl){
-        bubble.classList.add('gif-message');
-        
-        var gifContainer = document.createElement('div');
-        gifContainer.className = 'gif-container';
-        
-        var maxWidth = 300;
-        var displayWidth = msg.gifWidth || maxWidth;
-        var displayHeight = msg.gifHeight || 200;
-        
-        if(displayWidth > maxWidth){
-          var ratio = maxWidth / displayWidth;
-          displayWidth = maxWidth;
-          displayHeight = Math.round(displayHeight * ratio);
-        }
-        
-        var img = document.createElement('img');
-        img.src = msg.gifPreview || msg.gifUrl;
-        img.alt = msg.message || 'GIF';
-        img.className = 'gif-image';
-        img.style.width = displayWidth + 'px';
-        img.style.height = displayHeight + 'px';
-        img.loading = 'lazy';
-        
-        // Store the full URL for lightbox
-        var gifFullUrl = msg.gifUrl;
-        
-        // ============================================================
-        // GIF TAP BEHAVIOR (same as images):
-        // - Single tap = Open fullscreen lightbox
-        // - Long press = Open actions modal
-        // ============================================================
-        
-        (function(imgEl, fullUrl, bubbleEl){
-          var longPressTimer = null;
-          var longPressTriggered = false;
-          var touchHandled = false; // Track if touch already handled this interaction
+          var touchHandled = false;
           var touchStartX = 0;
           var touchStartY = 0;
           var LONG_PRESS_DURATION = 500;
@@ -504,13 +388,134 @@ var Messages = {
           imgEl.addEventListener('click', function(e){
             e.stopPropagation();
             e.preventDefault();
-            
-            // Skip if this click follows a touch we already handled
             if(touchHandled){
               touchHandled = false;
               return;
             }
+            openLightbox();
+          });
+          
+          imgEl.addEventListener('contextmenu', function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            openActionsModal();
+          });
+          
+        })(img, originalUrl, bubble);
+        
+        imageContainer.appendChild(img);
+        bubble.appendChild(imageContainer);
+        
+        if(msg.message && msg.message !== '[Image]'){
+          var caption = document.createElement('div');
+          caption.className = 'image-caption';
+          caption.textContent = msg.message;
+          bubble.appendChild(caption);
+        }
+      }
+      else if(msg.messageType === 'gif' && msg.gifUrl){
+        bubble.classList.add('gif-message');
+        
+        var gifContainer = document.createElement('div');
+        gifContainer.className = 'gif-container';
+        
+        var maxWidth = 300;
+        var displayWidth = msg.gifWidth || maxWidth;
+        var displayHeight = msg.gifHeight || 200;
+        
+        if(displayWidth > maxWidth){
+          var ratio = maxWidth / displayWidth;
+          displayWidth = maxWidth;
+          displayHeight = Math.round(displayHeight * ratio);
+        }
+        
+        var img = document.createElement('img');
+        img.src = msg.gifPreview || msg.gifUrl;
+        img.alt = msg.message || 'GIF';
+        img.className = 'gif-image';
+        img.style.width = displayWidth + 'px';
+        img.style.height = displayHeight + 'px';
+        img.loading = 'lazy';
+        
+        var gifFullUrl = msg.gifUrl;
+        
+        (function(imgEl, fullUrl, bubbleEl){
+          var longPressTimer = null;
+          var longPressTriggered = false;
+          var touchHandled = false;
+          var touchStartX = 0;
+          var touchStartY = 0;
+          var LONG_PRESS_DURATION = 500;
+          var MOVE_THRESHOLD = 10;
+          
+          function openLightbox(){
+            if(fullUrl && UI.openLightbox){
+              UI.openLightbox(fullUrl + '?t=' + Date.now());
+            }
+          }
+          
+          function openActionsModal(){
+            var group = bubbleEl.closest('.message-group');
+            if(group && Reactions && Reactions.openPicker){
+              Reactions.openPicker(bubbleEl);
+            }
+          }
+          
+          function clearLongPress(){
+            if(longPressTimer){
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+          }
+          
+          imgEl.addEventListener('touchstart', function(e){
+            longPressTriggered = false;
+            touchHandled = false;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
             
+            longPressTimer = setTimeout(function(){
+              longPressTriggered = true;
+              touchHandled = true;
+              if(navigator.vibrate){
+                navigator.vibrate(50);
+              }
+              openActionsModal();
+            }, LONG_PRESS_DURATION);
+          }, { passive: true });
+          
+          imgEl.addEventListener('touchmove', function(e){
+            var dx = Math.abs(e.touches[0].clientX - touchStartX);
+            var dy = Math.abs(e.touches[0].clientY - touchStartY);
+            if(dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD){
+              clearLongPress();
+            }
+          }, { passive: true });
+          
+          imgEl.addEventListener('touchend', function(e){
+            clearLongPress();
+            if(!longPressTriggered){
+              touchHandled = true;
+              e.preventDefault();
+              e.stopPropagation();
+              openLightbox();
+            }
+            longPressTriggered = false;
+          });
+          
+          imgEl.addEventListener('touchcancel', function(){
+            clearLongPress();
+            longPressTriggered = false;
+            touchHandled = false;
+          });
+          
+          imgEl.addEventListener('click', function(e){
+            e.stopPropagation();
+            e.preventDefault();
+            if(touchHandled){
+              touchHandled = false;
+              return;
+            }
             openLightbox();
           });
           
@@ -532,7 +537,30 @@ var Messages = {
           bubble.appendChild(caption);
         }
       } else {
-        bubble.textContent = msg.message;
+        // TEXT MESSAGE - Check for rich links
+        var hasRichLink = this.hasRichLinks(msg.message);
+        var isOnlyLink = this.isOnlyRichLink(msg.message);
+        
+        if(isOnlyLink){
+          // Message is only a link - show just the preview
+          bubble.classList.add('link-only');
+        }
+        
+        // Add text content (will be hidden by CSS if link-only)
+        if(!isOnlyLink && msg.message){
+          var textSpan = document.createElement('span');
+          textSpan.className = 'message-text';
+          textSpan.textContent = msg.message;
+          bubble.appendChild(textSpan);
+        }
+        
+        // Render rich link previews
+        if(hasRichLink && typeof RichLinks !== 'undefined'){
+          RichLinks.renderInMessage(bubble, msg.message);
+        } else if(!hasRichLink) {
+          // No rich links, just show the text directly
+          bubble.textContent = msg.message;
+        }
       }
       
       var reactionsContainer = document.createElement('div');
@@ -604,13 +632,14 @@ var Messages = {
       if(e.target.closest('.msg-reactions')) return;
       if(e.target.closest('.reply-bubble')) return;
       
-      // Images and GIFs have their own click handlers that open lightbox
-      // Check if click was on the image/gif OR within the image/gif container
+      // Skip if clicking on rich link preview (it has its own handler)
+      if(e.target.closest('.rich-link-preview')) return;
+      
       if(e.target.classList.contains('image-thumbnail') || e.target.classList.contains('gif-image')){
-        return; // Let the image's own handler deal with it
+        return;
       }
       if(e.target.closest('.image-container') || e.target.closest('.gif-container')){
-        return; // Click was in image area - don't open modal
+        return;
       }
       
       var group = msgEl.closest('.message-group');

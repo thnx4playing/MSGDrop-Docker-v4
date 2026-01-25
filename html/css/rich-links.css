@@ -1,0 +1,318 @@
+/* ============================================================================
+   RICH-LINKS.CSS - Styles for YouTube, TikTok, Instagram embeds
+   ============================================================================ */
+
+/* ================== RICH LINK PREVIEW IN CHAT ================== */
+.rich-links-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.rich-link-preview {
+  width: 100%;
+  max-width: 280px;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.rich-link-preview:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.rich-link-preview:active {
+  transform: scale(0.98);
+}
+
+.rich-link-inner {
+  position: relative;
+  width: 100%;
+}
+
+/* Thumbnail area */
+.rich-link-thumb {
+  width: 100%;
+  height: 158px; /* 16:9 aspect ratio for 280px width */
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Placeholder backgrounds for platforms without thumbnails */
+.rich-link-placeholder {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--panel) 100%);
+}
+
+.rich-link-placeholder[data-platform="tiktok"] {
+  background: linear-gradient(135deg, #010101 0%, #25F4EE 50%, #FE2C55 100%);
+}
+
+.rich-link-placeholder[data-platform="instagram"] {
+  background: linear-gradient(135deg, #405DE6 0%, #5851DB 20%, #833AB4 40%, #C13584 60%, #E1306C 80%, #FD1D1D 100%);
+}
+
+.rich-link-placeholder[data-platform="youtube"] {
+  background: linear-gradient(135deg, #FF0000 0%, #CC0000 100%);
+}
+
+/* Play button overlay */
+.rich-link-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  backdrop-filter: blur(4px);
+}
+
+.rich-link-preview:hover .rich-link-play {
+  background: rgba(0, 0, 0, 0.85);
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.rich-link-play svg {
+  margin-left: 4px; /* Optical centering for play icon */
+}
+
+/* Platform badge */
+.rich-link-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.rich-link-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.rich-link-name {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Platform-specific colors */
+.rich-link-youtube .rich-link-badge {
+  background: rgba(255, 0, 0, 0.9);
+}
+
+.rich-link-tiktok .rich-link-badge {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+.rich-link-instagram .rich-link-badge {
+  background: linear-gradient(135deg, #E4405F 0%, #C13584 100%);
+}
+
+/* ================== RICH LINK MODAL ================== */
+.rich-link-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--overlay);
+  z-index: 10000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden !important;
+}
+
+.rich-link-modal.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.rich-link-container {
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(0.9);
+  transition: transform 0.3s;
+  position: relative;
+}
+
+.rich-link-modal.show .rich-link-container {
+  transform: scale(1);
+}
+
+.rich-link-header {
+  padding: 16px 56px 12px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.rich-link-platform {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rich-link-body {
+  position: relative;
+  background: #000;
+  width: 100%;
+  /* 9:16 aspect ratio for vertical videos (TikTok/Reels) with max height */
+  aspect-ratio: 9 / 16;
+  max-height: 70vh;
+  max-height: 70dvh;
+}
+
+/* For YouTube (horizontal), override aspect ratio */
+.rich-link-modal[data-platform="youtube"] .rich-link-body {
+  aspect-ratio: 16 / 9;
+}
+
+.rich-link-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: none;
+}
+
+.rich-link-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ================== MOBILE OPTIMIZATIONS ================== */
+@media (max-width: 640px) {
+  .rich-link-preview {
+    max-width: 240px;
+  }
+  
+  .rich-link-thumb {
+    height: 135px;
+  }
+  
+  .rich-link-play {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .rich-link-play svg {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .rich-link-container {
+    max-width: 95vw;
+    border-radius: 20px;
+  }
+  
+  .rich-link-body {
+    max-height: 65vh;
+    max-height: 65dvh;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 380px) {
+  .rich-link-preview {
+    max-width: 200px;
+  }
+  
+  .rich-link-thumb {
+    height: 112px;
+  }
+  
+  .rich-link-badge {
+    padding: 4px 8px;
+  }
+  
+  .rich-link-name {
+    font-size: 10px;
+  }
+}
+
+/* ================== DARK MODE ADJUSTMENTS ================== */
+[data-theme="dark"] .rich-link-preview {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .rich-link-preview:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .rich-link-play {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] .rich-link-preview:hover .rich-link-play {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ================== MESSAGE BUBBLE ADJUSTMENTS ================== */
+/* When a message contains only a link, hide the text and show just the preview */
+.chat-bubble.link-only {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.chat-bubble.link-only .message-text {
+  display: none;
+}
+
+/* Ensure rich links don't overflow the bubble */
+.message-group .rich-links-container {
+  max-width: 100%;
+}
+
+.message-group.left .rich-link-preview {
+  margin-left: 0;
+}
+
+.message-group.right .rich-link-preview {
+  margin-right: 0;
+}
