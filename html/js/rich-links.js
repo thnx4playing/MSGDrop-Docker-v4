@@ -383,51 +383,34 @@ var RichLinks = {
 
     // TikTok: Use custom player only (no iframe fallback)
     if (platformKey === 'tiktok') {
-      var videoData = await this.fetchTikTokVideo(originalUrl);
-      
-      if (videoData && videoData.videoUrl) {
-        // Use custom video player with proxied URL to bypass CORS
-        if (video) {
-          // Proxy the video through our server to avoid CORS issues
-          var proxyUrl = '/api/tiktok-video/proxy?url=' + encodeURIComponent(videoData.videoUrl);
-          video.src = proxyUrl;
-          video.poster = videoData.thumbnail || '';
-          video.load();
-          
-          video.onloadeddata = function() {
-            if (loading) loading.style.display = 'none';
-            video.style.display = 'block';
-            video.play().catch(function(e) {
-              console.warn('Autoplay blocked:', e);
-            });
-          };
-          
-          video.onerror = function() {
-            console.error('Video playback error');
-            video.style.display = 'none';
-            if (loading) loading.style.display = 'none';
-            if (errorDiv) {
-              errorDiv.style.display = 'flex';
-              var errorText = errorDiv.querySelector('.rich-link-error-text');
-              if (errorText) errorText.textContent = 'Video playback failed';
-              if (externalLink) externalLink.style.display = 'inline-block';
-            }
-          };
-        }
+      // Use proxy endpoint that downloads via yt-dlp
+      if (video) {
+        var proxyUrl = '/api/tiktok-video/proxy?url=' + encodeURIComponent(originalUrl);
+        video.src = proxyUrl;
+        video.load();
         
-        this.currentEmbed = { platform: platformKey, videoId: videoId, originalUrl: originalUrl, useCustomPlayer: true };
-        return;
+        video.onloadeddata = function() {
+          if (loading) loading.style.display = 'none';
+          video.style.display = 'block';
+          video.play().catch(function(e) {
+            console.warn('Autoplay blocked:', e);
+          });
+        };
+        
+        video.onerror = function() {
+          console.error('Video playback error');
+          video.style.display = 'none';
+          if (loading) loading.style.display = 'none';
+          if (errorDiv) {
+            errorDiv.style.display = 'flex';
+            var errorText = errorDiv.querySelector('.rich-link-error-text');
+            if (errorText) errorText.textContent = 'Video playback failed';
+            if (externalLink) externalLink.style.display = 'inline-block';
+          }
+        };
       }
       
-      // Custom player failed - show error (no iframe fallback)
-      console.error('TikTok video extraction failed - is yt-dlp endpoint configured?');
-      if (loading) loading.style.display = 'none';
-      if (errorDiv) {
-        errorDiv.style.display = 'flex';
-        var errorText = errorDiv.querySelector('.rich-link-error-text');
-        if (errorText) errorText.textContent = 'Could not load video. Check server logs.';
-        if (externalLink) externalLink.style.display = 'inline-block';
-      }
+      this.currentEmbed = { platform: platformKey, videoId: videoId, originalUrl: originalUrl, useCustomPlayer: true };
       return;
     }
 

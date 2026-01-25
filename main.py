@@ -1,6 +1,7 @@
 import os, json, hmac, hashlib, time, secrets, mimetypes, logging, re
 import subprocess
 import asyncio
+import tempfile
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
@@ -964,53 +965,81 @@ async def get_tiktok_video(url: str, req: Request):
 @app.get("/api/tiktok-video/proxy")
 async def proxy_tiktok_video(url: str, req: Request):
     """
-    Proxy a TikTok video to bypass CORS restrictions.
-    Streams the video through our server.
+    Download and serve a TikTok video using yt-dlp.
+    Downloads to temp file then streams to client.
     """
     require_session(req)
     
     if not url:
         raise HTTPException(400, "url parameter required")
     
-    # Basic validation - should be a TikTok CDN URL
-    allowed_domains = ['tiktokcdn.com', 'tiktok.com', 'musical.ly', 'byteoversea.com', 'ibytedtos.com']
-    parsed = urlparse(url)
+    if 'tiktok.com' not in url.lower():
+        raise HTTPException(400, "Not a TikTok URL")
     
-    if not any(domain in parsed.netloc for domain in allowed_domains):
-        logger.warning(f"[TikTok Proxy] Blocked non-TikTok URL: {parsed.netloc}")
-        raise HTTPException(400, "Invalid video URL")
+    if not url.startswith('http'):
+        url = 'https://' + url
+    
+    # Create a temp file for the video
+    temp_dir = tempfile.gettempdir()
+    temp_filename = f"tiktok_{hash(url) % 1000000}.mp4"
+    temp_path = os.path.join(temp_dir, temp_filename)
     
     try:
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            # Make request to TikTok CDN
-            response = await client.get(url, headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://www.tiktok.com/',
-            })
-            
-            if response.status_code != 200:
-                logger.error(f"[TikTok Proxy] CDN returned {response.status_code}")
-                raise HTTPException(502, "Failed to fetch video")
-            
-            # Get content type
-            content_type = response.headers.get('content-type', 'video/mp4')
-            
-            # Stream the response
-            async def generate():
-                yield response.content
-            
-            return StreamingResponse(
-                generate(),
-                media_type=content_type,
-                headers={
-                    'Accept-Ranges': 'bytes',
-                    'Cache-Control': 'public, max-age=3600',
-                }
-            )
-            
-    except httpx.TimeoutException:
-        logger.error(f"[TikTok Proxy] Timeout fetching video")
-        raise HTTPException(504, "Request timeout")
+        # Check if we already have this video cached
+        if os.path.exists(temp_path):
+            # Check if file is recent (less than 30 min old)
+            file_age = datetime.now().timestamp() - os.path.getmtime(temp_path)
+            if file_age < 1800:  # 30 minutes
+                logger.info(f"[TikTok Proxy] Serving cached video: {temp_filename}")
+                return FileResponse(
+                    temp_path,
+                    media_type="video/mp4",
+                    headers={
+                        'Accept-Ranges': 'bytes',
+                        'Cache-Control': 'public, max-age=1800',
+                    }
+                )
+        
+        # Download the video using yt-dlp
+        logger.info(f"[TikTok Proxy] Downloading video: {url}")
+        result = await asyncio.to_thread(
+            subprocess.run,
+            [
+                'yt-dlp',
+                '-f', 'best[ext=mp4]/best',
+                '-o', temp_path,
+                '--no-playlist',
+                '--no-warnings',
+                '--quiet',
+                '--force-overwrites',
+                url
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"[TikTok Proxy] yt-dlp download error: {result.stderr}")
+            raise HTTPException(502, "Failed to download video")
+        
+        if not os.path.exists(temp_path):
+            logger.error(f"[TikTok Proxy] Video file not created")
+            raise HTTPException(502, "Video download failed")
+        
+        logger.info(f"[TikTok Proxy] Serving downloaded video: {temp_filename}")
+        return FileResponse(
+            temp_path,
+            media_type="video/mp4",
+            headers={
+                'Accept-Ranges': 'bytes',
+                'Cache-Control': 'public, max-age=1800',
+            }
+        )
+        
+    except subprocess.TimeoutExpired:
+        logger.error(f"[TikTok Proxy] Timeout downloading video")
+        raise HTTPException(504, "Download timeout")
     except HTTPException:
         raise
     except Exception as e:
