@@ -386,9 +386,11 @@ var RichLinks = {
       var videoData = await this.fetchTikTokVideo(originalUrl);
       
       if (videoData && videoData.videoUrl) {
-        // Use custom video player
+        // Use custom video player with proxied URL to bypass CORS
         if (video) {
-          video.src = videoData.videoUrl;
+          // Proxy the video through our server to avoid CORS issues
+          var proxyUrl = '/api/tiktok-video/proxy?url=' + encodeURIComponent(videoData.videoUrl);
+          video.src = proxyUrl;
           video.poster = videoData.thumbnail || '';
           video.load();
           

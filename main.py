@@ -3,6 +3,7 @@ import subprocess
 import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request, HTTPException, Response
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -958,6 +959,62 @@ async def get_tiktok_video(url: str, req: Request):
         raise
     except Exception as e:
         logger.error(f"[TikTok] Unexpected error: {e}")
+        raise HTTPException(500, "Internal error")
+
+@app.get("/api/tiktok-video/proxy")
+async def proxy_tiktok_video(url: str, req: Request):
+    """
+    Proxy a TikTok video to bypass CORS restrictions.
+    Streams the video through our server.
+    """
+    require_session(req)
+    
+    if not url:
+        raise HTTPException(400, "url parameter required")
+    
+    # Basic validation - should be a TikTok CDN URL
+    allowed_domains = ['tiktokcdn.com', 'tiktok.com', 'musical.ly', 'byteoversea.com', 'ibytedtos.com']
+    parsed = urlparse(url)
+    
+    if not any(domain in parsed.netloc for domain in allowed_domains):
+        logger.warning(f"[TikTok Proxy] Blocked non-TikTok URL: {parsed.netloc}")
+        raise HTTPException(400, "Invalid video URL")
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            # Make request to TikTok CDN
+            response = await client.get(url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.tiktok.com/',
+            })
+            
+            if response.status_code != 200:
+                logger.error(f"[TikTok Proxy] CDN returned {response.status_code}")
+                raise HTTPException(502, "Failed to fetch video")
+            
+            # Get content type
+            content_type = response.headers.get('content-type', 'video/mp4')
+            
+            # Stream the response
+            async def generate():
+                yield response.content
+            
+            return StreamingResponse(
+                generate(),
+                media_type=content_type,
+                headers={
+                    'Accept-Ranges': 'bytes',
+                    'Cache-Control': 'public, max-age=3600',
+                }
+            )
+            
+    except httpx.TimeoutException:
+        logger.error(f"[TikTok Proxy] Timeout fetching video")
+        raise HTTPException(504, "Request timeout")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[TikTok Proxy] Error: {e}")
         raise HTTPException(500, "Internal error")
 
 @app.get("/api/resolve-tiktok")
