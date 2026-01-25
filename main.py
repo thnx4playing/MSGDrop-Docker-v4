@@ -1,4 +1,7 @@
 import os, json, hmac, hashlib, time, secrets, mimetypes, logging, re
+import subprocess
+import asyncio
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request, HTTPException, Response
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
@@ -48,6 +51,15 @@ CAMERA_STREAM_URL = "https://cam.efive.org/api/reolink_e1_zoom"
 
 # TikTok URL resolution pattern
 TIKTOK_VIDEO_ID_PATTERN = re.compile(r'/video/(\d+)')
+_tiktok_cache = {}
+_CACHE_TTL = timedelta(minutes=30)
+
+def _clean_tiktok_cache():
+    """Remove expired entries from TikTok cache."""
+    now = datetime.now()
+    expired = [k for k, v in _tiktok_cache.items() if now - v['timestamp'] > _CACHE_TTL]
+    for k in expired:
+        del _tiktok_cache[k]
 
 # Secret to sign sessions; derive from env or generate stable file-based secret
 SESSION_SIGN_KEY = os.environ.get("SESSION_SIGN_KEY")
@@ -854,12 +866,10 @@ async def camera_stream(request: Request):
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
-# --- TikTok URL Resolver ---
-@app.get("/api/resolve-tiktok")
-async def resolve_tiktok(url: str, req: Request):
-    """
-    Resolve a TikTok short URL to get the numeric video ID.
-    """
+# --- TikTok Video Extraction ---
+@app.get("/api/tiktok-video")
+async def get_tiktok_video(url: str, req: Request):
+    """Extract direct video URL from TikTok using yt-dlp."""
     require_session(req)
     
     if not url:
@@ -871,39 +881,78 @@ async def resolve_tiktok(url: str, req: Request):
     if not url.startswith('http'):
         url = 'https://' + url
     
+    _clean_tiktok_cache()
+    if url in _tiktok_cache:
+        return _tiktok_cache[url]['data']
+    
     try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
-            response = await client.head(url)
-            final_url = str(response.url)
-            
-            logger.info(f"[TikTok] Resolved {url} -> {final_url}")
-            
-            match = TIKTOK_VIDEO_ID_PATTERN.search(final_url)
-            if match:
-                video_id = match.group(1)
-                return {"videoId": video_id, "resolvedUrl": final_url}
-            else:
-                response = await client.get(url)
-                final_url = str(response.url)
-                
-                match = TIKTOK_VIDEO_ID_PATTERN.search(final_url)
-                if match:
-                    video_id = match.group(1)
-                    return {"videoId": video_id, "resolvedUrl": final_url}
-                
-                logger.warning(f"[TikTok] Could not extract video ID from: {final_url}")
-                raise HTTPException(404, "Could not extract video ID")
-                
-    except httpx.TimeoutException:
-        logger.error(f"[TikTok] Timeout resolving: {url}")
+        result = await asyncio.to_thread(
+            subprocess.run,
+            ['yt-dlp', '--dump-json', '--no-download', '--no-playlist', '--no-warnings', '--quiet', url],
+            capture_output=True, text=True, timeout=15
+        )
+        
+        if result.returncode != 0:
+            raise HTTPException(502, "Failed to extract video info")
+        
+        video_info = json.loads(result.stdout)
+        video_url = video_info.get('url')
+        if not video_url:
+            for fmt in reversed(video_info.get('formats', [])):
+                if fmt.get('ext') == 'mp4' and fmt.get('url'):
+                    video_url = fmt['url']
+                    break
+        
+        if not video_url:
+            raise HTTPException(404, "Could not extract video URL")
+        
+        response_data = {
+            "videoUrl": video_url,
+            "title": video_info.get('title', ''),
+            "author": video_info.get('uploader', ''),
+            "thumbnail": video_info.get('thumbnail', ''),
+            "duration": video_info.get('duration', 0),
+        }
+        
+        _tiktok_cache[url] = {'data': response_data, 'timestamp': datetime.now()}
+        return response_data
+        
+    except subprocess.TimeoutExpired:
         raise HTTPException(504, "Request timeout")
-    except httpx.RequestError as e:
-        logger.error(f"[TikTok] Request error: {e}")
-        raise HTTPException(502, "Failed to resolve URL")
+    except json.JSONDecodeError:
+        raise HTTPException(502, "Failed to parse video info")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[TikTok] Unexpected error: {e}")
+        logger.error(f"[TikTok] Error: {e}")
+        raise HTTPException(500, "Internal error")
+
+@app.get("/api/resolve-tiktok")
+async def resolve_tiktok(url: str, req: Request):
+    """Fallback: Resolve TikTok short URL to video ID for iframe embed."""
+    require_session(req)
+    
+    if not url or 'tiktok.com' not in url.lower():
+        raise HTTPException(400, "Invalid TikTok URL")
+    
+    if not url.startswith('http'):
+        url = 'https://' + url
+    
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            response = await client.get(url)
+            final_url = str(response.url)
+            
+            match = TIKTOK_VIDEO_ID_PATTERN.search(final_url)
+            if match:
+                return {"videoId": match.group(1), "resolvedUrl": final_url}
+            
+            raise HTTPException(404, "Could not extract video ID")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Request timeout")
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(500, "Internal error")
 
 # --- WebSocket Hub with presence ---

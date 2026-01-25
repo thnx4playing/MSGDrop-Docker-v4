@@ -143,7 +143,7 @@
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0, 0, 0, 0.85);
   z-index: 10000;
   opacity: 0;
   visibility: hidden;
@@ -151,7 +151,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding: 24px;
   overflow: hidden !important;
 }
 
@@ -162,21 +162,20 @@
 
 .rich-link-container {
   background: #000;
-  border-radius: 16px;
-  box-shadow: 0 0 60px rgba(0, 0, 0, 0.8);
+  border-radius: 20px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
   width: 100%;
-  max-width: 400px;
-  /* Taller modal - maximizes content */
-  height: 92vh;
-  height: 92dvh;
-  max-height: 920px;
+  max-width: 380px;
+  /* Smaller modal - clearly visible as overlay */
+  height: 75vh;
+  height: 75dvh;
+  max-height: 700px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transform: scale(0.95);
   transition: transform 0.3s;
   position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .rich-link-modal.show .rich-link-container {
@@ -253,6 +252,27 @@
   z-index: 1;
 }
 
+/* Custom video player for TikTok */
+.rich-link-video {
+  width: 100%;
+  height: 100%;
+  display: none;
+  background: #000;
+  object-fit: contain;
+  border-radius: 20px;
+}
+
+/* Dark-themed video controls */
+.rich-link-video::-webkit-media-controls-panel {
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+}
+
+.rich-link-video::-webkit-media-controls-play-button,
+.rich-link-video::-webkit-media-controls-mute-button,
+.rich-link-video::-webkit-media-controls-fullscreen-button {
+  filter: brightness(1.2);
+}
+
 .rich-link-loading {
   position: absolute;
   top: 50%;
@@ -265,38 +285,20 @@
 
 /* YouTube gets wider container for horizontal video */
 .rich-link-modal[data-platform="youtube"] .rich-link-container {
-  max-width: 900px;
+  max-width: 720px;
   height: auto;
-  max-height: 90vh;
-  max-height: 90dvh;
+  max-height: 75vh;
+  max-height: 75dvh;
   aspect-ratio: 16 / 9;
 }
 
 /* TikTok/Instagram stay tall and narrow like the apps */
 .rich-link-modal[data-platform="tiktok"] .rich-link-container,
 .rich-link-modal[data-platform="instagram"] .rich-link-container {
-  max-width: 400px;
-  aspect-ratio: 9 / 16;
-}
-
-/* Try to mask white edges on TikTok embeds with inset shadow */
-.rich-link-modal[data-platform="tiktok"] .rich-link-body::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: 2;
-  box-shadow: inset 0 0 0 1px #000;
-  border-radius: inherit;
-}
-
-/* Scale TikTok iframe slightly to crop white borders */
-.rich-link-modal[data-platform="tiktok"] .rich-link-frame {
-  transform: scale(1.02);
-  transform-origin: center center;
+  max-width: 380px;
+  height: 75vh;
+  height: 75dvh;
+  max-height: 700px;
 }
 
 /* ================== ERROR STATE ================== */
@@ -390,30 +392,31 @@
     height: 40px;
   }
   
-  /* Modal takes almost full screen on mobile - more app-like */
+  /* Modal stays visible as overlay on mobile too */
   .rich-link-modal {
-    padding: 4px;
+    padding: 16px;
   }
   
   .rich-link-container {
-    border-radius: 12px;
-    height: 96vh;
-    height: 96dvh;
+    border-radius: 16px;
+    height: 70vh;
+    height: 70dvh;
+    max-height: 600px;
   }
   
   .rich-link-modal[data-platform="youtube"] .rich-link-container {
     height: auto;
-    max-height: 96vh;
-    max-height: 96dvh;
+    max-height: 70vh;
+    max-height: 70dvh;
   }
   
   .rich-link-modal[data-platform="tiktok"] .rich-link-container,
   .rich-link-modal[data-platform="instagram"] .rich-link-container {
-    max-width: 100%;
-    width: 100%;
-    height: 96vh;
-    height: 96dvh;
-    border-radius: 0;
+    max-width: 340px;
+    width: 90%;
+    height: 70vh;
+    height: 70dvh;
+    border-radius: 16px;
   }
   
   /* Larger close button on mobile for easier tapping */

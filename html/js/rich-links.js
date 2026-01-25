@@ -6,8 +6,14 @@
 // ============================================================================
 
 var RichLinks = {
-  // Cache for resolved TikTok URLs
+  // Cache for resolved TikTok URLs (video IDs for iframe)
   tiktokCache: {},
+  
+  // Cache for TikTok direct video URLs (for custom player)
+  tiktokVideoCache: {},
+  
+  // Whether to use custom player for TikTok (requires yt-dlp backend)
+  useCustomTikTokPlayer: true,
 
   // Platform configurations
   platforms: {
@@ -97,6 +103,7 @@ var RichLinks = {
             '<a id="richLinkOpenExternal" class="rich-link-external-btn" href="#" target="_blank" rel="noopener">Open in App</a>' +
           '</div>' +
           '<iframe id="richLinkFrame" class="rich-link-frame" allowfullscreen allow="autoplay; encrypted-media; fullscreen"></iframe>' +
+          '<video id="richLinkVideo" class="rich-link-video" playsinline controls></video>' +
         '</div>' +
       '</div>';
 
@@ -254,6 +261,35 @@ var RichLinks = {
     return null;
   },
 
+  // Fetch TikTok direct video URL via yt-dlp backend (for custom player)
+  fetchTikTokVideo: async function(originalUrl) {
+    // Check cache first
+    if (this.tiktokVideoCache[originalUrl]) {
+      return this.tiktokVideoCache[originalUrl];
+    }
+
+    try {
+      var response = await fetch('/api/tiktok-video?url=' + encodeURIComponent(originalUrl), {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        console.warn('TikTok video fetch failed:', response.status);
+        return null;
+      }
+
+      var data = await response.json();
+      if (data.videoUrl) {
+        this.tiktokVideoCache[originalUrl] = data;
+        return data;
+      }
+    } catch (e) {
+      console.error('TikTok video fetch error:', e);
+    }
+    
+    return null;
+  },
+
   // Create a preview element for a link
   createPreview: function(linkData) {
     var self = this;
@@ -316,17 +352,25 @@ var RichLinks = {
 
     var modal = document.getElementById('richLinkModal');
     var frame = document.getElementById('richLinkFrame');
+    var video = document.getElementById('richLinkVideo');
     var loading = document.getElementById('richLinkLoading');
     var errorDiv = document.getElementById('richLinkError');
     var externalLink = document.getElementById('richLinkOpenExternal');
 
-    if (!modal || !frame) return;
+    if (!modal) return;
 
     // Reset state
     if (loading) loading.style.display = 'flex';
     if (errorDiv) errorDiv.style.display = 'none';
-    frame.style.display = 'none';
-    frame.src = '';
+    if (frame) {
+      frame.style.display = 'none';
+      frame.src = '';
+    }
+    if (video) {
+      video.style.display = 'none';
+      video.src = '';
+      video.pause();
+    }
 
     // Set external link
     if (externalLink && originalUrl) {
@@ -340,7 +384,42 @@ var RichLinks = {
     modal.setAttribute('data-platform', platformKey);
     document.body.classList.add('no-scroll');
 
-    // Resolve TikTok short URLs if needed
+    // TikTok: Try custom player first, fallback to iframe
+    if (platformKey === 'tiktok' && this.useCustomTikTokPlayer) {
+      var videoData = await this.fetchTikTokVideo(originalUrl);
+      
+      if (videoData && videoData.videoUrl) {
+        // Use custom video player
+        if (video) {
+          video.src = videoData.videoUrl;
+          video.poster = videoData.thumbnail || '';
+          video.load();
+          
+          video.onloadeddata = function() {
+            if (loading) loading.style.display = 'none';
+            video.style.display = 'block';
+            video.play().catch(function(e) {
+              console.warn('Autoplay blocked:', e);
+            });
+          };
+          
+          video.onerror = function() {
+            console.warn('Video playback error, falling back to iframe');
+            video.style.display = 'none';
+            // Fallback to iframe
+            self.playTikTokIframe(frame, loading, errorDiv, externalLink, videoId, needsResolution, originalUrl);
+          };
+        }
+        
+        this.currentEmbed = { platform: platformKey, videoId: videoId, originalUrl: originalUrl, useCustomPlayer: true };
+        return;
+      }
+      
+      // Custom player failed, fall back to iframe
+      console.warn('Custom TikTok player unavailable, using iframe');
+    }
+
+    // Resolve TikTok short URLs if needed (for iframe)
     var resolvedVideoId = videoId;
     if (platformKey === 'tiktok' && needsResolution) {
       resolvedVideoId = await this.resolveTikTokUrl(videoId, originalUrl);
@@ -357,14 +436,16 @@ var RichLinks = {
     }
 
     // Set iframe src
-    var embedUrl = platform.getEmbed(resolvedVideoId);
-    frame.src = embedUrl;
+    if (frame) {
+      var embedUrl = platform.getEmbed(resolvedVideoId);
+      frame.src = embedUrl;
 
-    // Handle iframe load
-    frame.onload = function() {
-      if (loading) loading.style.display = 'none';
-      frame.style.display = 'block';
-    };
+      // Handle iframe load
+      frame.onload = function() {
+        if (loading) loading.style.display = 'none';
+        frame.style.display = 'block';
+      };
+    }
 
     // Handle iframe error (timeout fallback)
     setTimeout(function() {
@@ -382,11 +463,37 @@ var RichLinks = {
 
     this.currentEmbed = { platform: platformKey, videoId: resolvedVideoId, originalUrl: originalUrl };
   },
+  
+  // Helper to play TikTok via iframe (fallback)
+  playTikTokIframe: async function(frame, loading, errorDiv, externalLink, videoId, needsResolution, originalUrl) {
+    var resolvedVideoId = videoId;
+    if (needsResolution) {
+      resolvedVideoId = await this.resolveTikTokUrl(videoId, originalUrl);
+      
+      if (!resolvedVideoId) {
+        if (loading) loading.style.display = 'none';
+        if (errorDiv) {
+          errorDiv.style.display = 'flex';
+          if (externalLink) externalLink.style.display = 'inline-block';
+        }
+        return;
+      }
+    }
+    
+    var embedUrl = this.platforms.tiktok.getEmbed(resolvedVideoId);
+    frame.src = embedUrl;
+    
+    frame.onload = function() {
+      if (loading) loading.style.display = 'none';
+      frame.style.display = 'block';
+    };
+  },
 
   // Hide the embed modal
   hideModal: function() {
     var modal = document.getElementById('richLinkModal');
     var frame = document.getElementById('richLinkFrame');
+    var video = document.getElementById('richLinkVideo');
     var errorDiv = document.getElementById('richLinkError');
 
     if (modal) {
@@ -395,6 +502,11 @@ var RichLinks = {
 
     if (frame) {
       frame.src = '';
+    }
+    
+    if (video) {
+      video.pause();
+      video.src = '';
     }
 
     if (errorDiv) {
