@@ -143,7 +143,7 @@
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.75);
   z-index: 10000;
   opacity: 0;
   visibility: hidden;
@@ -151,7 +151,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
   overflow: hidden !important;
 }
 
@@ -161,21 +161,25 @@
 }
 
 .rich-link-container {
-  background: #000;
+  background: #1a1a1a;
   border-radius: 20px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(0, 0, 0, 0.3);
   width: 100%;
   max-width: 380px;
-  /* Taller modal to fit video */
-  height: 85vh;
-  height: 85dvh;
-  max-height: 800px;
+  height: 80vh;
+  height: 80dvh;
+  max-height: 750px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transform: scale(0.95);
   transition: transform 0.3s;
   position: relative;
+  /* Visible border */
+  border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .rich-link-modal.show .rich-link-container {
@@ -190,11 +194,11 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: white;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   font-size: 26px;
   font-weight: 400;
   line-height: 1;
@@ -204,7 +208,7 @@
   justify-content: center;
   z-index: 20;
   transition: all 0.2s;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
 }
 
@@ -227,6 +231,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  border-radius: 0 0 18px 18px;
 }
 
 /* Dark background layer behind iframe */
@@ -259,14 +264,25 @@
   display: none;
   background: #000;
   object-fit: contain;
-  border-radius: 20px;
+  border-radius: 16px;
   position: relative;
   z-index: 2;
+}
+
+/* Hide controls initially */
+.rich-link-video:not([data-controls-visible="true"])::-webkit-media-controls {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.rich-link-video[data-controls-visible="true"]::-webkit-media-controls {
+  opacity: 1;
 }
 
 /* When using custom player, ensure it fills the space */
 .rich-link-modal[data-platform="tiktok"] .rich-link-video {
   object-fit: cover;
+  border-radius: 16px;
 }
 
 /* Dark-themed video controls */
@@ -294,8 +310,8 @@
 .rich-link-modal[data-platform="youtube"] .rich-link-container {
   max-width: 720px;
   height: auto;
-  max-height: 85vh;
-  max-height: 85dvh;
+  max-height: 80vh;
+  max-height: 80dvh;
   aspect-ratio: 16 / 9;
 }
 
@@ -303,9 +319,9 @@
 .rich-link-modal[data-platform="tiktok"] .rich-link-container,
 .rich-link-modal[data-platform="instagram"] .rich-link-container {
   max-width: 380px;
-  height: 85vh;
-  height: 85dvh;
-  max-height: 800px;
+  height: 80vh;
+  height: 80dvh;
+  max-height: 750px;
 }
 
 /* ================== ERROR STATE ================== */
@@ -401,28 +417,28 @@
   
   /* Modal stays visible as overlay on mobile too */
   .rich-link-modal {
-    padding: 12px;
+    padding: 20px;
   }
   
   .rich-link-container {
     border-radius: 16px;
-    height: 82vh;
-    height: 82dvh;
-    max-height: 750px;
+    height: 75vh;
+    height: 75dvh;
+    max-height: 650px;
   }
   
   .rich-link-modal[data-platform="youtube"] .rich-link-container {
     height: auto;
-    max-height: 82vh;
-    max-height: 82dvh;
+    max-height: 75vh;
+    max-height: 75dvh;
   }
   
   .rich-link-modal[data-platform="tiktok"] .rich-link-container,
   .rich-link-modal[data-platform="instagram"] .rich-link-container {
-    max-width: 360px;
-    width: 95%;
-    height: 82vh;
-    height: 82dvh;
+    max-width: 340px;
+    width: 90%;
+    height: 75vh;
+    height: 75dvh;
     border-radius: 16px;
   }
   

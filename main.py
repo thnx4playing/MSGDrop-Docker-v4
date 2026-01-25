@@ -874,8 +874,8 @@ async def camera_stream(request: Request):
 @app.get("/api/tiktok-video")
 async def get_tiktok_video(url: str, req: Request):
     """
-    Extract direct video URL from TikTok using yt-dlp.
-    Returns a video URL that can be played in an HTML5 video element.
+    Extract video metadata from TikTok using yt-dlp.
+    Returns thumbnail, title, author info.
     """
     require_session(req)
     
@@ -890,9 +890,10 @@ async def get_tiktok_video(url: str, req: Request):
     
     # Check cache first
     _clean_tiktok_video_cache()
-    if url in _tiktok_video_cache:
+    cache_key = f"meta:{url}"
+    if cache_key in _tiktok_video_cache:
         logger.info(f"[TikTok] Cache hit for {url}")
-        return _tiktok_video_cache[url]['data']
+        return _tiktok_video_cache[cache_key]['data']
     
     try:
         # Run yt-dlp to extract video info
@@ -919,22 +920,7 @@ async def get_tiktok_video(url: str, req: Request):
         # Parse JSON output
         video_info = json.loads(result.stdout)
         
-        # Get direct video URL
-        video_url = video_info.get('url')
-        if not video_url:
-            # Try to get from formats list
-            formats = video_info.get('formats', [])
-            for fmt in reversed(formats):
-                if fmt.get('ext') == 'mp4' and fmt.get('url'):
-                    video_url = fmt['url']
-                    break
-        
-        if not video_url:
-            logger.error(f"[TikTok] No video URL found in response")
-            raise HTTPException(404, "Could not extract video URL")
-        
         response_data = {
-            "videoUrl": video_url,
             "title": video_info.get('title', ''),
             "author": video_info.get('uploader', video_info.get('creator', '')),
             "thumbnail": video_info.get('thumbnail', ''),
@@ -942,12 +928,12 @@ async def get_tiktok_video(url: str, req: Request):
         }
         
         # Cache the result
-        _tiktok_video_cache[url] = {
+        _tiktok_video_cache[cache_key] = {
             'data': response_data,
             'timestamp': datetime.now()
         }
         
-        logger.info(f"[TikTok] Extracted video: {video_info.get('title', 'Unknown')}")
+        logger.info(f"[TikTok] Extracted metadata: {video_info.get('title', 'Unknown')}")
         return response_data
         
     except subprocess.TimeoutExpired:

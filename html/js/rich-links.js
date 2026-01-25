@@ -315,6 +315,11 @@ var RichLinks = {
     } else {
       thumb.classList.add('rich-link-placeholder');
       thumb.setAttribute('data-platform', linkData.platform);
+      
+      // For TikTok, try to fetch the actual thumbnail
+      if (linkData.platform === 'tiktok') {
+        self.fetchTikTokThumbnail(linkData.originalUrl, thumb);
+      }
     }
 
     var playOverlay = document.createElement('div');
@@ -331,14 +336,75 @@ var RichLinks = {
     inner.appendChild(badge);
     preview.appendChild(inner);
 
-    // Click handler
+    // Long-press detection for message actions (like Giphy)
+    var longPressTimer = null;
+    var isLongPress = false;
+    var LONG_PRESS_DURATION = 500;
+
+    preview.addEventListener('touchstart', function(e) {
+      isLongPress = false;
+      longPressTimer = setTimeout(function() {
+        isLongPress = true;
+        // Trigger message actions modal via bubbling
+        var bubble = preview.closest('.chat-bubble');
+        if (bubble && typeof Messages !== 'undefined' && Messages.showMessageActions) {
+          var msgId = bubble.getAttribute('data-msg-id');
+          if (msgId) {
+            e.preventDefault();
+            e.stopPropagation();
+            Messages.showMessageActions(msgId);
+          }
+        }
+      }, LONG_PRESS_DURATION);
+    }, { passive: false });
+
+    preview.addEventListener('touchend', function(e) {
+      clearTimeout(longPressTimer);
+      if (isLongPress) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+
+    preview.addEventListener('touchmove', function() {
+      clearTimeout(longPressTimer);
+    });
+
+    preview.addEventListener('touchcancel', function() {
+      clearTimeout(longPressTimer);
+    });
+
+    // Click handler (only fires if not long-press)
     preview.addEventListener('click', function(e) {
+      if (isLongPress) {
+        isLongPress = false;
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       self.showModal(linkData.platform, linkData.videoId, linkData.needsResolution, linkData.originalUrl);
     });
 
     return preview;
+  },
+  
+  // Fetch TikTok thumbnail asynchronously
+  fetchTikTokThumbnail: async function(originalUrl, thumbElement) {
+    try {
+      var response = await fetch('/api/tiktok-video?url=' + encodeURIComponent(originalUrl), {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        var data = await response.json();
+        if (data.thumbnail) {
+          thumbElement.style.backgroundImage = 'url(' + data.thumbnail + ')';
+          thumbElement.classList.remove('rich-link-placeholder');
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch TikTok thumbnail:', e);
+    }
   },
 
   // Show the embed modal
@@ -389,11 +455,37 @@ var RichLinks = {
         video.src = proxyUrl;
         video.load();
         
+        // Initially hide controls
+        video.removeAttribute('data-controls-visible');
+        
+        // Show controls on touch/click, hide after 3 seconds
+        var controlsTimeout;
+        var showControls = function() {
+          video.setAttribute('data-controls-visible', 'true');
+          clearTimeout(controlsTimeout);
+          controlsTimeout = setTimeout(function() {
+            if (!video.paused) {
+              video.removeAttribute('data-controls-visible');
+            }
+          }, 3000);
+        };
+        
+        video.addEventListener('click', showControls);
+        video.addEventListener('touchstart', showControls);
+        video.addEventListener('pause', function() {
+          video.setAttribute('data-controls-visible', 'true');
+        });
+        video.addEventListener('play', function() {
+          showControls();
+        });
+        
         video.onloadeddata = function() {
           if (loading) loading.style.display = 'none';
           video.style.display = 'block';
           video.play().catch(function(e) {
             console.warn('Autoplay blocked:', e);
+            // Show controls if autoplay blocked so user can tap to play
+            video.setAttribute('data-controls-visible', 'true');
           });
         };
         
