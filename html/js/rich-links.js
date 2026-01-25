@@ -6,14 +6,11 @@
 // ============================================================================
 
 var RichLinks = {
-  // Cache for resolved TikTok URLs (video IDs for iframe)
+  // Cache for resolved TikTok URLs (video IDs - legacy, not used)
   tiktokCache: {},
   
   // Cache for TikTok direct video URLs (for custom player)
   tiktokVideoCache: {},
-  
-  // Whether to use custom player for TikTok (requires yt-dlp backend)
-  useCustomTikTokPlayer: true,
 
   // Platform configurations
   platforms: {
@@ -384,8 +381,8 @@ var RichLinks = {
     modal.setAttribute('data-platform', platformKey);
     document.body.classList.add('no-scroll');
 
-    // TikTok: Try custom player first, fallback to iframe
-    if (platformKey === 'tiktok' && this.useCustomTikTokPlayer) {
+    // TikTok: Use custom player only (no iframe fallback)
+    if (platformKey === 'tiktok') {
       var videoData = await this.fetchTikTokVideo(originalUrl);
       
       if (videoData && videoData.videoUrl) {
@@ -404,10 +401,15 @@ var RichLinks = {
           };
           
           video.onerror = function() {
-            console.warn('Video playback error, falling back to iframe');
+            console.error('Video playback error');
             video.style.display = 'none';
-            // Fallback to iframe
-            self.playTikTokIframe(frame, loading, errorDiv, externalLink, videoId, needsResolution, originalUrl);
+            if (loading) loading.style.display = 'none';
+            if (errorDiv) {
+              errorDiv.style.display = 'flex';
+              var errorText = errorDiv.querySelector('.rich-link-error-text');
+              if (errorText) errorText.textContent = 'Video playback failed';
+              if (externalLink) externalLink.style.display = 'inline-block';
+            }
           };
         }
         
@@ -415,29 +417,21 @@ var RichLinks = {
         return;
       }
       
-      // Custom player failed, fall back to iframe
-      console.warn('Custom TikTok player unavailable, using iframe');
-    }
-
-    // Resolve TikTok short URLs if needed (for iframe)
-    var resolvedVideoId = videoId;
-    if (platformKey === 'tiktok' && needsResolution) {
-      resolvedVideoId = await this.resolveTikTokUrl(videoId, originalUrl);
-      
-      if (!resolvedVideoId) {
-        // Resolution failed - show error with external link
-        if (loading) loading.style.display = 'none';
-        if (errorDiv) {
-          errorDiv.style.display = 'flex';
-          if (externalLink) externalLink.style.display = 'inline-block';
-        }
-        return;
+      // Custom player failed - show error (no iframe fallback)
+      console.error('TikTok video extraction failed - is yt-dlp endpoint configured?');
+      if (loading) loading.style.display = 'none';
+      if (errorDiv) {
+        errorDiv.style.display = 'flex';
+        var errorText = errorDiv.querySelector('.rich-link-error-text');
+        if (errorText) errorText.textContent = 'Could not load video. Check server logs.';
+        if (externalLink) externalLink.style.display = 'inline-block';
       }
+      return;
     }
 
-    // Set iframe src
+    // YouTube/Instagram: Use iframe
     if (frame) {
-      var embedUrl = platform.getEmbed(resolvedVideoId);
+      var embedUrl = platform.getEmbed(videoId);
       frame.src = embedUrl;
 
       // Handle iframe load
@@ -447,48 +441,21 @@ var RichLinks = {
       };
     }
 
-    // Handle iframe error (timeout fallback)
+    // Handle iframe error (timeout fallback for YouTube/Instagram)
     setTimeout(function() {
       if (loading && loading.style.display !== 'none') {
-        // Still loading after 10s - might be an issue
-        if (platformKey === 'tiktok') {
-          loading.style.display = 'none';
-          if (errorDiv) {
-            errorDiv.style.display = 'flex';
-            if (externalLink) externalLink.style.display = 'inline-block';
-          }
-        }
-      }
-    }, 10000);
-
-    this.currentEmbed = { platform: platformKey, videoId: resolvedVideoId, originalUrl: originalUrl };
-  },
-  
-  // Helper to play TikTok via iframe (fallback)
-  playTikTokIframe: async function(frame, loading, errorDiv, externalLink, videoId, needsResolution, originalUrl) {
-    var resolvedVideoId = videoId;
-    if (needsResolution) {
-      resolvedVideoId = await this.resolveTikTokUrl(videoId, originalUrl);
-      
-      if (!resolvedVideoId) {
-        if (loading) loading.style.display = 'none';
+        // Still loading after 10s - show error
+        loading.style.display = 'none';
         if (errorDiv) {
           errorDiv.style.display = 'flex';
           if (externalLink) externalLink.style.display = 'inline-block';
         }
-        return;
       }
-    }
-    
-    var embedUrl = this.platforms.tiktok.getEmbed(resolvedVideoId);
-    frame.src = embedUrl;
-    
-    frame.onload = function() {
-      if (loading) loading.style.display = 'none';
-      frame.style.display = 'block';
-    };
-  },
+    }, 10000);
 
+    this.currentEmbed = { platform: platformKey, videoId: videoId, originalUrl: originalUrl };
+  },
+  
   // Hide the embed modal
   hideModal: function() {
     var modal = document.getElementById('richLinkModal');

@@ -151,7 +151,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 20px;
   overflow: hidden !important;
 }
 
@@ -166,10 +166,10 @@
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
   width: 100%;
   max-width: 380px;
-  /* Smaller modal - clearly visible as overlay */
-  height: 75vh;
-  height: 75dvh;
-  max-height: 700px;
+  /* Taller modal to fit video */
+  height: 85vh;
+  height: 85dvh;
+  max-height: 800px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -260,6 +260,13 @@
   background: #000;
   object-fit: contain;
   border-radius: 20px;
+  position: relative;
+  z-index: 2;
+}
+
+/* When using custom player, ensure it fills the space */
+.rich-link-modal[data-platform="tiktok"] .rich-link-video {
+  object-fit: cover;
 }
 
 /* Dark-themed video controls */
@@ -287,8 +294,8 @@
 .rich-link-modal[data-platform="youtube"] .rich-link-container {
   max-width: 720px;
   height: auto;
-  max-height: 75vh;
-  max-height: 75dvh;
+  max-height: 85vh;
+  max-height: 85dvh;
   aspect-ratio: 16 / 9;
 }
 
@@ -296,9 +303,9 @@
 .rich-link-modal[data-platform="tiktok"] .rich-link-container,
 .rich-link-modal[data-platform="instagram"] .rich-link-container {
   max-width: 380px;
-  height: 75vh;
-  height: 75dvh;
-  max-height: 700px;
+  height: 85vh;
+  height: 85dvh;
+  max-height: 800px;
 }
 
 /* ================== ERROR STATE ================== */
@@ -394,28 +401,28 @@
   
   /* Modal stays visible as overlay on mobile too */
   .rich-link-modal {
-    padding: 16px;
+    padding: 12px;
   }
   
   .rich-link-container {
     border-radius: 16px;
-    height: 70vh;
-    height: 70dvh;
-    max-height: 600px;
+    height: 82vh;
+    height: 82dvh;
+    max-height: 750px;
   }
   
   .rich-link-modal[data-platform="youtube"] .rich-link-container {
     height: auto;
-    max-height: 70vh;
-    max-height: 70dvh;
+    max-height: 82vh;
+    max-height: 82dvh;
   }
   
   .rich-link-modal[data-platform="tiktok"] .rich-link-container,
   .rich-link-modal[data-platform="instagram"] .rich-link-container {
-    max-width: 340px;
-    width: 90%;
-    height: 70vh;
-    height: 70dvh;
+    max-width: 360px;
+    width: 95%;
+    height: 82vh;
+    height: 82dvh;
     border-radius: 16px;
   }
   
