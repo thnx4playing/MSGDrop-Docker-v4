@@ -267,33 +267,80 @@
   border-radius: 16px;
   position: relative;
   z-index: 2;
+  /* Prevent iOS fullscreen */
+  -webkit-playsinline: true;
 }
 
-/* Hide controls initially */
-.rich-link-video:not([data-controls-visible="true"])::-webkit-media-controls {
+/* Hide all native controls by default */
+.rich-link-video:not([controls])::-webkit-media-controls {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.rich-link-video:not([controls])::-webkit-media-controls-panel {
+  display: none !important;
+}
+
+.rich-link-video:not([controls])::-webkit-media-controls-start-playback-button {
+  display: none !important;
+}
+
+/* When controls are explicitly enabled, show them */
+.rich-link-video[controls]::-webkit-media-controls {
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Video overlay - captures taps to prevent iOS native controls */
+.rich-link-video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  cursor: pointer;
+  display: none;
+}
+
+.rich-link-video-overlay.hidden {
+  display: none !important;
+}
+
+/* Show overlay when video is visible */
+.rich-link-modal[data-platform="tiktok"] .rich-link-video-overlay {
+  display: block;
+}
+
+/* Tap indicator (play/pause icon) */
+.video-tap-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.15s, transform 0.15s;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.rich-link-video[data-controls-visible="true"]::-webkit-media-controls {
+.video-tap-indicator.show {
   opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 /* When using custom player, ensure it fills the space */
 .rich-link-modal[data-platform="tiktok"] .rich-link-video {
   object-fit: cover;
   border-radius: 16px;
-}
-
-/* Dark-themed video controls */
-.rich-link-video::-webkit-media-controls-panel {
-  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
-}
-
-.rich-link-video::-webkit-media-controls-play-button,
-.rich-link-video::-webkit-media-controls-mute-button,
-.rich-link-video::-webkit-media-controls-fullscreen-button {
-  filter: brightness(1.2);
 }
 
 .rich-link-loading {

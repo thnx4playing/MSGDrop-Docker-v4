@@ -83,6 +83,8 @@ var RichLinks = {
   // Create the embed modal
   createModal: function() {
     if (document.getElementById('richLinkModal')) return;
+    
+    var self = this;
 
     var modal = document.createElement('div');
     modal.id = 'richLinkModal';
@@ -100,11 +102,66 @@ var RichLinks = {
             '<a id="richLinkOpenExternal" class="rich-link-external-btn" href="#" target="_blank" rel="noopener">Open in App</a>' +
           '</div>' +
           '<iframe id="richLinkFrame" class="rich-link-frame" allowfullscreen allow="autoplay; encrypted-media; fullscreen"></iframe>' +
-          '<video id="richLinkVideo" class="rich-link-video" playsinline controls></video>' +
+          '<video id="richLinkVideo" class="rich-link-video" playsinline webkit-playsinline></video>' +
+          '<div id="richLinkVideoOverlay" class="rich-link-video-overlay">' +
+            '<div class="video-tap-indicator" id="richLinkTapIndicator"></div>' +
+          '</div>' +
         '</div>' +
       '</div>';
 
     document.body.appendChild(modal);
+    
+    // Set up video overlay tap handling (bypasses iOS native controls)
+    var video = document.getElementById('richLinkVideo');
+    var overlay = document.getElementById('richLinkVideoOverlay');
+    var tapIndicator = document.getElementById('richLinkTapIndicator');
+    
+    if (video && overlay) {
+      var tapTimeout;
+      var lastTap = 0;
+      
+      // Single tap = play/pause, Double tap = show native controls briefly
+      overlay.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        var now = Date.now();
+        var timeSince = now - lastTap;
+        lastTap = now;
+        
+        // Double tap - show controls for 5 seconds
+        if (timeSince < 300 && timeSince > 0) {
+          clearTimeout(tapTimeout);
+          video.setAttribute('controls', 'true');
+          overlay.classList.add('hidden');
+          setTimeout(function() {
+            video.removeAttribute('controls');
+            overlay.classList.remove('hidden');
+          }, 5000);
+          return;
+        }
+        
+        // Single tap - play/pause with indicator
+        tapTimeout = setTimeout(function() {
+          if (video.paused) {
+            video.play();
+            tapIndicator.innerHTML = '<svg viewBox="0 0 24 24" width="60" height="60"><path fill="white" d="M8 5v14l11-7z"/></svg>';
+          } else {
+            video.pause();
+            tapIndicator.innerHTML = '<svg viewBox="0 0 24 24" width="60" height="60"><path fill="white" d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+          }
+          tapIndicator.classList.add('show');
+          setTimeout(function() {
+            tapIndicator.classList.remove('show');
+          }, 500);
+        }, 300);
+      });
+      
+      // Keep overlay hidden when native controls are shown
+      video.addEventListener('pause', function() {
+        // Don't auto-show overlay if controls are visible
+      });
+    }
   },
 
   // Setup event listeners
@@ -482,43 +539,26 @@ var RichLinks = {
 
     // TikTok: Use custom player only (no iframe fallback)
     if (platformKey === 'tiktok') {
+      var overlay = document.getElementById('richLinkVideoOverlay');
+      
       // Use proxy endpoint that downloads via yt-dlp
       if (video) {
         var proxyUrl = '/api/tiktok-video/proxy?url=' + encodeURIComponent(originalUrl);
         video.src = proxyUrl;
+        video.removeAttribute('controls'); // Start without controls
         video.load();
         
-        // Initially hide controls
-        video.removeAttribute('data-controls-visible');
-        
-        // Show controls on touch/click, hide after 3 seconds
-        var controlsTimeout;
-        var showControls = function() {
-          video.setAttribute('data-controls-visible', 'true');
-          clearTimeout(controlsTimeout);
-          controlsTimeout = setTimeout(function() {
-            if (!video.paused) {
-              video.removeAttribute('data-controls-visible');
-            }
-          }, 3000);
-        };
-        
-        video.addEventListener('click', showControls);
-        video.addEventListener('touchstart', showControls);
-        video.addEventListener('pause', function() {
-          video.setAttribute('data-controls-visible', 'true');
-        });
-        video.addEventListener('play', function() {
-          showControls();
-        });
+        // Show overlay to capture taps
+        if (overlay) overlay.classList.remove('hidden');
         
         video.onloadeddata = function() {
           if (loading) loading.style.display = 'none';
           video.style.display = 'block';
           video.play().catch(function(e) {
             console.warn('Autoplay blocked:', e);
-            // Show controls if autoplay blocked so user can tap to play
-            video.setAttribute('data-controls-visible', 'true');
+            // Show native controls if autoplay blocked, hide overlay
+            video.setAttribute('controls', 'true');
+            if (overlay) overlay.classList.add('hidden');
           });
         };
         
@@ -572,6 +612,7 @@ var RichLinks = {
     var frame = document.getElementById('richLinkFrame');
     var video = document.getElementById('richLinkVideo');
     var errorDiv = document.getElementById('richLinkError');
+    var overlay = document.getElementById('richLinkVideoOverlay');
 
     if (modal) {
       modal.classList.remove('show');
@@ -584,6 +625,11 @@ var RichLinks = {
     if (video) {
       video.pause();
       video.src = '';
+      video.removeAttribute('controls'); // Reset for next time
+    }
+    
+    if (overlay) {
+      overlay.classList.remove('hidden'); // Reset overlay for next time
     }
 
     if (errorDiv) {
