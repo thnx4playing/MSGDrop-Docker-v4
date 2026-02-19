@@ -1,6 +1,6 @@
 // Path: html/js/messages.js
 // ============================================================================
-// MESSAGES.JS - Production Version with Read Receipts + Rich Links
+// MESSAGES.JS - v4: Added audio message rendering + audioDuration field
 // ============================================================================
 
 var Messages = {
@@ -15,54 +15,41 @@ var Messages = {
 
   formatMessageTime: function(timestamp){
     if(!timestamp) return '';
-    
     var msgDate = new Date(timestamp);
     var now = new Date();
     var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     var yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     var msgDay = new Date(msgDate.getFullYear(), msgDate.getMonth(), msgDate.getDate());
-    
-    var timeStr = msgDate.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      hour12: true 
-    });
-    
-    if(msgDay.getTime() === today.getTime()){
-      return timeStr;
-    } else if(msgDay.getTime() === yesterday.getTime()){
-      return 'Yesterday ' + timeStr;
-    } else {
-      var dateStr = (msgDate.getMonth() + 1) + '/' + msgDate.getDate();
-      return dateStr + ' ' + timeStr;
-    }
+    var timeStr = msgDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    if(msgDay.getTime() === today.getTime()){ return timeStr; }
+    else if(msgDay.getTime() === yesterday.getTime()){ return 'Yesterday ' + timeStr; }
+    else { return (msgDate.getMonth() + 1) + '/' + msgDate.getDate() + ' ' + timeStr; }
+  },
+
+  formatAudioDuration: function(ms){
+    if(!ms || ms <= 0) return '0:00';
+    var s = Math.round(ms / 1000);
+    var m = Math.floor(s / 60);
+    s = s % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
   },
 
   isMessageEdited: function(msg){
     if(!msg.createdAt || !msg.updatedAt) return false;
-    var created = new Date(msg.createdAt).getTime();
-    var updated = new Date(msg.updatedAt).getTime();
-    return updated > created;
+    return new Date(msg.updatedAt).getTime() > new Date(msg.createdAt).getTime();
   },
 
   bubbleClassFor: function(msg){
-    if(this.myRole && msg.user && msg.user === this.myRole){
-      return 'right';
-    }
+    if(this.myRole && msg.user && msg.user === this.myRole) return 'right';
     return 'left';
   },
 
   getReceiptStatus: function(msg){
     if(!this.myRole || msg.user !== this.myRole) return null;
-    
-    if(msg.readAt){
-      return 'read';
-    } else if(msg.deliveredAt){
-      return 'delivered';
-    } else {
-      return 'sent';
-    }
+    if(msg.readAt) return 'read';
+    if(msg.deliveredAt) return 'delivered';
+    return 'sent';
   },
 
   findMessageBySeq: function(seq){
@@ -72,47 +59,39 @@ var Messages = {
   enterReplyMode: function(seq){
     var msg = this.findMessageBySeq(seq);
     if(!msg) return;
-    
     this.replyingToSeq = seq;
     this.replyingToMessage = msg;
-    
     var replyPreview = document.getElementById('replyPreview');
     var replyPreviewText = document.getElementById('replyPreviewText');
     var replyPreviewUser = document.getElementById('replyPreviewUser');
-    
     if(replyPreview && replyPreviewText){
       var previewText = msg.message || '';
       if(msg.messageType === 'gif') previewText = '🎬 GIF';
       if(msg.messageType === 'image') previewText = '📷 Photo';
-      // Check for rich links
+      if(msg.messageType === 'audio') previewText = '🎤 Voice Message';
       if(typeof RichLinks !== 'undefined' && RichLinks.detectLink(previewText)){
         var link = RichLinks.detectLink(previewText);
         var platform = RichLinks.platforms[link.platform];
         previewText = platform.icon + ' ' + platform.name + ' Video';
       }
       if(previewText.length > 50) previewText = previewText.substring(0, 50) + '...';
-      
       replyPreviewText.textContent = previewText;
       if(replyPreviewUser) replyPreviewUser.textContent = msg.user || 'Unknown';
       replyPreview.classList.add('show');
     }
-    
     if(UI.els.reply) UI.els.reply.focus();
   },
 
   exitReplyMode: function(){
     this.replyingToSeq = null;
     this.replyingToMessage = null;
-    
     var replyPreview = document.getElementById('replyPreview');
     if(replyPreview) replyPreview.classList.remove('show');
   },
 
   applyDrop: function(data){
     if(!data) return;
-    
     this.currentVersion = data.version || 0;
-    
     if(data.messages && Array.isArray(data.messages)){
       this.history = data.messages.map(function(msg){
         return {
@@ -131,6 +110,8 @@ var Messages = {
           gifHeight: msg.gifHeight || null,
           imageUrl: msg.imageUrl || null,
           imageThumb: msg.imageThumb || null,
+          audioUrl: msg.audioUrl || null,
+          audioDuration: msg.audioDuration || 0,
           replyToSeq: msg.replyToSeq || null,
           deliveredAt: msg.deliveredAt || null,
           readAt: msg.readAt || null
@@ -139,26 +120,19 @@ var Messages = {
       this.render();
       this.sendReadReceipts();
     }
-    
     if(UI.setLive) UI.setLive('Connected');
   },
 
   sendReadReceipts: function(){
     if(!this.myRole) return;
-    
     var maxUnreadSeq = 0;
-    
     this.history.forEach(function(msg){
       if(msg.user && msg.user !== this.myRole && !msg.readAt && msg.seq > maxUnreadSeq){
         maxUnreadSeq = msg.seq;
       }
     }.bind(this));
-    
     var now = Date.now();
-    if(maxUnreadSeq === this.lastReadReceiptSeq && now - this.lastReadReceiptSent < 1000) {
-      return;
-    }
-    
+    if(maxUnreadSeq === this.lastReadReceiptSeq && now - this.lastReadReceiptSent < 1000) return;
     if(maxUnreadSeq > 0 && WebSocketManager.ws && WebSocketManager.ws.readyState === 1){
       this.lastReadReceiptSent = now;
       this.lastReadReceiptSeq = maxUnreadSeq;
@@ -167,101 +141,174 @@ var Messages = {
   },
 
   handleDeliveryReceipt: function(data){
-    var seq = data.seq;
-    var deliveredAt = data.deliveredAt;
-    
-    var msg = this.findMessageBySeq(seq);
-    if(msg){
-      msg.deliveredAt = deliveredAt;
-      this.render();
-    }
+    var msg = this.findMessageBySeq(data.seq);
+    if(msg){ msg.deliveredAt = data.deliveredAt; this.render(); }
   },
 
   handleReadReceipt: function(data){
     var upToSeq = data.upToSeq;
     var reader = data.reader;
     var readAt = data.readAt;
-    
     if(!upToSeq || !reader || !readAt) return;
-    
     var updated = false;
-    
     this.history.forEach(function(msg){
       if(msg.seq <= upToSeq && msg.user && msg.user !== reader && !msg.readAt){
         msg.readAt = readAt;
         updated = true;
       }
     });
-    
-    if(updated) {
-      this.render();
-    }
+    if(updated) this.render();
   },
 
-  // Check if message text contains rich links
   hasRichLinks: function(text){
     if(typeof RichLinks === 'undefined') return false;
     return RichLinks.detectLink(text) !== null;
   },
 
-  // Check if message is only a rich link (no other text)
   isOnlyRichLink: function(text){
     if(typeof RichLinks === 'undefined') return false;
     return RichLinks.isOnlyLink(text);
   },
 
-  // Get display text for message (strip URLs if rich link preview is shown)
-  getDisplayText: function(msg){
-    var text = msg.message || '';
-    
-    // If it's only a link, we'll hide the text entirely
-    if(this.isOnlyRichLink(text)){
-      return '';
+  // ---- Audio bubble builder ----
+  _buildAudioBubble: function(msg, isOwn){
+    var bubble = document.createElement('div');
+    bubble.className = 'chat-bubble audio-message';
+
+    var duration = this.formatAudioDuration(msg.audioDuration);
+    var audioUrl = msg.audioUrl || (msg.imageUrl) || null;
+
+    // Waveform bars (static decorative, 20 bars)
+    var waveContainer = document.createElement('div');
+    waveContainer.className = 'audio-waveform';
+    var barCount = 20;
+    for(var i = 0; i < barCount; i++){
+      var bar = document.createElement('span');
+      bar.className = 'audio-bar';
+      // Randomized heights for visual variety (seeded by seq+i for consistency)
+      var seed = ((msg.seq || 1) * 31 + i * 17) % 100;
+      var h = 20 + (seed % 60);
+      bar.style.height = h + '%';
+      waveContainer.appendChild(bar);
     }
-    
-    return text;
+
+    // Play button
+    var playBtn = document.createElement('button');
+    playBtn.className = 'audio-play-btn';
+    playBtn.setAttribute('aria-label', 'Play voice message');
+    playBtn.setAttribute('type', 'button');
+    playBtn.innerHTML = '<svg class="play-icon" viewBox="0 0 24 24" width="18" height="18"><polygon points="5,3 19,12 5,21" fill="currentColor"/></svg>' +
+                        '<svg class="pause-icon" viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/></svg>';
+
+    // Duration label
+    var durLabel = document.createElement('span');
+    durLabel.className = 'audio-duration';
+    durLabel.textContent = duration;
+
+    bubble.appendChild(playBtn);
+    bubble.appendChild(waveContainer);
+    bubble.appendChild(durLabel);
+
+    if(audioUrl){
+      (function(btn, url, dLabel, waveEl, msgSeq){
+        var audioEl = null;
+        var progressInterval = null;
+        var totalBars = waveEl.querySelectorAll('.audio-bar').length;
+
+        btn.addEventListener('click', function(e){
+          e.stopPropagation();
+
+          if(!audioEl){
+            audioEl = new window.Audio(url);
+            audioEl.addEventListener('timeupdate', function(){
+              var pct = audioEl.duration ? audioEl.currentTime / audioEl.duration : 0;
+              var filled = Math.round(pct * totalBars);
+              var bars = waveEl.querySelectorAll('.audio-bar');
+              bars.forEach(function(b, i){
+                b.classList.toggle('played', i < filled);
+              });
+              var remaining = audioEl.duration ? audioEl.duration - audioEl.currentTime : 0;
+              var rs = Math.round(remaining);
+              var rm = Math.floor(rs / 60); rs = rs % 60;
+              dLabel.textContent = rm + ':' + (rs < 10 ? '0' : '') + rs;
+            });
+            audioEl.addEventListener('ended', function(){
+              btn.classList.remove('playing');
+              var bars = waveEl.querySelectorAll('.audio-bar');
+              bars.forEach(function(b){ b.classList.remove('played'); });
+              // Reset duration display
+              if(typeof Messages !== 'undefined'){
+                var origMsg = Messages.findMessageBySeq(msgSeq);
+                if(origMsg) dLabel.textContent = Messages.formatAudioDuration(origMsg.audioDuration);
+              }
+            });
+            audioEl.addEventListener('error', function(){
+              btn.classList.remove('playing');
+              console.error('[Audio] Playback error for:', url);
+            });
+          }
+
+          if(!audioEl.paused){
+            audioEl.pause();
+            btn.classList.remove('playing');
+          } else {
+            // Pause any other playing audio
+            document.querySelectorAll('.audio-play-btn.playing').forEach(function(b){
+              b.classList.remove('playing');
+              if(b._audioEl) b._audioEl.pause();
+            });
+            btn._audioEl = audioEl;
+            audioEl.play().then(function(){
+              btn.classList.add('playing');
+            }).catch(function(err){
+              console.error('[Audio] Play failed:', err);
+            });
+          }
+        });
+      })(playBtn, audioUrl, durLabel, waveContainer, msg.seq);
+    } else {
+      playBtn.disabled = true;
+      playBtn.style.opacity = '0.4';
+    }
+
+    return bubble;
   },
 
   render: function(){
     if(!UI.els.chatContainer) return;
-    
     var wasAtBottom = UI.els.chatContainer.scrollHeight - UI.els.chatContainer.scrollTop <= UI.els.chatContainer.clientHeight + 50;
-    
     var existingMessages = UI.els.chatContainer.querySelectorAll('.message-group');
     existingMessages.forEach(function(el){ el.remove(); });
-    
+
     this.history.forEach(function(msg, index){
       if(!msg || !msg.message) return;
-      
+
       var bubbleClass = this.bubbleClassFor(msg);
       var isOwnMessage = bubbleClass === 'right';
-      
+
       var group = document.createElement('div');
       group.className = 'message-group ' + bubbleClass;
       group.setAttribute('data-seq', msg.seq || msg.version);
-      
+
+      // Reply bubble
       if(msg.replyToSeq){
         var repliedMsg = this.findMessageBySeq(msg.replyToSeq);
         if(repliedMsg){
           var replyBubble = document.createElement('div');
           replyBubble.className = 'reply-bubble';
-          
           var replyLine = document.createElement('div');
           replyLine.className = 'reply-line';
-          
           var replyContent = document.createElement('div');
           replyContent.className = 'reply-content';
-          
           var replyAuthor = document.createElement('span');
           replyAuthor.className = 'reply-author';
           replyAuthor.textContent = repliedMsg.user || 'Unknown';
-          
           var replyText = document.createElement('span');
           replyText.className = 'reply-text';
           var replyTextContent = repliedMsg.message || '';
           if(repliedMsg.messageType === 'gif') replyTextContent = '🎬 GIF';
           if(repliedMsg.messageType === 'image') replyTextContent = '📷 Photo';
-          // Check for rich links in replied message
+          if(repliedMsg.messageType === 'audio') replyTextContent = '🎤 Voice Message';
           if(typeof RichLinks !== 'undefined' && RichLinks.detectLink(replyTextContent)){
             var link = RichLinks.detectLink(replyTextContent);
             var platform = RichLinks.platforms[link.platform];
@@ -269,12 +316,10 @@ var Messages = {
           }
           if(replyTextContent.length > 40) replyTextContent = replyTextContent.substring(0, 40) + '...';
           replyText.textContent = replyTextContent;
-          
           replyContent.appendChild(replyAuthor);
           replyContent.appendChild(replyText);
           replyBubble.appendChild(replyLine);
           replyBubble.appendChild(replyContent);
-          
           replyBubble.addEventListener('click', function(e){
             e.stopPropagation();
             var originalGroup = document.querySelector('.message-group[data-seq="' + msg.replyToSeq + '"]');
@@ -284,128 +329,49 @@ var Messages = {
               setTimeout(function(){ originalGroup.classList.remove('highlight-flash'); }, 1500);
             }
           });
-          
           group.appendChild(replyBubble);
         }
       }
-      
-      var bubble = document.createElement('div');
-      bubble.className = 'chat-bubble';
-      
-      if(msg.messageType === 'image' && msg.imageUrl){
-        bubble.classList.add('image-message');
-        
+
+      var bubble;
+
+      // ---- AUDIO MESSAGE ----
+      if(msg.messageType === 'audio'){
+        bubble = this._buildAudioBubble(msg, isOwnMessage);
+      }
+      // ---- IMAGE MESSAGE ----
+      else if(msg.messageType === 'image' && msg.imageUrl){
+        bubble = document.createElement('div');
+        bubble.className = 'chat-bubble image-message';
         var imageContainer = document.createElement('div');
         imageContainer.className = 'image-container';
-        
-        var img = document.createElement('img');
-        img.src = msg.imageThumb || msg.imageUrl;
-        img.alt = msg.message || 'Image';
-        img.className = 'image-thumbnail';
-        img.loading = 'lazy';
-        
+        var imgEl = document.createElement('img');
+        imgEl.src = msg.imageThumb || msg.imageUrl;
+        imgEl.alt = msg.message || 'Image';
+        imgEl.className = 'image-thumbnail';
+        imgEl.loading = 'lazy';
         var originalUrl = msg.imageUrl || msg.imageThumb || '';
-        
-        img.addEventListener('load', function(){
+        imgEl.addEventListener('load', function(){
           if(UI.els.chatContainer){
             var atBottom = UI.els.chatContainer.scrollHeight - UI.els.chatContainer.scrollTop <= UI.els.chatContainer.clientHeight + 100;
-            if(atBottom){
-              UI.els.chatContainer.scrollTop = UI.els.chatContainer.scrollHeight;
-            }
+            if(atBottom) UI.els.chatContainer.scrollTop = UI.els.chatContainer.scrollHeight;
           }
         });
-        
-        (function(imgEl, fullUrl, bubbleEl){
-          var longPressTimer = null;
-          var longPressTriggered = false;
-          var touchHandled = false;
-          var touchStartX = 0;
-          var touchStartY = 0;
-          var LONG_PRESS_DURATION = 500;
-          var MOVE_THRESHOLD = 10;
-          
-          function openLightbox(){
-            if(fullUrl && UI.openLightbox){
-              UI.openLightbox(fullUrl + '?t=' + Date.now());
-            }
-          }
-          
-          function openActionsModal(){
-            var group = bubbleEl.closest('.message-group');
-            if(group && Reactions && Reactions.openPicker){
-              Reactions.openPicker(bubbleEl);
-            }
-          }
-          
-          function clearLongPress(){
-            if(longPressTimer){
-              clearTimeout(longPressTimer);
-              longPressTimer = null;
-            }
-          }
-          
-          imgEl.addEventListener('touchstart', function(e){
-            longPressTriggered = false;
-            touchHandled = false;
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            
-            longPressTimer = setTimeout(function(){
-              longPressTriggered = true;
-              touchHandled = true;
-              if(navigator.vibrate){
-                navigator.vibrate(50);
-              }
-              openActionsModal();
-            }, LONG_PRESS_DURATION);
-          }, { passive: true });
-          
-          imgEl.addEventListener('touchmove', function(e){
-            var dx = Math.abs(e.touches[0].clientX - touchStartX);
-            var dy = Math.abs(e.touches[0].clientY - touchStartY);
-            if(dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD){
-              clearLongPress();
-            }
-          }, { passive: true });
-          
-          imgEl.addEventListener('touchend', function(e){
-            clearLongPress();
-            if(!longPressTriggered){
-              touchHandled = true;
-              e.preventDefault();
-              e.stopPropagation();
-              openLightbox();
-            }
-            longPressTriggered = false;
-          });
-          
-          imgEl.addEventListener('touchcancel', function(){
-            clearLongPress();
-            longPressTriggered = false;
-            touchHandled = false;
-          });
-          
-          imgEl.addEventListener('click', function(e){
-            e.stopPropagation();
-            e.preventDefault();
-            if(touchHandled){
-              touchHandled = false;
-              return;
-            }
-            openLightbox();
-          });
-          
-          imgEl.addEventListener('contextmenu', function(e){
-            e.preventDefault();
-            e.stopPropagation();
-            openActionsModal();
-          });
-          
-        })(img, originalUrl, bubble);
-        
-        imageContainer.appendChild(img);
+        (function(imgEl2, fullUrl, bubbleEl){
+          var longPressTimer = null, longPressTriggered = false, touchHandled = false;
+          var touchStartX = 0, touchStartY = 0, LONG_PRESS_DURATION = 500, MOVE_THRESHOLD = 10;
+          function openLightbox(){ if(fullUrl && UI.openLightbox) UI.openLightbox(fullUrl + '?t=' + Date.now()); }
+          function openActionsModal(){ if(bubbleEl.closest('.message-group') && Reactions && Reactions.openPicker) Reactions.openPicker(bubbleEl); }
+          function clearLongPress(){ if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer = null; } }
+          imgEl2.addEventListener('touchstart', function(e){ longPressTriggered = false; touchHandled = false; touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; longPressTimer = setTimeout(function(){ longPressTriggered = true; touchHandled = true; if(navigator.vibrate) navigator.vibrate(50); openActionsModal(); }, LONG_PRESS_DURATION); }, { passive: true });
+          imgEl2.addEventListener('touchmove', function(e){ var dx = Math.abs(e.touches[0].clientX - touchStartX); var dy = Math.abs(e.touches[0].clientY - touchStartY); if(dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) clearLongPress(); }, { passive: true });
+          imgEl2.addEventListener('touchend', function(e){ clearLongPress(); if(!longPressTriggered){ touchHandled = true; e.preventDefault(); e.stopPropagation(); openLightbox(); } longPressTriggered = false; });
+          imgEl2.addEventListener('touchcancel', function(){ clearLongPress(); longPressTriggered = false; touchHandled = false; });
+          imgEl2.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault(); if(touchHandled){ touchHandled = false; return; } openLightbox(); });
+          imgEl2.addEventListener('contextmenu', function(e){ e.preventDefault(); e.stopPropagation(); openActionsModal(); });
+        })(imgEl, originalUrl, bubble);
+        imageContainer.appendChild(imgEl);
         bubble.appendChild(imageContainer);
-        
         if(msg.message && msg.message !== '[Image]'){
           var caption = document.createElement('div');
           caption.className = 'image-caption';
@@ -413,239 +379,123 @@ var Messages = {
           bubble.appendChild(caption);
         }
       }
+      // ---- GIF MESSAGE ----
       else if(msg.messageType === 'gif' && msg.gifUrl){
-        bubble.classList.add('gif-message');
-        
+        bubble = document.createElement('div');
+        bubble.className = 'chat-bubble gif-message';
         var gifContainer = document.createElement('div');
         gifContainer.className = 'gif-container';
-        
         var maxWidth = 300;
         var displayWidth = msg.gifWidth || maxWidth;
         var displayHeight = msg.gifHeight || 200;
-        
-        if(displayWidth > maxWidth){
-          var ratio = maxWidth / displayWidth;
-          displayWidth = maxWidth;
-          displayHeight = Math.round(displayHeight * ratio);
-        }
-        
-        var img = document.createElement('img');
-        img.src = msg.gifPreview || msg.gifUrl;
-        img.alt = msg.message || 'GIF';
-        img.className = 'gif-image';
-        img.style.width = displayWidth + 'px';
-        img.style.height = displayHeight + 'px';
-        img.loading = 'lazy';
-        
-        var gifFullUrl = msg.gifUrl;
-        
-        (function(imgEl, fullUrl, bubbleEl){
-          var longPressTimer = null;
-          var longPressTriggered = false;
-          var touchHandled = false;
-          var touchStartX = 0;
-          var touchStartY = 0;
-          var LONG_PRESS_DURATION = 500;
-          var MOVE_THRESHOLD = 10;
-          
-          function openLightbox(){
-            if(fullUrl && UI.openLightbox){
-              UI.openLightbox(fullUrl + '?t=' + Date.now());
-            }
-          }
-          
-          function openActionsModal(){
-            var group = bubbleEl.closest('.message-group');
-            if(group && Reactions && Reactions.openPicker){
-              Reactions.openPicker(bubbleEl);
-            }
-          }
-          
-          function clearLongPress(){
-            if(longPressTimer){
-              clearTimeout(longPressTimer);
-              longPressTimer = null;
-            }
-          }
-          
-          imgEl.addEventListener('touchstart', function(e){
-            longPressTriggered = false;
-            touchHandled = false;
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            
-            longPressTimer = setTimeout(function(){
-              longPressTriggered = true;
-              touchHandled = true;
-              if(navigator.vibrate){
-                navigator.vibrate(50);
-              }
-              openActionsModal();
-            }, LONG_PRESS_DURATION);
-          }, { passive: true });
-          
-          imgEl.addEventListener('touchmove', function(e){
-            var dx = Math.abs(e.touches[0].clientX - touchStartX);
-            var dy = Math.abs(e.touches[0].clientY - touchStartY);
-            if(dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD){
-              clearLongPress();
-            }
-          }, { passive: true });
-          
-          imgEl.addEventListener('touchend', function(e){
-            clearLongPress();
-            if(!longPressTriggered){
-              touchHandled = true;
-              e.preventDefault();
-              e.stopPropagation();
-              openLightbox();
-            }
-            longPressTriggered = false;
-          });
-          
-          imgEl.addEventListener('touchcancel', function(){
-            clearLongPress();
-            longPressTriggered = false;
-            touchHandled = false;
-          });
-          
-          imgEl.addEventListener('click', function(e){
-            e.stopPropagation();
-            e.preventDefault();
-            if(touchHandled){
-              touchHandled = false;
-              return;
-            }
-            openLightbox();
-          });
-          
-          imgEl.addEventListener('contextmenu', function(e){
-            e.preventDefault();
-            e.stopPropagation();
-            openActionsModal();
-          });
-          
-        })(img, gifFullUrl, bubble);
-        
-        gifContainer.appendChild(img);
+        if(displayWidth > maxWidth){ var ratio = maxWidth / displayWidth; displayWidth = maxWidth; displayHeight = Math.round(displayHeight * ratio); }
+        var gifImg = document.createElement('img');
+        gifImg.src = msg.gifPreview || msg.gifUrl;
+        gifImg.alt = msg.message || 'GIF';
+        gifImg.className = 'gif-image';
+        gifImg.style.width = displayWidth + 'px';
+        gifImg.style.height = displayHeight + 'px';
+        gifImg.loading = 'lazy';
+        (function(imgEl2, fullUrl, bubbleEl){
+          var longPressTimer = null, longPressTriggered = false, touchHandled = false;
+          var touchStartX = 0, touchStartY = 0, LONG_PRESS_DURATION = 500, MOVE_THRESHOLD = 10;
+          function openLightbox(){ if(fullUrl && UI.openLightbox) UI.openLightbox(fullUrl + '?t=' + Date.now()); }
+          function openActionsModal(){ if(bubbleEl.closest('.message-group') && Reactions && Reactions.openPicker) Reactions.openPicker(bubbleEl); }
+          function clearLongPress(){ if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer = null; } }
+          imgEl2.addEventListener('touchstart', function(e){ longPressTriggered = false; touchHandled = false; touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; longPressTimer = setTimeout(function(){ longPressTriggered = true; touchHandled = true; if(navigator.vibrate) navigator.vibrate(50); openActionsModal(); }, LONG_PRESS_DURATION); }, { passive: true });
+          imgEl2.addEventListener('touchmove', function(e){ var dx = Math.abs(e.touches[0].clientX - touchStartX); var dy = Math.abs(e.touches[0].clientY - touchStartY); if(dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) clearLongPress(); }, { passive: true });
+          imgEl2.addEventListener('touchend', function(e){ clearLongPress(); if(!longPressTriggered){ touchHandled = true; e.preventDefault(); e.stopPropagation(); openLightbox(); } longPressTriggered = false; });
+          imgEl2.addEventListener('touchcancel', function(){ clearLongPress(); longPressTriggered = false; touchHandled = false; });
+          imgEl2.addEventListener('click', function(e){ e.stopPropagation(); e.preventDefault(); if(touchHandled){ touchHandled = false; return; } openLightbox(); });
+          imgEl2.addEventListener('contextmenu', function(e){ e.preventDefault(); e.stopPropagation(); openActionsModal(); });
+        })(gifImg, msg.gifUrl, bubble);
+        gifContainer.appendChild(gifImg);
         bubble.appendChild(gifContainer);
-        
         if(msg.message && msg.message !== '[GIF]' && !msg.message.startsWith('[GIF:')){
-          var caption = document.createElement('div');
-          caption.className = 'gif-caption';
-          caption.textContent = msg.message;
-          bubble.appendChild(caption);
+          var gifCaption = document.createElement('div');
+          gifCaption.className = 'gif-caption';
+          gifCaption.textContent = msg.message;
+          bubble.appendChild(gifCaption);
         }
-      } else {
-        // TEXT MESSAGE - Check for rich links
+      }
+      // ---- TEXT MESSAGE ----
+      else {
+        bubble = document.createElement('div');
+        bubble.className = 'chat-bubble';
         var hasRichLink = this.hasRichLinks(msg.message);
         var isOnlyLink = this.isOnlyRichLink(msg.message);
-        
-        if(isOnlyLink){
-          // Message is only a link - show just the preview
-          bubble.classList.add('link-only');
-        }
-        
-        // Add text content (will be hidden by CSS if link-only)
+        if(isOnlyLink) bubble.classList.add('link-only');
         if(!isOnlyLink && msg.message){
           var textSpan = document.createElement('span');
           textSpan.className = 'message-text';
           textSpan.textContent = msg.message;
           bubble.appendChild(textSpan);
         }
-        
-        // Render rich link previews
         if(hasRichLink && typeof RichLinks !== 'undefined'){
           RichLinks.renderInMessage(bubble, msg.message);
-        } else if(!hasRichLink) {
-          // No rich links, just show the text directly
+        } else if(!hasRichLink){
           bubble.textContent = msg.message;
         }
       }
-      
+
+      // Reactions
       var reactionsContainer = document.createElement('div');
       reactionsContainer.className = 'msg-reactions';
-      if(Reactions && Reactions.render){
-        Reactions.render(reactionsContainer, msg.reactions || {}, msg.seq || msg.version);
-      }
+      if(Reactions && Reactions.render) Reactions.render(reactionsContainer, msg.reactions || {}, msg.seq || msg.version);
       group.appendChild(reactionsContainer);
-      
       group.appendChild(bubble);
-      
+
+      // Meta
       var meta = document.createElement('div');
       meta.className = 'message-meta';
-      
       var timeText = document.createElement('span');
       timeText.className = 'meta-time';
       timeText.textContent = this.formatMessageTime(msg.createdAt || msg.updatedAt);
       meta.appendChild(timeText);
-      
       if(this.isMessageEdited(msg)){
         var editedLabel = document.createElement('span');
         editedLabel.className = 'meta-edited';
         editedLabel.textContent = 'Edited';
         meta.appendChild(editedLabel);
       }
-      
       if(isOwnMessage){
         var receiptStatus = this.getReceiptStatus(msg);
         if(receiptStatus){
           var receiptSpan = document.createElement('span');
           receiptSpan.className = 'meta-receipt receipt-' + receiptStatus;
-          
-          if(receiptStatus === 'read'){
-            receiptSpan.textContent = 'Read';
-          } else if(receiptStatus === 'delivered'){
-            receiptSpan.textContent = 'Delivered';
-          } else {
-            receiptSpan.textContent = 'Sent';
-          }
+          receiptSpan.textContent = receiptStatus === 'read' ? 'Read' : (receiptStatus === 'delivered' ? 'Delivered' : 'Sent');
           meta.appendChild(receiptSpan);
         }
       }
-      
       group.appendChild(meta);
-      
+
       if(UI.els.typingIndicator){
         UI.els.chatContainer.insertBefore(group, UI.els.typingIndicator);
       } else {
         UI.els.chatContainer.appendChild(group);
       }
-      
+
       this.attachMessageClick(bubble);
     }.bind(this));
-    
-    if(wasAtBottom){
-      UI.els.chatContainer.scrollTop = UI.els.chatContainer.scrollHeight;
-    }
+
+    if(wasAtBottom) UI.els.chatContainer.scrollTop = UI.els.chatContainer.scrollHeight;
   },
 
   attachMessageClick: function(msgEl){
     if(!msgEl || msgEl.__clickAttached) return;
     msgEl.__clickAttached = true;
-    
     msgEl.addEventListener('click', function(e){
       e.stopPropagation();
-      
       if(e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
       if(e.target.classList.contains('reaction-chip') || e.target.closest('.reaction-chip')) return;
       if(e.target.closest('.msg-reactions')) return;
       if(e.target.closest('.reply-bubble')) return;
-      
-      // Skip if clicking on rich link preview (it has its own handler)
       if(e.target.closest('.rich-link-preview')) return;
-      
-      if(e.target.classList.contains('image-thumbnail') || e.target.classList.contains('gif-image')){
-        return;
-      }
-      if(e.target.closest('.image-container') || e.target.closest('.gif-container')){
-        return;
-      }
-      
+      if(e.target.classList.contains('image-thumbnail') || e.target.classList.contains('gif-image')) return;
+      if(e.target.closest('.image-container') || e.target.closest('.gif-container')) return;
+      if(e.target.closest('.audio-message')) return;
       var group = msgEl.closest('.message-group');
-      if(group && Reactions && Reactions.openPicker) {
-        Reactions.openPicker(msgEl);
-      }
+      if(group && Reactions && Reactions.openPicker) Reactions.openPicker(msgEl);
     });
   },
 
@@ -671,52 +521,32 @@ var Messages = {
   handleTyping: function(data){
     var user = data.user;
     var ts = data.ts || Date.now();
-    
     if(!user || user === this.myRole) return;
-    
-    if(WebSocketManager.typingTimeouts.has(user)){
-      clearTimeout(WebSocketManager.typingTimeouts.get(user));
-    }
-    
+    if(WebSocketManager.typingTimeouts.has(user)) clearTimeout(WebSocketManager.typingTimeouts.get(user));
     WebSocketManager.typingState.set(user, ts);
-    
     var timeout = setTimeout(function(){
       WebSocketManager.typingState.delete(user);
       WebSocketManager.typingTimeouts.delete(user);
       this.renderTypingIndicator();
     }.bind(this), 5000);
-    
     WebSocketManager.typingTimeouts.set(user, timeout);
-    
     this.renderTypingIndicator();
   },
 
   renderTypingIndicator: function(){
     if(!UI.els.typingIndicator) return;
-    
     var now = Date.now();
     var activeUsers = [];
-    
     for(var entry of Array.from(WebSocketManager.typingState.entries())){
-      var user = entry[0];
-      var ts = entry[1];
-      
+      var user = entry[0]; var ts = entry[1];
       if(now - ts > 5000){
         WebSocketManager.typingState.delete(user);
-        if(WebSocketManager.typingTimeouts.has(user)){
-          clearTimeout(WebSocketManager.typingTimeouts.get(user));
-          WebSocketManager.typingTimeouts.delete(user);
-        }
-      } else if(user !== this.myRole){
-        activeUsers.push(user);
-      }
+        if(WebSocketManager.typingTimeouts.has(user)){ clearTimeout(WebSocketManager.typingTimeouts.get(user)); WebSocketManager.typingTimeouts.delete(user); }
+      } else if(user !== this.myRole){ activeUsers.push(user); }
     }
-    
     if(activeUsers.length > 0){
       UI.els.typingIndicator.classList.add('show');
-      if(UI.els.chatContainer){
-        UI.els.chatContainer.scrollTop = UI.els.chatContainer.scrollHeight;
-      }
+      if(UI.els.chatContainer) UI.els.chatContainer.scrollTop = UI.els.chatContainer.scrollHeight;
     } else {
       UI.els.typingIndicator.classList.remove('show');
     }
