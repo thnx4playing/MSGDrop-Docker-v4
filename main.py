@@ -117,7 +117,6 @@ def init_db():
         );
         """)
         
-        # Migrations for existing databases
         migrations = [
             "ALTER TABLE messages ADD COLUMN reply_to_seq integer",
             "ALTER TABLE messages ADD COLUMN delivered_at integer",
@@ -148,6 +147,32 @@ def init_db():
         """)
 
 init_db()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PENDING CALL STATE
+# When a caller sends op='incoming', we store it here so that if the callee
+# opens the app *after* the call was initiated they still see the incoming call.
+# Structure: { drop_id: { op, from, peerId, ts } }
+# Cleared when op='ended', 'declined', or 'answered', or after 90 seconds.
+# ─────────────────────────────────────────────────────────────────────────────
+_pending_calls: Dict[str, Dict[str, Any]] = {}
+_PENDING_CALL_TTL_S = 90  # seconds before we auto-expire a pending call
+
+def _store_pending_call(drop_id: str, payload: Dict[str, Any]):
+    _pending_calls[drop_id] = {**payload, "ts": time.time()}
+    logger.info(f"[PendingCall] Stored call for drop={drop_id} from={payload.get('from')}")
+
+def _clear_pending_call(drop_id: str):
+    if drop_id in _pending_calls:
+        del _pending_calls[drop_id]
+        logger.info(f"[PendingCall] Cleared call for drop={drop_id}")
+
+def _get_pending_call(drop_id: str) -> Optional[Dict[str, Any]]:
+    call = _pending_calls.get(drop_id)
+    if call and time.time() - call.get("ts", 0) > _PENDING_CALL_TTL_S:
+        _clear_pending_call(drop_id)
+        return None
+    return call
 
 # --- Twilio notifications ---
 _last_notify: Dict[str, int] = {}
@@ -437,11 +462,10 @@ async def post_message(drop_id: str,
                 await f.write(chunk)
         mime = file.content_type or mimetypes.guess_type(dest.name)[0] or "application/octet-stream"
         
-        # Detect audio vs image
         if mime.startswith("audio/") or suffix in (".m4a", ".webm", ".mp3", ".ogg", ".wav"):
             message_type = "audio"
             audio_url_path = f"/blob/{blob_id}"
-            image_url = audio_url_path  # reuse field for audio URL
+            image_url = audio_url_path
             if not text_:
                 text_ = "[Voice Message]"
         else:
@@ -714,10 +738,8 @@ def get_blob(blob_id: str, req: Request):
     require_session(req)
     path = BLOB_DIR / blob_id
     if not path.exists(): raise HTTPException(404)
-    # For audio files set appropriate content type
     mime_type, _ = mimetypes.guess_type(str(path))
     if not mime_type:
-        # Check extension
         ext = path.suffix.lower()
         if ext in ('.m4a',):
             mime_type = 'audio/mp4'
@@ -749,7 +771,7 @@ async def camera_stream(request: Request):
     
     return StreamingResponse(generate(), media_type="multipart/x-mixed-replace; boundary=frame")
 
-# --- TikTok Video Extraction (unchanged) ---
+# --- TikTok Video Extraction ---
 @app.get("/api/tiktok-video")
 async def get_tiktok_video(url: str, req: Request):
     require_session(req)
@@ -917,7 +939,6 @@ class GameManager:
 game_manager = GameManager()
 
 def _build_full_drop(drop: str) -> dict:
-    """Build the full drop payload from DB (used in WS handlers)."""
     with engine.begin() as conn:
         rows = conn.execute(text("select * from messages where drop_id=:d order by seq"), {"d": drop}).mappings().all()
         max_seq = conn.execute(text("select coalesce(max(seq),0) as v from messages where drop_id=:d"), {"d": drop}).scalar()
@@ -976,6 +997,26 @@ async def ws_endpoint(ws: WebSocket):
 
     user = params.get("user") or params.get("role") or "anon"
     await hub.join(drop, ws, user)
+
+    # ── Replay pending call for late joiners ──────────────────────────────
+    # If a call was initiated while this user was not connected, send them
+    # the 'incoming' signal now so they can still answer it.
+    pending = _get_pending_call(drop)
+    if pending and pending.get("from") != user:
+        # Only relay to the callee (not back to the caller)
+        try:
+            await ws.send_json({
+                "type": "video_signal",
+                "payload": {
+                    "op": "incoming",
+                    "from": pending.get("from"),
+                    "peerId": pending.get("peerId"),
+                }
+            })
+            logger.info(f"[PendingCall] Replayed incoming call to late joiner {user} in drop={drop}")
+        except Exception as e:
+            logger.warning(f"[PendingCall] Failed to replay call to {user}: {e}")
+
     try:
         while True:
             msg = await ws.receive_json()
@@ -1026,11 +1067,20 @@ async def ws_endpoint(ws: WebSocket):
                 op        = (payload or {}).get("op", "")
                 from_user = (payload or {}).get("from") or user
 
-                # Fire SMS when a call is initiated so the other person is alerted
-                # even if they're not looking at the app.
-                if op == "incoming" and _should_notify("video_call", drop, 120):
-                    caller_name = from_user or "Someone"
-                    notify(f"{caller_name} is calling... Open MSGDrop to answer! 📹")
+                # ── Manage pending call state ──────────────────────────────
+                if op == "incoming":
+                    _store_pending_call(drop, {
+                        "op": "incoming",
+                        "from": from_user,
+                        "peerId": (payload or {}).get("peerId", ""),
+                    })
+                    # SMS alert
+                    if _should_notify("video_call", drop, 120):
+                        caller_name = from_user or "Someone"
+                        notify(f"{caller_name} is calling... Open MSGDrop to answer! 📹")
+
+                elif op in ("ended", "declined", "answered"):
+                    _clear_pending_call(drop)
 
                 # Pass-through to the other participant's WS connection
                 await hub.broadcast_to_others(drop, ws, {

@@ -1,6 +1,6 @@
 // Path: html/js/messages.js
 // ============================================================================
-// MESSAGES.JS - v4: Added audio message rendering + call system messages
+// MESSAGES.JS - v4: Audio messages + call system messages
 // ============================================================================
 
 var Messages = {
@@ -35,7 +35,6 @@ var Messages = {
     return m + ':' + (s < 10 ? '0' : '') + s;
   },
 
-  // Format seconds (for call duration)
   _formatCallDuration: function(seconds){
     if(!seconds || seconds <= 0) return '';
     var m = Math.floor(seconds / 60);
@@ -180,15 +179,12 @@ var Messages = {
 
   // =========================================================================
   // CALL SYSTEM MESSAGES
-  // These are ephemeral DOM elements — they appear in chat during/after a call
-  // but are NOT persisted to the DB. They survive until the next full render().
   // =========================================================================
 
   injectCallMessage: function(opts){
     var container = UI.els.chatContainer;
     if(!container) return;
 
-    // Remove any existing call message with the same id
     var existing = document.getElementById('call-sys-' + opts.id);
     if(existing) existing.remove();
 
@@ -200,7 +196,6 @@ var Messages = {
 
     this._renderCallContent(el, opts.role, opts.status, opts.isCaller, 0);
 
-    // Always insert at the very bottom, just before typing indicator
     if(UI.els.typingIndicator){
       container.insertBefore(el, UI.els.typingIndicator);
     } else {
@@ -216,7 +211,7 @@ var Messages = {
     var isCaller = el.getAttribute('data-is-caller') === 'true';
     this._renderCallContent(el, role, status, isCaller, duration || 0);
 
-    // Re-move to bottom in case render() ran since this was inserted
+    // Always re-anchor to the bottom
     var container = UI.els.chatContainer;
     if(container){
       if(UI.els.typingIndicator){
@@ -228,10 +223,88 @@ var Messages = {
     }
   },
 
+  // ─── Call content builder ─────────────────────────────────────────────────
+  // 'incoming' renders a centered card with green/red pill buttons.
+  // All other states render a compact centered system message row.
   _renderCallContent: function(el, role, status, isCaller, duration){
     el.innerHTML = '';
 
     var callerName = role || '?';
+
+    // ── INCOMING: full centered card ──────────────────────────────────────
+    if(status === 'incoming'){
+      el.setAttribute('data-state', 'active');
+      el.classList.add('call-incoming-card');
+
+      // Pulsing video camera icon
+      var iconWrap = document.createElement('div');
+      iconWrap.className = 'call-card-icon-wrap';
+      iconWrap.innerHTML =
+        '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<polygon points="23 7 16 12 23 17 23 7"/>' +
+          '<rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>' +
+        '</svg>';
+
+      // Name + subtitle
+      var label = document.createElement('div');
+      label.className = 'call-card-label';
+
+      var nameEl = document.createElement('div');
+      nameEl.className = 'call-card-name';
+      nameEl.textContent = callerName + ' is calling';
+
+      var subEl = document.createElement('div');
+      subEl.className = 'call-card-sub';
+      subEl.textContent = 'FaceTime Video';
+
+      label.appendChild(nameEl);
+      label.appendChild(subEl);
+
+      // Buttons row
+      var actions = document.createElement('div');
+      actions.className = 'call-card-actions';
+
+      var declineBtn = document.createElement('button');
+      declineBtn.className = 'call-card-btn call-card-decline';
+      declineBtn.innerHTML =
+        '<span class="call-card-btn-icon">' +
+          '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">' +
+            '<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>' +
+          '</svg>' +
+        '</span>' +
+        '<span class="call-card-btn-label">Decline</span>';
+      declineBtn.onclick = function(e){
+        e.stopPropagation();
+        if(typeof VideoChat !== 'undefined') VideoChat._declineCall();
+      };
+
+      var answerBtn = document.createElement('button');
+      answerBtn.className = 'call-card-btn call-card-answer';
+      answerBtn.innerHTML =
+        '<span class="call-card-btn-icon">' +
+          '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' +
+            '<polygon points="23 7 16 12 23 17 23 7"/>' +
+            '<rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>' +
+          '</svg>' +
+        '</span>' +
+        '<span class="call-card-btn-label">Accept</span>';
+      answerBtn.onclick = function(e){
+        e.stopPropagation();
+        if(typeof VideoChat !== 'undefined') VideoChat._answerCall();
+      };
+
+      actions.appendChild(declineBtn);
+      actions.appendChild(answerBtn);
+
+      el.appendChild(iconWrap);
+      el.appendChild(label);
+      el.appendChild(actions);
+      return;
+    }
+
+    // ── All other states: compact centered status row ──────────────────────
+    el.classList.remove('call-incoming-card');
+
     var iconEl = document.createElement('span');
     iconEl.className = 'call-sys-icon';
     var textEl = document.createElement('span');
@@ -247,45 +320,16 @@ var Messages = {
         textEl.textContent = isCaller ? 'Calling...' : callerName + ' is calling...';
         iconEl.classList.add('pulse');
         break;
-
-      case 'incoming':
-        el.setAttribute('data-state', 'active');
-        iconEl.textContent = '📲';
-        textEl.textContent = callerName + ' is calling...';
-        iconEl.classList.add('pulse');
-        var answerBtn = document.createElement('button');
-        answerBtn.className = 'call-answer-btn';
-        answerBtn.textContent = 'Answer';
-        answerBtn.onclick = function(e){
-          e.stopPropagation();
-          if(typeof VideoChat !== 'undefined') VideoChat._answerCall();
-        };
-        var declineBtn = document.createElement('button');
-        declineBtn.className = 'call-decline-btn';
-        declineBtn.textContent = 'Decline';
-        declineBtn.onclick = function(e){
-          e.stopPropagation();
-          if(typeof VideoChat !== 'undefined') VideoChat._declineCall();
-        };
-        el.appendChild(iconEl);
-        el.appendChild(textEl);
-        el.appendChild(answerBtn);
-        el.appendChild(declineBtn);
-        el.appendChild(meta);
-        return;
-
       case 'connecting':
         el.setAttribute('data-state', 'active');
         iconEl.textContent = '🔄';
         textEl.textContent = 'Connecting...';
         break;
-
       case 'connected':
         el.setAttribute('data-state', 'active');
         iconEl.textContent = '🟢';
         textEl.textContent = 'Call connected';
         break;
-
       case 'ended': {
         el.setAttribute('data-state', 'done');
         iconEl.textContent = '📵';
@@ -293,26 +337,22 @@ var Messages = {
         textEl.textContent = 'Call ended' + dur;
         break;
       }
-
       case 'missed':
         el.setAttribute('data-state', 'done');
         iconEl.textContent = '📵';
         textEl.textContent = isCaller ? 'No answer' : 'Missed call';
         break;
-
       case 'declined':
         el.setAttribute('data-state', 'done');
         iconEl.textContent = '📵';
         textEl.textContent = isCaller ? 'Call declined' : 'Declined';
         break;
-
       case 'disconnected':
         el.setAttribute('data-state', 'done');
         iconEl.textContent = '⚠️';
         var dur2 = duration ? ' · ' + this._formatCallDuration(duration) : '';
         textEl.textContent = 'Call disconnected' + dur2;
         break;
-
       default:
         el.setAttribute('data-state', 'done');
         iconEl.textContent = '📵';
@@ -333,23 +373,20 @@ var Messages = {
     bubble.className = 'chat-bubble audio-message';
 
     var duration = this.formatAudioDuration(msg.audioDuration);
-    // Support both audioUrl and imageUrl (legacy) as the audio source
+    // audioUrl is canonical; fall back to imageUrl for legacy records
     var audioUrl = msg.audioUrl || msg.imageUrl || null;
 
-    // Waveform visualization
+    var barCount = 24;
     var waveContainer = document.createElement('div');
     waveContainer.className = 'audio-waveform';
-    var barCount = 24;
     for(var i = 0; i < barCount; i++){
       var bar = document.createElement('span');
       bar.className = 'audio-bar';
       var seed = ((msg.seq || 1) * 31 + i * 17) % 100;
-      var h = 20 + (seed % 60);
-      bar.style.height = h + '%';
+      bar.style.height = (20 + (seed % 60)) + '%';
       waveContainer.appendChild(bar);
     }
 
-    // Play/Pause button
     var playBtn = document.createElement('button');
     playBtn.className = 'audio-play-btn';
     playBtn.setAttribute('aria-label', 'Play voice message');
@@ -367,16 +404,16 @@ var Messages = {
     bubble.appendChild(durLabel);
 
     if(audioUrl){
-      (function(btn, url, dLabel, waveEl, msgSeq){
+      (function(btn, url, dLabel, waveEl, msgSeq, totalBars){
         var audioEl = null;
-        var totalBars = barCount;
 
         function ensureAudio(){
           if(audioEl) return audioEl;
           audioEl = new window.Audio();
-          // Handle cross-origin audio gracefully
-          audioEl.crossOrigin = 'anonymous';
-          audioEl.preload = 'none';
+          // ── IMPORTANT: Do NOT set crossOrigin here. ──
+          // /blob/ is same-origin and needs session cookies.
+          // crossOrigin='anonymous' strips cookies → 401 → silent failure.
+          audioEl.preload = 'metadata';
           audioEl.src = url;
 
           audioEl.addEventListener('timeupdate', function(){
@@ -393,17 +430,16 @@ var Messages = {
 
           audioEl.addEventListener('ended', function(){
             btn.classList.remove('playing');
-            var bars = waveEl.querySelectorAll('.audio-bar');
-            bars.forEach(function(b){ b.classList.remove('played'); });
+            waveEl.querySelectorAll('.audio-bar').forEach(function(b){ b.classList.remove('played'); });
             if(typeof Messages !== 'undefined'){
               var origMsg = Messages.findMessageBySeq(msgSeq);
               if(origMsg) dLabel.textContent = Messages.formatAudioDuration(origMsg.audioDuration);
             }
           });
 
-          audioEl.addEventListener('error', function(e){
+          audioEl.addEventListener('error', function(){
             btn.classList.remove('playing');
-            console.error('[Audio] Playback error for URL:', url, e);
+            console.error('[Audio] Playback error. URL:', url, 'Code:', audioEl.error && audioEl.error.code);
           });
 
           btn._audioEl = audioEl;
@@ -420,7 +456,7 @@ var Messages = {
             return;
           }
 
-          // Pause any other playing audio messages
+          // Pause any other playing audio first
           document.querySelectorAll('.audio-play-btn.playing').forEach(function(b){
             b.classList.remove('playing');
             if(b._audioEl && !b._audioEl.paused) b._audioEl.pause();
@@ -429,24 +465,14 @@ var Messages = {
           el.play().then(function(){
             btn.classList.add('playing');
           }).catch(function(err){
-            console.error('[Audio] Play failed:', err, 'URL was:', url);
-            // Try without crossOrigin as a fallback
-            if(audioEl.crossOrigin){
-              audioEl.crossOrigin = null;
-              audioEl.load();
-              audioEl.play().then(function(){
-                btn.classList.add('playing');
-              }).catch(function(e2){
-                console.error('[Audio] Fallback play also failed:', e2);
-              });
-            }
+            console.error('[Audio] play() rejected:', err, 'URL:', url);
           });
         });
-      })(playBtn, audioUrl, durLabel, waveContainer, msg.seq);
+      })(playBtn, audioUrl, durLabel, waveContainer, msg.seq, barCount);
     } else {
       playBtn.disabled = true;
       playBtn.style.opacity = '0.4';
-      playBtn.title = 'Audio unavailable';
+      playBtn.title = 'Audio not available';
     }
 
     return bubble;
@@ -460,13 +486,9 @@ var Messages = {
     if(!UI.els.chatContainer) return;
     var wasAtBottom = UI.els.chatContainer.scrollHeight - UI.els.chatContainer.scrollTop <= UI.els.chatContainer.clientHeight + 50;
 
-    // ── IMPORTANT: save call system messages before clearing ──
-    // render() removes .message-group elements then re-inserts them before the
-    // typing indicator. Without saving & re-appending, call messages end up
-    // stranded at the TOP of the container (above all real messages).
+    // Save call system messages – they live outside .message-group
     var callSysMessages = Array.from(UI.els.chatContainer.querySelectorAll('.call-system-message'));
 
-    // Remove regular message groups; call-system-messages survive temporarily
     var existingMessages = UI.els.chatContainer.querySelectorAll('.message-group');
     existingMessages.forEach(function(el){ el.remove(); });
 
@@ -628,14 +650,12 @@ var Messages = {
         }
       }
 
-      // Reactions
       var reactionsContainer = document.createElement('div');
       reactionsContainer.className = 'msg-reactions';
       if(Reactions && Reactions.render) Reactions.render(reactionsContainer, msg.reactions || {}, msg.seq || msg.version);
       group.appendChild(reactionsContainer);
       group.appendChild(bubble);
 
-      // Meta
       var meta = document.createElement('div');
       meta.className = 'message-meta';
       var timeText = document.createElement('span');
@@ -659,7 +679,6 @@ var Messages = {
       }
       group.appendChild(meta);
 
-      // Insert before typing indicator
       if(UI.els.typingIndicator){
         UI.els.chatContainer.insertBefore(group, UI.els.typingIndicator);
       } else {
@@ -669,9 +688,7 @@ var Messages = {
       this.attachMessageClick(bubble);
     }.bind(this));
 
-    // ── Re-append call system messages at the BOTTOM (after all real messages) ──
-    // This prevents them from being stranded at the top when render() re-inserts
-    // message groups between the saved call messages and the typing indicator.
+    // Re-anchor call system messages to bottom (after all real messages)
     callSysMessages.forEach(function(sysEl){
       if(UI.els.typingIndicator){
         UI.els.chatContainer.insertBefore(sysEl, UI.els.typingIndicator);
