@@ -405,68 +405,100 @@ var Messages = {
 
     if(audioUrl){
       (function(btn, url, dLabel, waveEl, msgSeq, totalBars){
-        var audioEl = null;
 
-        function ensureAudio(){
-          if(audioEl) return audioEl;
-          audioEl = new window.Audio();
-          // ── IMPORTANT: Do NOT set crossOrigin here. ──
-          // /blob/ is same-origin and needs session cookies.
-          // crossOrigin='anonymous' strips cookies → 401 → silent failure.
-          audioEl.preload = 'metadata';
-          audioEl.src = url;
+        // ── Create the <audio> element upfront (not lazily) ──────────────
+        // Using document.createElement('audio') is more reliable on iOS Safari
+        // than new Audio(). We append it to body (hidden) because iOS WKWebView
+        // requires audio elements to be in the DOM to initialise correctly.
+        var audioEl = document.createElement('audio');
+        audioEl.setAttribute('playsinline', '');
+        audioEl.setAttribute('webkit-playsinline', '');
+        audioEl.preload = 'none'; // don't download until user taps play
+        // ── DO NOT set crossOrigin ──────────────────────────────────────
+        // /blob/ is same-origin and needs session cookies.
+        // crossOrigin='anonymous' strips cookies → 401 → silent failure.
+        audioEl.style.display = 'none';
+        document.body.appendChild(audioEl);
+        btn._audioEl = audioEl;
 
-          audioEl.addEventListener('timeupdate', function(){
-            if(!audioEl.duration || isNaN(audioEl.duration)) return;
-            var pct = audioEl.currentTime / audioEl.duration;
-            var filled = Math.round(pct * totalBars);
-            var bars = waveEl.querySelectorAll('.audio-bar');
-            bars.forEach(function(b, i){ b.classList.toggle('played', i < filled); });
-            var remaining = audioEl.duration - audioEl.currentTime;
-            var rs = Math.round(remaining);
-            var rm = Math.floor(rs / 60); rs = rs % 60;
-            dLabel.textContent = rm + ':' + (rs < 10 ? '0' : '') + rs;
-          });
+        audioEl.addEventListener('timeupdate', function(){
+          if(!audioEl.duration || isNaN(audioEl.duration)) return;
+          var pct = audioEl.currentTime / audioEl.duration;
+          var filled = Math.round(pct * totalBars);
+          var bars = waveEl.querySelectorAll('.audio-bar');
+          bars.forEach(function(b, i){ b.classList.toggle('played', i < filled); });
+          var remaining = audioEl.duration - audioEl.currentTime;
+          var rs = Math.round(remaining);
+          var rm = Math.floor(rs / 60); rs = rs % 60;
+          dLabel.textContent = rm + ':' + (rs < 10 ? '0' : '') + rs;
+        });
 
-          audioEl.addEventListener('ended', function(){
-            btn.classList.remove('playing');
-            waveEl.querySelectorAll('.audio-bar').forEach(function(b){ b.classList.remove('played'); });
-            if(typeof Messages !== 'undefined'){
-              var origMsg = Messages.findMessageBySeq(msgSeq);
-              if(origMsg) dLabel.textContent = Messages.formatAudioDuration(origMsg.audioDuration);
-            }
-          });
+        audioEl.addEventListener('ended', function(){
+          btn.classList.remove('playing');
+          waveEl.querySelectorAll('.audio-bar').forEach(function(b){ b.classList.remove('played'); });
+          if(typeof Messages !== 'undefined'){
+            var origMsg = Messages.findMessageBySeq(msgSeq);
+            if(origMsg) dLabel.textContent = Messages.formatAudioDuration(origMsg.audioDuration);
+          }
+        });
 
-          audioEl.addEventListener('error', function(){
-            btn.classList.remove('playing');
-            console.error('[Audio] Playback error. URL:', url, 'Code:', audioEl.error && audioEl.error.code);
-          });
-
-          btn._audioEl = audioEl;
-          return audioEl;
-        }
+        audioEl.addEventListener('error', function(){
+          btn.classList.remove('playing');
+          var code = audioEl.error ? audioEl.error.code : '?';
+          console.error('[Audio] Element error code:', code, 'URL:', audioEl.src);
+          // Show visible error toast so user knows something went wrong
+          var toast = document.createElement('div');
+          toast.className = 'upload-toast error';
+          toast.textContent = 'Could not play audio (err ' + code + ')';
+          document.body.appendChild(toast);
+          setTimeout(function(){ toast.classList.add('show'); }, 10);
+          setTimeout(function(){ toast.classList.remove('show'); setTimeout(function(){ toast.remove(); }, 300); }, 3000);
+        });
 
         btn.addEventListener('click', function(e){
           e.stopPropagation();
-          var el = ensureAudio();
 
-          if(!el.paused){
-            el.pause();
+          // Toggle pause if already playing
+          if(!audioEl.paused){
+            audioEl.pause();
             btn.classList.remove('playing');
             return;
           }
 
-          // Pause any other playing audio first
+          // Pause any other currently-playing audio
           document.querySelectorAll('.audio-play-btn.playing').forEach(function(b){
             b.classList.remove('playing');
             if(b._audioEl && !b._audioEl.paused) b._audioEl.pause();
           });
 
-          el.play().then(function(){
+          // Set/reset src so iOS re-fetches (handles session renewal too)
+          if(!audioEl.src || audioEl.ended) {
+            audioEl.src = url;
+            audioEl.load();
+          }
+
+          // ── Safe play() wrapper ──────────────────────────────────────
+          // On older Safari, play() returns undefined (not a Promise).
+          // Calling .then() on undefined throws a TypeError which silently
+          // swallows the whole handler — button never shows pause state.
+          var playResult;
+          try {
+            playResult = audioEl.play();
+          } catch(syncErr) {
+            console.error('[Audio] play() threw synchronously:', syncErr);
+            return;
+          }
+
+          if(playResult && typeof playResult.then === 'function'){
+            playResult.then(function(){
+              btn.classList.add('playing');
+            }).catch(function(err){
+              console.error('[Audio] play() rejected:', err.name, err.message, 'URL:', url);
+            });
+          } else {
+            // Non-promise play() (old Safari) — assume it started; error event handles failure
             btn.classList.add('playing');
-          }).catch(function(err){
-            console.error('[Audio] play() rejected:', err, 'URL:', url);
-          });
+          }
         });
       })(playBtn, audioUrl, durLabel, waveContainer, msg.seq, barCount);
     } else {
