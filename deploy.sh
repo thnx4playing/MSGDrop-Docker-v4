@@ -14,7 +14,7 @@ else
   echo "[deploy] Not a git repo; skipping sync"
 fi
 
-COMPOSE_OVERRIDE="/srv/msgdrop4/docker-compose.yml"
+COMPOSE_OVERRIDE="/srv/msgdrop4/data/docker-compose.yml"
 if [ -n "${COMPOSE_FILE:-}" ]; then
   USE_COMPOSE="$COMPOSE_FILE"
 elif [ -f "$COMPOSE_OVERRIDE" ]; then
@@ -27,6 +27,7 @@ else
 fi
 
 echo "[deploy] Using compose file: $USE_COMPOSE"
+# Stop and remove existing services/containers safely
 echo "[deploy] Bringing down any existing stack..."
 docker compose -f "$USE_COMPOSE" down --remove-orphans || true
 
