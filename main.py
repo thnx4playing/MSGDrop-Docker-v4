@@ -1,6 +1,3 @@
-// Path: main.py
-// Uploaded: 2026-02-19 v4
-
 import os, json, hmac, hashlib, time, secrets, mimetypes, logging, re
 import subprocess
 import asyncio
