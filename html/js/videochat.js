@@ -369,23 +369,19 @@ var VideoChat = {
       }
 
       // ── Late-join fix: re-call the callee via PeerJS ──────────────────
-      // When the callee was not in the app at call time, our original
-      // peer.call() got a peer-unavailable error and never connected.
-      // Now that they've answered, use their peerId to make a fresh call.
+      // When callee was NOT in the app, our original peer.call() got
+      // peer-unavailable and currentCall is null. Re-call now that they answered.
+      //
+      // CRITICAL: Only re-call when currentCall is null.
+      // When both users are already in the app, currentCall is set but
+      // .open is still false during ICE negotiation — closing it here
+      // and re-calling causes a double-call race that breaks connection.
       var calleePeerId = payload.peerId;
-      if(calleePeerId && self.localStream) {
-        var alreadyConnected = self.currentCall && self.currentCall.open;
-        if(!alreadyConnected) {
-          console.log('[VideoChat] Re-calling callee at peerId:', calleePeerId);
-          // Close the old dead call object if there is one
-          if(self.currentCall) {
-            try { self.currentCall.close(); } catch(e) {}
-            self.currentCall = null;
-          }
-          var newCall = self.peer.call(calleePeerId, self.localStream);
-          self.currentCall = newCall;
-          self._setupCallHandlers(newCall);
-        }
+      if(calleePeerId && self.localStream && !self.currentCall) {
+        console.log('[VideoChat] Late-join re-call to:', calleePeerId);
+        var newCall = self.peer.call(calleePeerId, self.localStream);
+        self.currentCall = newCall;
+        self._setupCallHandlers(newCall);
       }
 
     } else if(op === 'declined') {
