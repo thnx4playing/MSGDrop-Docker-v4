@@ -9,6 +9,7 @@ services:
     environment:
       - PORT=443
       - DATA_DIR=/data
+      - PYTHONUNBUFFERED=1
       - SESSION_TTL_SECONDS=900
       - UNLOCK_CODE_HASH=5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
       - DOMAIN=msg4.wikistories.org

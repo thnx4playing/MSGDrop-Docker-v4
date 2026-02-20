@@ -1245,6 +1245,6 @@ if __name__ == "__main__":
         cert_exists = key_exists = False
 
     if cert_exists and key_exists:
-        uvicorn.run(app, host="0.0.0.0", port=port, ssl_certfile=ssl_cert, ssl_keyfile=ssl_key, proxy_headers=True)
+        uvicorn.run(app, host="0.0.0.0", port=port, ssl_certfile=ssl_cert, ssl_keyfile=ssl_key, proxy_headers=True, log_level="info")
     else:
-        uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True)
+        uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, log_level="info")
