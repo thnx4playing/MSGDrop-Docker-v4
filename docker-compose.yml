@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  msgdrop:
+  msgdrop4:
     build: .
-    container_name: msgdrop
+    container_name: msgdrop4
     ports:
-      - "443:443"
+      - "8443:443"
     environment:
       - PORT=443
       - DATA_DIR=/data
@@ -18,12 +18,6 @@ services:
       - SSL_KEY_PATH=/etc/letsencrypt/live/msg.wikistories.org/privkey.pem
       - MSGDROP_SECRET_JSON={"edgeAuthToken":"your_random_token_here"}
     volumes:
-      - msgdrop-data:/data
+      - /srv/msgdrop4/data:/data
       - /etc/letsencrypt:/etc/letsencrypt:ro
     restart: unless-stopped
-
-volumes:
-  msgdrop-data:
-    driver: local
-
-

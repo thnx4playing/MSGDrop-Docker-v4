@@ -1026,12 +1026,21 @@ async def ws_endpoint(ws: WebSocket):
                     })
 
             elif t == "video_signal":
-                # Pass-through video signaling to other participants
+                op        = (payload or {}).get("op", "")
+                from_user = (payload or {}).get("from") or user
+
+                # Fire SMS when a call is initiated so the other person is alerted
+                # even if they're not looking at the app.
+                if op == "incoming" and _should_notify("video_call", drop, 120):
+                    caller_name = from_user or "Someone"
+                    notify(f"{caller_name} is calling... Open MSGDrop to answer! 📹")
+
+                # Pass-through to the other participant's WS connection
                 await hub.broadcast_to_others(drop, ws, {
                     "type": "video_signal",
                     "payload": payload
                 })
-                logger.info(f"[VideoSignal] op={payload.get('op')} from={user}")
+                logger.info(f"[VideoSignal] op={op} from={from_user}")
 
             elif t == "chat":
                 text_val = (payload or {}).get("text") or ""

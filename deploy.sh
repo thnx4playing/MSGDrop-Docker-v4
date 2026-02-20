@@ -14,7 +14,7 @@ else
   echo "[deploy] Not a git repo; skipping sync"
 fi
 
-COMPOSE_OVERRIDE="/srv/msgdrop-data/docker-compose.yml"
+COMPOSE_OVERRIDE="/srv/msgdrop4/docker-compose.yml"
 if [ -n "${COMPOSE_FILE:-}" ]; then
   USE_COMPOSE="$COMPOSE_FILE"
 elif [ -f "$COMPOSE_OVERRIDE" ]; then
@@ -27,14 +27,13 @@ else
 fi
 
 echo "[deploy] Using compose file: $USE_COMPOSE"
-# Stop and remove existing services/containers safely
 echo "[deploy] Bringing down any existing stack..."
 docker compose -f "$USE_COMPOSE" down --remove-orphans || true
 
 # Ensure legacy container name is cleared if it exists
-if docker ps -a --format '{{.Names}}' | grep -xq "msgdrop"; then
-  echo "[deploy] Removing existing container 'msgdrop'..."
-  docker rm -f msgdrop || true
+if docker ps -a --format '{{.Names}}' | grep -xq "msgdrop4"; then
+  echo "[deploy] Removing existing container 'msgdrop4'..."
+  docker rm -f msgdrop4 || true
 fi
 
 echo "[deploy] Building and (re)starting with docker compose..."
@@ -45,5 +44,3 @@ docker image prune -f >/dev/null 2>&1 || true
 
 echo "[deploy] Done. Current services:"
 docker compose -f "$USE_COMPOSE" ps
-
-

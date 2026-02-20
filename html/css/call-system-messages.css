@@ -1,0 +1,104 @@
+/* ============================================================================
+   CALL SYSTEM MESSAGES
+   Appended to styles-v4-additions.css
+   ============================================================================ */
+
+/* Container — centered, no bubble alignment */
+.call-system-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 16px;
+  margin: 6px 0;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+}
+
+/* Icon */
+.call-sys-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+/* Pulse animation for active/ringing states */
+.call-sys-icon.pulse {
+  animation: callPulse 1.2s ease-in-out infinite;
+}
+@keyframes callPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.25); opacity: 0.7; }
+}
+
+/* Text */
+.call-sys-text {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #888);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* Timestamp */
+.call-sys-time {
+  font-size: 0.68rem;
+  color: var(--text-secondary, #aaa);
+  opacity: 0.7;
+}
+
+/* Answer button */
+.call-answer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #34c759;       /* iOS green */
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 5px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.call-answer-btn:active {
+  background: #28a745;
+  transform: scale(0.96);
+}
+
+/* Decline button */
+.call-decline-btn {
+  display: inline-flex;
+  align-items: center;
+  background: #ff3b30;       /* iOS red */
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 5px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.call-decline-btn:active {
+  background: #c0392b;
+  transform: scale(0.96);
+}
+
+/* Ended / done states: mute the icon pulse, soften text */
+.call-system-message[data-state="done"] .call-sys-icon {
+  animation: none;
+  filter: grayscale(0.3);
+}
+.call-system-message[data-state="done"] .call-sys-text {
+  font-style: normal;
+  opacity: 0.75;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .call-sys-text  { color: #aaa; }
+  .call-sys-time  { color: #777; }
+}

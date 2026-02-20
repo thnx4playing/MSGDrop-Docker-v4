@@ -1,6 +1,6 @@
 // Path: html/js/messages.js
 // ============================================================================
-// MESSAGES.JS - v4: Added audio message rendering + audioDuration field
+// MESSAGES.JS - v4: Added audio message rendering + call system messages
 // ============================================================================
 
 var Messages = {
@@ -32,6 +32,14 @@ var Messages = {
     var s = Math.round(ms / 1000);
     var m = Math.floor(s / 60);
     s = s % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  },
+
+  // Format seconds (for call duration)
+  _formatCallDuration: function(seconds){
+    if(!seconds || seconds <= 0) return '';
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
     return m + ':' + (s < 10 ? '0' : '') + s;
   },
 
@@ -170,7 +178,158 @@ var Messages = {
     return RichLinks.isOnlyLink(text);
   },
 
-  // ---- Audio bubble builder ----
+  // =========================================================================
+  // CALL SYSTEM MESSAGES
+  // These are ephemeral DOM elements — they appear in chat during/after a call
+  // but are NOT persisted to the DB. They survive until the next full render().
+  // =========================================================================
+
+  // Inject a new call system message into the chat.
+  // opts: { id, role, status, isCaller }
+  //   id       - unique id for this call (used to find + update later)
+  //   role     - caller's role label ('E' or 'M')
+  //   status   - 'calling' | 'incoming' | 'connecting' | 'connected' | 'ended' | 'missed' | 'declined' | 'disconnected'
+  //   isCaller - true if we are the one who started the call
+  injectCallMessage: function(opts){
+    var container = UI.els.chatContainer;
+    if(!container) return;
+
+    // Remove any existing call message with the same id
+    var existing = document.getElementById('call-sys-' + opts.id);
+    if(existing) existing.remove();
+
+    var el = document.createElement('div');
+    el.id = 'call-sys-' + opts.id;
+    el.className = 'call-system-message';
+    el.setAttribute('data-caller', opts.role || '');
+    el.setAttribute('data-is-caller', opts.isCaller ? 'true' : 'false');
+
+    this._renderCallContent(el, opts.role, opts.status, opts.isCaller, 0);
+
+    // Insert before typing indicator so it stays at bottom
+    if(UI.els.typingIndicator){
+      container.insertBefore(el, UI.els.typingIndicator);
+    } else {
+      container.appendChild(el);
+    }
+    container.scrollTop = container.scrollHeight;
+  },
+
+  // Update an existing call system message by id.
+  updateCallMessage: function(id, status, duration){
+    var el = document.getElementById('call-sys-' + id);
+    if(!el) return;
+    var role     = el.getAttribute('data-caller');
+    var isCaller = el.getAttribute('data-is-caller') === 'true';
+    this._renderCallContent(el, role, status, isCaller, duration || 0);
+    var container = UI.els.chatContainer;
+    if(container) container.scrollTop = container.scrollHeight;
+  },
+
+  // Build the inner HTML for a call system message.
+  _renderCallContent: function(el, role, status, isCaller, duration){
+    el.innerHTML = '';
+
+    var callerName = role || '?';
+    var iconEl = document.createElement('span');
+    iconEl.className = 'call-sys-icon';
+    var textEl = document.createElement('span');
+    textEl.className = 'call-sys-text';
+    var meta = document.createElement('span');
+    meta.className = 'call-sys-time';
+    meta.textContent = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    // Status-specific content
+    switch(status){
+      case 'calling':
+        el.setAttribute('data-state', 'active');
+        iconEl.textContent = '📹';
+        textEl.textContent = isCaller ? 'Calling ' + (isCaller ? (role === 'M' ? 'M' : 'M') : callerName) + '...' : callerName + ' is calling...';
+        // Pulse animation hint
+        iconEl.classList.add('pulse');
+        break;
+
+      case 'incoming':
+        el.setAttribute('data-state', 'active');
+        iconEl.textContent = '📲';
+        textEl.textContent = callerName + ' is calling...';
+        iconEl.classList.add('pulse');
+        // Answer + Decline buttons
+        var answerBtn = document.createElement('button');
+        answerBtn.className = 'call-answer-btn';
+        answerBtn.textContent = 'Answer';
+        answerBtn.onclick = function(e){
+          e.stopPropagation();
+          if(typeof VideoChat !== 'undefined') VideoChat._answerCall();
+        };
+        var declineBtn = document.createElement('button');
+        declineBtn.className = 'call-decline-btn';
+        declineBtn.textContent = 'Decline';
+        declineBtn.onclick = function(e){
+          e.stopPropagation();
+          if(typeof VideoChat !== 'undefined') VideoChat._declineCall();
+        };
+        el.appendChild(iconEl);
+        el.appendChild(textEl);
+        el.appendChild(answerBtn);
+        el.appendChild(declineBtn);
+        el.appendChild(meta);
+        return; // early — already appended all children
+
+      case 'connecting':
+        el.setAttribute('data-state', 'active');
+        iconEl.textContent = '🔄';
+        textEl.textContent = 'Connecting...';
+        break;
+
+      case 'connected':
+        el.setAttribute('data-state', 'active');
+        iconEl.textContent = '🟢';
+        textEl.textContent = 'Call connected';
+        break;
+
+      case 'ended': {
+        el.setAttribute('data-state', 'done');
+        iconEl.textContent = '📵';
+        var dur = duration ? ' · ' + this._formatCallDuration(duration) : '';
+        textEl.textContent = 'Call ended' + dur;
+        break;
+      }
+
+      case 'missed':
+        el.setAttribute('data-state', 'done');
+        iconEl.textContent = '📵';
+        textEl.textContent = isCaller ? 'No answer' : 'Missed call';
+        break;
+
+      case 'declined':
+        el.setAttribute('data-state', 'done');
+        iconEl.textContent = '📵';
+        textEl.textContent = isCaller ? 'Call declined' : 'Declined';
+        break;
+
+      case 'disconnected':
+        el.setAttribute('data-state', 'done');
+        iconEl.textContent = '⚠️';
+        var dur2 = duration ? ' · ' + this._formatCallDuration(duration) : '';
+        textEl.textContent = 'Call disconnected' + dur2;
+        break;
+
+      default:
+        el.setAttribute('data-state', 'done');
+        iconEl.textContent = '📵';
+        textEl.textContent = status || 'Call ended';
+    }
+
+    el.appendChild(iconEl);
+    el.appendChild(textEl);
+    el.appendChild(meta);
+  },
+
+  // =========================================================================
+  // AUDIO BUBBLE
+  // =========================================================================
+
   _buildAudioBubble: function(msg, isOwn){
     var bubble = document.createElement('div');
     bubble.className = 'chat-bubble audio-message';
@@ -178,21 +337,18 @@ var Messages = {
     var duration = this.formatAudioDuration(msg.audioDuration);
     var audioUrl = msg.audioUrl || (msg.imageUrl) || null;
 
-    // Waveform bars (static decorative, 20 bars)
     var waveContainer = document.createElement('div');
     waveContainer.className = 'audio-waveform';
     var barCount = 20;
     for(var i = 0; i < barCount; i++){
       var bar = document.createElement('span');
       bar.className = 'audio-bar';
-      // Randomized heights for visual variety (seeded by seq+i for consistency)
       var seed = ((msg.seq || 1) * 31 + i * 17) % 100;
       var h = 20 + (seed % 60);
       bar.style.height = h + '%';
       waveContainer.appendChild(bar);
     }
 
-    // Play button
     var playBtn = document.createElement('button');
     playBtn.className = 'audio-play-btn';
     playBtn.setAttribute('aria-label', 'Play voice message');
@@ -200,7 +356,6 @@ var Messages = {
     playBtn.innerHTML = '<svg class="play-icon" viewBox="0 0 24 24" width="18" height="18"><polygon points="5,3 19,12 5,21" fill="currentColor"/></svg>' +
                         '<svg class="pause-icon" viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/></svg>';
 
-    // Duration label
     var durLabel = document.createElement('span');
     durLabel.className = 'audio-duration';
     durLabel.textContent = duration;
@@ -212,7 +367,6 @@ var Messages = {
     if(audioUrl){
       (function(btn, url, dLabel, waveEl, msgSeq){
         var audioEl = null;
-        var progressInterval = null;
         var totalBars = waveEl.querySelectorAll('.audio-bar').length;
 
         btn.addEventListener('click', function(e){
@@ -224,9 +378,7 @@ var Messages = {
               var pct = audioEl.duration ? audioEl.currentTime / audioEl.duration : 0;
               var filled = Math.round(pct * totalBars);
               var bars = waveEl.querySelectorAll('.audio-bar');
-              bars.forEach(function(b, i){
-                b.classList.toggle('played', i < filled);
-              });
+              bars.forEach(function(b, i){ b.classList.toggle('played', i < filled); });
               var remaining = audioEl.duration ? audioEl.duration - audioEl.currentTime : 0;
               var rs = Math.round(remaining);
               var rm = Math.floor(rs / 60); rs = rs % 60;
@@ -236,7 +388,6 @@ var Messages = {
               btn.classList.remove('playing');
               var bars = waveEl.querySelectorAll('.audio-bar');
               bars.forEach(function(b){ b.classList.remove('played'); });
-              // Reset duration display
               if(typeof Messages !== 'undefined'){
                 var origMsg = Messages.findMessageBySeq(msgSeq);
                 if(origMsg) dLabel.textContent = Messages.formatAudioDuration(origMsg.audioDuration);
@@ -252,7 +403,6 @@ var Messages = {
             audioEl.pause();
             btn.classList.remove('playing');
           } else {
-            // Pause any other playing audio
             document.querySelectorAll('.audio-play-btn.playing').forEach(function(b){
               b.classList.remove('playing');
               if(b._audioEl) b._audioEl.pause();
@@ -274,9 +424,15 @@ var Messages = {
     return bubble;
   },
 
+  // =========================================================================
+  // RENDER
+  // =========================================================================
+
   render: function(){
     if(!UI.els.chatContainer) return;
     var wasAtBottom = UI.els.chatContainer.scrollHeight - UI.els.chatContainer.scrollTop <= UI.els.chatContainer.clientHeight + 50;
+
+    // Remove regular message groups but KEEP call system messages
     var existingMessages = UI.els.chatContainer.querySelectorAll('.message-group');
     existingMessages.forEach(function(el){ el.remove(); });
 
@@ -335,11 +491,11 @@ var Messages = {
 
       var bubble;
 
-      // ---- AUDIO MESSAGE ----
+      // ---- AUDIO ----
       if(msg.messageType === 'audio'){
         bubble = this._buildAudioBubble(msg, isOwnMessage);
       }
-      // ---- IMAGE MESSAGE ----
+      // ---- IMAGE ----
       else if(msg.messageType === 'image' && msg.imageUrl){
         bubble = document.createElement('div');
         bubble.className = 'chat-bubble image-message';
@@ -379,7 +535,7 @@ var Messages = {
           bubble.appendChild(caption);
         }
       }
-      // ---- GIF MESSAGE ----
+      // ---- GIF ----
       else if(msg.messageType === 'gif' && msg.gifUrl){
         bubble = document.createElement('div');
         bubble.className = 'chat-bubble gif-message';
@@ -418,7 +574,7 @@ var Messages = {
           bubble.appendChild(gifCaption);
         }
       }
-      // ---- TEXT MESSAGE ----
+      // ---- TEXT ----
       else {
         bubble = document.createElement('div');
         bubble.className = 'chat-bubble';
@@ -469,6 +625,7 @@ var Messages = {
       }
       group.appendChild(meta);
 
+      // Insert before typing indicator
       if(UI.els.typingIndicator){
         UI.els.chatContainer.insertBefore(group, UI.els.typingIndicator);
       } else {
