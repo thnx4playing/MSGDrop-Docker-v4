@@ -1,6 +1,5 @@
 /* ================================================================
    MSGDROP v4 ADDITIONS
-   Append these rules to the bottom of styles.css
    ================================================================ */
 
 /* ---- Header video call button ---- */
@@ -43,6 +42,10 @@
   opacity: 0.3;
   transition: opacity 0.1s;
 }
+.mic-btn.uploading {
+  opacity: 0.5;
+  pointer-events: none;
+}
 @keyframes mic-pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.12); }
@@ -54,52 +57,51 @@
 .audio-recording-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   z-index: 8000;
   display: none;
   align-items: flex-end;
   justify-content: center;
-  padding-bottom: env(safe-area-inset-bottom, 20px);
-  padding-bottom: max(env(safe-area-inset-bottom, 20px), 20px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .audio-recording-overlay.show {
   display: flex;
 }
 
 .audio-recording-panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--panel, #1c1c1e);
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
   border-radius: 28px 28px 0 0;
-  padding: 32px 28px 48px;
+  padding: 36px 28px 40px;
   width: 100%;
   max-width: 480px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 22px;
   position: relative;
 }
 
 /* Pulsing ring around mic icon */
 .recording-pulse-ring {
   position: absolute;
-  top: 32px;
-  width: 72px;
-  height: 72px;
+  top: 36px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
-  background: rgba(255, 59, 48, 0.15);
-  animation: recording-ring-pulse 1.2s ease-out infinite;
+  background: rgba(255, 59, 48, 0.18);
+  animation: recording-ring-pulse 1.3s ease-out infinite;
 }
 @keyframes recording-ring-pulse {
-  0% { transform: scale(0.85); opacity: 0.8; }
-  100% { transform: scale(1.6); opacity: 0; }
+  0%   { transform: scale(0.85); opacity: 0.9; }
+  100% { transform: scale(1.7);  opacity: 0; }
 }
 
 .recording-mic-icon {
-  width: 72px;
-  height: 72px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   background: #ff3b30;
   color: #ffffff;
@@ -108,81 +110,150 @@
   justify-content: center;
   position: relative;
   z-index: 1;
-  box-shadow: 0 6px 24px rgba(255, 59, 48, 0.4);
+  box-shadow: 0 6px 28px rgba(255, 59, 48, 0.45);
+  flex-shrink: 0;
 }
 
 /* Live waveform bars */
 .recording-waveform {
   display: flex;
   align-items: center;
-  gap: 3px;
-  height: 40px;
+  gap: 4px;
+  height: 44px;
 }
 .wave-bar {
   display: block;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--accent);
-  min-height: 4px;
+  width: 4px;
+  border-radius: 3px;
+  background: var(--accent, #007aff);
+  min-height: 6px;
   transform-origin: center bottom;
   animation: wave-dance 0.8s ease-in-out infinite alternate;
 }
-.wave-bar:nth-child(even) { background: var(--accent-2); }
+.wave-bar:nth-child(even) { background: var(--accent-2, #5856d6); }
+.wave-bar:nth-child(3n)   { animation-duration: 0.65s; }
+.wave-bar:nth-child(4n)   { animation-duration: 1.0s; }
 @keyframes wave-dance {
-  from { transform: scaleY(0.3); }
-  to { transform: scaleY(1); }
+  from { transform: scaleY(0.25); }
+  to   { transform: scaleY(1); }
 }
 
+/* Timer + hint */
 .recording-info {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 .recording-timer {
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--text, #fff);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.5px;
 }
 .recording-hint {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 13px;
+  color: var(--muted, rgba(255,255,255,0.5));
+  letter-spacing: 0.2px;
 }
 
+/* ---- Send / Cancel action buttons ---- */
+.recording-actions {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.recording-action-btn {
+  appearance: none;
+  border: none;
+  border-radius: 22px;
+  padding: 13px 32px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s;
+  flex: 1;
+  max-width: 180px;
+  justify-content: center;
+}
+.recording-action-btn:active { transform: scale(0.95); }
+
+.recording-cancel-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text, #fff);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.recording-cancel-btn:hover { background: rgba(255,255,255,0.18); }
+
+.recording-send-btn {
+  background: #34c759;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(52, 199, 89, 0.4);
+}
+.recording-send-btn:hover { background: #2ab34a; }
+
 /* ================================================================
-   AUDIO MESSAGE BUBBLE (iMessage-style)
+   AUDIO MESSAGE BUBBLE  (improved sizing + spacing)
    ================================================================ */
 .audio-message {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px !important;
-  min-width: 180px;
-  max-width: 240px;
+  gap: 12px;
+  padding: 12px 16px !important;
+  min-width: 200px;
+  max-width: 260px;
   user-select: none;
 }
 
+/* Play/Pause button — larger, clearly tappable */
 .audio-play-btn {
   appearance: none;
   border: none;
   background: transparent;
   color: currentColor;
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: transform 0.15s;
+  transition: transform 0.15s, background 0.1s;
   padding: 0;
 }
-.audio-play-btn:active { transform: scale(0.88); }
+.audio-play-btn:active { transform: scale(0.86); }
 .audio-play-btn .pause-icon { display: none; }
-.audio-play-btn.playing .play-icon { display: none; }
+.audio-play-btn.playing .play-icon  { display: none; }
 .audio-play-btn.playing .pause-icon { display: block; }
+
+/* Left bubble (received) */
+.message-group.left .audio-message {
+  background: var(--chat-bubble-left);
+  color: var(--chat-text-left);
+}
+.message-group.left .audio-play-btn {
+  background: rgba(0,0,0,0.12);
+}
+[data-theme="dark"] .message-group.left .audio-play-btn {
+  background: rgba(255,255,255,0.15);
+}
+
+/* Right bubble (sent) */
+.message-group.right .audio-message {
+  background: var(--chat-bubble-right);
+  color: var(--chat-text-right);
+}
+.message-group.right .audio-play-btn {
+  background: rgba(255,255,255,0.22);
+}
 
 /* Waveform bars inside the audio bubble */
 .audio-waveform {
@@ -190,7 +261,7 @@
   align-items: center;
   gap: 2px;
   flex: 1;
-  height: 28px;
+  height: 32px;
   overflow: hidden;
 }
 .audio-bar {
@@ -198,45 +269,26 @@
   width: 3px;
   border-radius: 2px;
   background: currentColor;
-  opacity: 0.45;
+  opacity: 0.35;
   flex-shrink: 0;
-  transition: opacity 0.1s;
+  transition: opacity 0.12s;
+  min-height: 4px;
 }
-.audio-bar.played { opacity: 0.9; }
+.audio-bar.played { opacity: 0.85; }
 
-/* Left bubble (received) audio */
-.message-group.left .audio-message {
-  background: var(--chat-bubble-left);
-  color: var(--chat-text-left);
-}
-.message-group.left .audio-play-btn {
-  background: rgba(0,0,0,0.08);
-}
-[data-theme="dark"] .message-group.left .audio-play-btn {
-  background: rgba(255,255,255,0.12);
-}
-
-/* Right bubble (sent) audio */
-.message-group.right .audio-message {
-  background: var(--chat-bubble-right);
-  color: var(--chat-text-right);
-}
-.message-group.right .audio-play-btn {
-  background: rgba(255,255,255,0.2);
-}
-
+/* Duration label */
 .audio-duration {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   opacity: 0.75;
   flex-shrink: 0;
-  min-width: 32px;
+  min-width: 34px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 /* ================================================================
-   VIDEO CHAT OVERLAY (FaceTime-style)
+   VIDEO CHAT OVERLAY (FaceTime-style full-screen)
    ================================================================ */
 .vc-overlay {
   position: fixed;
@@ -294,6 +346,7 @@
   box-shadow: 0 4px 16px rgba(0,0,0,0.5);
   cursor: pointer;
   transition: transform 0.15s;
+  background: #222;
 }
 .vc-local-wrapper:active { transform: scale(0.96); }
 .vc-local-video {
@@ -303,19 +356,19 @@
   background: #222;
 }
 
-/* Controls bar */
+/* Controls bar at bottom */
 .vc-controls {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  padding-bottom: max(env(safe-area-inset-bottom, 24px), 24px);
-  padding-top: 20px;
-  background: linear-gradient(transparent, rgba(0,0,0,0.6));
+  padding-bottom: max(env(safe-area-inset-bottom, 32px), 32px);
+  padding-top: 24px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.65));
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 32px;
+  gap: 36px;
   z-index: 9010;
 }
 
@@ -324,8 +377,8 @@
   border: none;
   background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   display: flex;
   flex-direction: column;
@@ -334,11 +387,11 @@
   cursor: pointer;
   transition: all 0.15s;
   gap: 0;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,255,255,0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.2);
 }
-.vc-btn:hover { background: rgba(255,255,255,0.3); transform: scale(1.05); }
-.vc-btn:active { transform: scale(0.92); }
+.vc-btn:hover  { background: rgba(255,255,255,0.32); transform: scale(1.06); }
+.vc-btn:active { transform: scale(0.90); }
 .vc-btn.active { background: rgba(255,255,255,0.9); color: #000; }
 .vc-icon { display: flex; align-items: center; justify-content: center; }
 .vc-btn-label {
@@ -348,27 +401,28 @@
   margin-top: 4px;
   line-height: 1;
   white-space: nowrap;
-  display: none; /* hide on mobile to save space, show on larger screens */
+  display: none;
 }
 
-/* End call button - red */
+/* End call button - big red */
 .vc-end-btn {
   background: #ff3b30 !important;
-  width: 64px;
-  height: 64px;
-  box-shadow: 0 4px 20px rgba(255, 59, 48, 0.4);
+  width: 70px;
+  height: 70px;
+  box-shadow: 0 4px 24px rgba(255, 59, 48, 0.5);
   border-color: transparent !important;
 }
-.vc-end-btn:hover { background: #e62e24 !important; transform: scale(1.05); }
-.vc-end-btn:active { transform: scale(0.92); }
+.vc-end-btn:hover  { background: #e62e24 !important; transform: scale(1.06); }
+.vc-end-btn:active { transform: scale(0.90); }
 
 @media (min-width: 600px) {
-  .vc-btn-label { display: block; }
+  .vc-btn-label  { display: block; }
   .vc-local-wrapper { width: 120px; height: 160px; }
 }
 
 /* ================================================================
-   INCOMING CALL BANNER (FaceTime notification style)
+   INCOMING CALL BANNER (kept in HTML but not auto-shown —
+   in-chat Answer/Decline buttons are used instead)
    ================================================================ */
 .incoming-call-banner {
   position: fixed;
@@ -394,7 +448,6 @@
   display: flex;
   transform: translateY(0);
 }
-
 .incoming-call-content {
   display: flex;
   align-items: center;
@@ -427,12 +480,7 @@
   color: rgba(255,255,255,0.6);
   margin-top: 1px;
 }
-
-.incoming-call-actions {
-  display: flex;
-  gap: 10px;
-  flex-shrink: 0;
-}
+.incoming-call-actions { display: flex; gap: 10px; flex-shrink: 0; }
 .incoming-btn {
   appearance: none;
   border: none;

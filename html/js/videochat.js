@@ -5,7 +5,7 @@
 // Call flow:
 //   1. Caller clicks video btn → startCall() → sends 'incoming' WS signal
 //   2. Server broadcasts signal to callee + fires SMS "E is calling..."
-//   3. Chat shows caller: "Calling..." | callee: "E is calling..." + Answer btn
+//   3. Chat shows caller: "Calling..." | callee: Answer/Decline in chat bubble
 //   4. Callee taps Answer → _answerCall() → sends 'answered' signal → PeerJS connects
 //   5. Either side ends → _endCall() → sends 'ended' signal → chat shows "Call ended • 0:42"
 //   6. If peer disconnects unexpectedly → chat shows "Call disconnected"
@@ -29,15 +29,12 @@ var VideoChat = {
   muteBtn: null,
   flipCamBtn: null,
   callBtn: null,
-  incomingBanner: null,
-  incomingAcceptBtn: null,
-  incomingDeclineBtn: null,
 
   // State
   isMuted: false,
   isFrontCam: true,
   _pendingCall: null,
-  _callStartTime: null,   // ms timestamp when remote stream arrived
+  _callStartTime: null,
   _callMsgId: 'active-call',
 
   init: function(dropId, role) {
@@ -45,21 +42,60 @@ var VideoChat = {
     this.myRole = role;
     this.myPeerId = (dropId + '_' + role).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-    this.overlay            = document.getElementById('videoChatOverlay');
-    this.localVideo         = document.getElementById('localVideo');
-    this.remoteVideo        = document.getElementById('remoteVideo');
-    this.statusEl           = document.getElementById('videoChatStatus');
-    this.endBtn             = document.getElementById('videoEndBtn');
-    this.muteBtn            = document.getElementById('videoMuteBtn');
-    this.flipCamBtn         = document.getElementById('videoFlipBtn');
-    this.callBtn            = document.getElementById('videoCallBtn');
-    this.incomingBanner     = document.getElementById('incomingCallBanner');
-    this.incomingAcceptBtn  = document.getElementById('incomingAcceptBtn');
-    this.incomingDeclineBtn = document.getElementById('incomingDeclineBtn');
+    this.overlay    = document.getElementById('videoChatOverlay');
+    this.localVideo = document.getElementById('localVideo');
+    this.remoteVideo= document.getElementById('remoteVideo');
+    this.statusEl   = document.getElementById('videoChatStatus');
+    this.endBtn     = document.getElementById('videoEndBtn');
+    this.muteBtn    = document.getElementById('videoMuteBtn');
+    this.flipCamBtn = document.getElementById('videoFlipBtn');
+    this.callBtn    = document.getElementById('videoCallBtn');
 
     this._setupButtons();
     this._initPeer();
+    // Pre-warm camera/mic permissions so the browser caches the grant for this session
+    // (runs after a tiny delay so it doesn't block page startup)
+    setTimeout(function() { VideoChat.preWarmMedia(); }, 1500);
   },
+
+  // ─── Permission pre-warm ─────────────────────────────────────────────────
+  // Request camera + mic once at startup. The browser remembers the grant for
+  // the rest of the session (and on HTTPS it persists across reloads on most
+  // desktop browsers). We stop all tracks immediately — we just want the prompt.
+  preWarmMedia: function() {
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    // Check if already granted first to avoid a redundant prompt
+    if(navigator.permissions && navigator.permissions.query) {
+      Promise.all([
+        navigator.permissions.query({ name: 'camera' }).catch(function(){ return { state: 'unknown' }; }),
+        navigator.permissions.query({ name: 'microphone' }).catch(function(){ return { state: 'unknown' }; })
+      ]).then(function(results) {
+        var camState = results[0].state;
+        var micState = results[1].state;
+        // Only prompt if not yet granted
+        if(camState !== 'granted' || micState !== 'granted') {
+          VideoChat._doMediaPreWarm();
+        } else {
+          console.log('[VideoChat] Camera/mic already granted, skipping pre-warm');
+        }
+      });
+    } else {
+      // permissions API not available (e.g. older iOS) — skip pre-warm to avoid surprising prompt
+    }
+  },
+
+  _doMediaPreWarm: function() {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(function(stream) {
+        stream.getTracks().forEach(function(t) { t.stop(); });
+        console.log('[VideoChat] Camera/mic permissions pre-warmed');
+      })
+      .catch(function(err) {
+        console.log('[VideoChat] Pre-warm denied or unavailable:', err.name);
+      });
+  },
+
+  // ─── PeerJS init ─────────────────────────────────────────────────────────
 
   _initPeer: function() {
     var self = this;
@@ -82,7 +118,6 @@ var VideoChat = {
       console.log('[VideoChat] PeerJS ready, ID:', id);
     });
 
-    // Callee receives the actual WebRTC call AFTER they click Answer
     self.peer.on('call', function(call) {
       console.log('[VideoChat] PeerJS call arrived from:', call.peer);
       self._pendingCall = call;
@@ -90,10 +125,9 @@ var VideoChat = {
 
     self.peer.on('error', function(err) {
       console.error('[VideoChat] PeerJS error:', err.type, err);
-      if (err.type === 'peer-unavailable') {
-        // Normal — callee not open yet; SMS will bring them in
+      if(err.type === 'peer-unavailable') {
         self._setStatus('Waiting for answer...');
-      } else if (err.type === 'unavailable-id') {
+      } else if(err.type === 'unavailable-id') {
         self.myPeerId = self.myPeerId + '_' + Date.now().toString(36).slice(-4);
         console.warn('[VideoChat] ID taken, retrying with:', self.myPeerId);
         self.peer.destroy();
@@ -102,7 +136,7 @@ var VideoChat = {
     });
 
     self.peer.on('disconnected', function() {
-      if (!self.peer.destroyed) self.peer.reconnect();
+      if(!self.peer.destroyed) self.peer.reconnect();
     });
   },
 
@@ -110,7 +144,7 @@ var VideoChat = {
 
   startCall: async function() {
     var self = this;
-    if (self.isInCall) { self._showOverlay(); return; }
+    if(self.isInCall) { self._showOverlay(); return; }
 
     var otherRole    = self.myRole === 'M' ? 'E' : 'M';
     var remotePeerId = (self.dropId + '_' + otherRole).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -119,14 +153,15 @@ var VideoChat = {
       self.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       self.localVideo.srcObject = self.localStream;
       self.localVideo.muted = true;
+      // Explicit play() required — browsers won't autoplay programmatically assigned srcObject
+      self.localVideo.play().catch(function(e){ console.warn('[VideoChat] localVideo.play():', e); });
 
       self._showOverlay();
       self._setStatus('Calling...');
       self.isInCall = true;
       self._callStartTime = null;
 
-      // ── Chat indicator: caller sees "Calling..." ──
-      if (typeof Messages !== 'undefined' && Messages.injectCallMessage) {
+      if(typeof Messages !== 'undefined' && Messages.injectCallMessage) {
         Messages.injectCallMessage({
           id: self._callMsgId,
           role: self.myRole,
@@ -135,8 +170,7 @@ var VideoChat = {
         });
       }
 
-      // ── Signal server → sends SMS + relays to callee's chat ──
-      if (typeof WebSocketManager !== 'undefined') {
+      if(typeof WebSocketManager !== 'undefined') {
         WebSocketManager.sendVideoSignal({
           op: 'incoming',
           from: self.myRole,
@@ -144,12 +178,11 @@ var VideoChat = {
         });
       }
 
-      // PeerJS call — callee may not be ready yet (SMS brings them in)
       var call = self.peer.call(remotePeerId, self.localStream);
       self.currentCall = call;
       self._setupCallHandlers(call);
 
-    } catch (err) {
+    } catch(err) {
       console.error('[VideoChat] getUserMedia error:', err);
       self.isInCall = false;
       self._hideOverlay();
@@ -161,30 +194,27 @@ var VideoChat = {
 
   _answerCall: async function() {
     var self = this;
-    self._hideIncomingBanner();
 
     try {
       self.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       self.localVideo.srcObject = self.localStream;
       self.localVideo.muted = true;
+      self.localVideo.play().catch(function(e){ console.warn('[VideoChat] localVideo.play():', e); });
 
       self._showOverlay();
       self._setStatus('Connecting...');
       self.isInCall = true;
       self._callStartTime = null;
 
-      // Update chat to show connecting
-      if (typeof Messages !== 'undefined' && Messages.updateCallMessage) {
+      if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
         Messages.updateCallMessage(self._callMsgId, 'connecting');
       }
 
-      // Notify caller we answered
-      if (typeof WebSocketManager !== 'undefined') {
+      if(typeof WebSocketManager !== 'undefined') {
         WebSocketManager.sendVideoSignal({ op: 'answered', from: self.myRole });
       }
 
-      // Answer PeerJS call (may arrive slightly after WS signal)
-      if (self._pendingCall) {
+      if(self._pendingCall) {
         self._pendingCall.answer(self.localStream);
         self.currentCall = self._pendingCall;
         self._pendingCall = null;
@@ -193,7 +223,7 @@ var VideoChat = {
         self._waitForPeerCall();
       }
 
-    } catch (err) {
+    } catch(err) {
       console.error('[VideoChat] _answerCall error:', err);
       self.isInCall = false;
       self._hideOverlay();
@@ -206,13 +236,13 @@ var VideoChat = {
     var attempts = 0;
     var interval = setInterval(function() {
       attempts++;
-      if (self._pendingCall) {
+      if(self._pendingCall) {
         clearInterval(interval);
         self._pendingCall.answer(self.localStream);
         self.currentCall = self._pendingCall;
         self._pendingCall = null;
         self._setupCallHandlers(self.currentCall);
-      } else if (attempts > 20) { // 10 sec timeout
+      } else if(attempts > 20) {
         clearInterval(interval);
         self._setStatus('Could not connect');
         setTimeout(function() { self._endCallInternal(true, 'disconnected'); }, 2000);
@@ -221,12 +251,11 @@ var VideoChat = {
   },
 
   _declineCall: function() {
-    this._hideIncomingBanner();
-    if (this._pendingCall) { this._pendingCall.close(); this._pendingCall = null; }
-    if (typeof Messages !== 'undefined' && Messages.updateCallMessage) {
+    if(this._pendingCall) { this._pendingCall.close(); this._pendingCall = null; }
+    if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
       Messages.updateCallMessage(this._callMsgId, 'declined');
     }
-    if (typeof WebSocketManager !== 'undefined') {
+    if(typeof WebSocketManager !== 'undefined') {
       WebSocketManager.sendVideoSignal({ op: 'declined', from: this.myRole });
     }
   },
@@ -239,16 +268,17 @@ var VideoChat = {
     call.on('stream', function(remoteStream) {
       console.log('[VideoChat] Remote stream received');
       self.remoteVideo.srcObject = remoteStream;
+      // Explicit play() — critical for both iOS and autoplay-policy browsers
+      self.remoteVideo.play().catch(function(e){ console.warn('[VideoChat] remoteVideo.play():', e); });
       self._setStatus('');
       self._callStartTime = Date.now();
 
-      if (typeof Messages !== 'undefined' && Messages.updateCallMessage) {
+      if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
         Messages.updateCallMessage(self._callMsgId, 'connected');
       }
     });
 
     call.on('close', function() {
-      console.log('[VideoChat] Remote closed call');
       var wasConnected = !!self._callStartTime;
       self._endCallInternal(false, wasConnected ? 'ended' : 'disconnected');
     });
@@ -261,43 +291,39 @@ var VideoChat = {
 
   // ─── End call ─────────────────────────────────────────────────────────────
 
-  // Public: called by End button or role switch
   _endCall: function(notify) {
-    if (notify === undefined) notify = true;
+    if(notify === undefined) notify = true;
     var wasConnected = !!this._callStartTime;
     this._endCallInternal(notify, wasConnected ? 'ended' : 'missed');
   },
 
   _endCallInternal: function(sendSignal, finalStatus) {
     var duration = 0;
-    if (this._callStartTime) {
+    if(this._callStartTime) {
       duration = Math.round((Date.now() - this._callStartTime) / 1000);
     }
     this._callStartTime = null;
 
-    if (this.currentCall) {
+    if(this.currentCall) {
       try { this.currentCall.close(); } catch(e) {}
       this.currentCall = null;
     }
-    if (this.localStream) {
+    if(this.localStream) {
       this.localStream.getTracks().forEach(function(t) { t.stop(); });
       this.localStream = null;
     }
-    if (this.localVideo)  this.localVideo.srcObject  = null;
-    if (this.remoteVideo) this.remoteVideo.srcObject = null;
+    if(this.localVideo)  { this.localVideo.srcObject  = null; }
+    if(this.remoteVideo) { this.remoteVideo.srcObject = null; }
 
     this.isInCall = false;
     this.isMuted  = false;
     this._hideOverlay();
-    this._hideIncomingBanner();
 
-    // Update chat indicator with final state + duration
-    if (typeof Messages !== 'undefined' && Messages.updateCallMessage) {
+    if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
       Messages.updateCallMessage(this._callMsgId, finalStatus, duration);
     }
 
-    // Tell other side
-    if (sendSignal && typeof WebSocketManager !== 'undefined') {
+    if(sendSignal && typeof WebSocketManager !== 'undefined') {
       WebSocketManager.sendVideoSignal({
         op: 'ended',
         from: this.myRole,
@@ -314,10 +340,12 @@ var VideoChat = {
     var from = payload.from;
     var self = this;
 
-    if (op === 'incoming') {
-      // We are the CALLEE
-      if (!this.isInCall) {
-        if (typeof Messages !== 'undefined' && Messages.injectCallMessage) {
+    if(op === 'incoming') {
+      // We are the CALLEE — show answer/decline inside the chat message ONLY
+      // (no top banner — it was causing the banner to appear at the top and
+      //  the in-chat message to appear to "move up")
+      if(!this.isInCall) {
+        if(typeof Messages !== 'undefined' && Messages.injectCallMessage) {
           Messages.injectCallMessage({
             id: self._callMsgId,
             role: from,
@@ -325,30 +353,29 @@ var VideoChat = {
             isCaller: false
           });
         }
-        this._showIncomingBanner(from);
+        // NOTE: _showIncomingBanner intentionally NOT called here.
+        // The in-chat call message already has Answer / Decline buttons.
       }
 
-    } else if (op === 'answered') {
-      // We are the CALLER, callee answered
+    } else if(op === 'answered') {
       this._setStatus('Connecting...');
-      if (typeof Messages !== 'undefined' && Messages.updateCallMessage) {
+      if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
         Messages.updateCallMessage(this._callMsgId, 'connecting');
       }
 
-    } else if (op === 'declined') {
-      if (typeof Messages !== 'undefined' && Messages.updateCallMessage) {
+    } else if(op === 'declined') {
+      if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
         Messages.updateCallMessage(this._callMsgId, 'declined');
       }
       setTimeout(function() { self._endCallInternal(false, 'declined'); }, 1500);
 
-    } else if (op === 'ended') {
+    } else if(op === 'ended') {
       var duration = payload.duration || 0;
       var reason   = payload.reason   || 'ended';
-      if (this.isInCall) {
+      if(this.isInCall) {
         this._endCallInternal(false, reason);
       } else {
-        this._hideIncomingBanner();
-        if (typeof Messages !== 'undefined' && Messages.updateCallMessage) {
+        if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
           Messages.updateCallMessage(this._callMsgId, reason, duration);
         }
       }
@@ -358,10 +385,10 @@ var VideoChat = {
   // ─── Mute / flip ──────────────────────────────────────────────────────────
 
   toggleMute: function() {
-    if (!this.localStream) return;
+    if(!this.localStream) return;
     this.isMuted = !this.isMuted;
     this.localStream.getAudioTracks().forEach(function(t) { t.enabled = !VideoChat.isMuted; });
-    if (this.muteBtn) {
+    if(this.muteBtn) {
       this.muteBtn.classList.toggle('active', this.isMuted);
       this.muteBtn.setAttribute('aria-label', this.isMuted ? 'Unmute' : 'Mute');
       this.muteBtn.querySelector('.vc-icon').innerHTML = this.isMuted ? ICONS.micOff : ICONS.micOn;
@@ -369,7 +396,7 @@ var VideoChat = {
   },
 
   flipCamera: async function() {
-    if (!this.localStream || !this.currentCall) return;
+    if(!this.localStream || !this.currentCall) return;
     var self = this;
     self.isFrontCam = !self.isFrontCam;
     try {
@@ -381,13 +408,14 @@ var VideoChat = {
       var sender = self.currentCall.peerConnection.getSenders().find(function(s) {
         return s.track && s.track.kind === 'video';
       });
-      if (sender) sender.replaceTrack(newVideoTrack);
+      if(sender) sender.replaceTrack(newVideoTrack);
       var oldVideo = self.localStream.getVideoTracks()[0];
-      if (oldVideo) oldVideo.stop();
+      if(oldVideo) oldVideo.stop();
       self.localStream.removeTrack(oldVideo);
       self.localStream.addTrack(newVideoTrack);
       self.localVideo.srcObject = self.localStream;
-    } catch (err) {
+      self.localVideo.play().catch(function(){});
+    } catch(err) {
       console.error('[VideoChat] Flip camera error:', err);
     }
   },
@@ -395,36 +423,25 @@ var VideoChat = {
   // ─── UI helpers ───────────────────────────────────────────────────────────
 
   _showOverlay: function() {
-    if (this.overlay) this.overlay.classList.add('show');
+    if(this.overlay) this.overlay.classList.add('show');
     document.body.classList.add('no-scroll');
   },
 
   _hideOverlay: function() {
-    if (this.overlay) this.overlay.classList.remove('show');
+    if(this.overlay) this.overlay.classList.remove('show');
     document.body.classList.remove('no-scroll');
   },
 
   _setStatus: function(text) {
-    if (!this.statusEl) return;
+    if(!this.statusEl) return;
     this.statusEl.textContent = text;
     this.statusEl.style.display = text ? 'block' : 'none';
   },
 
-  _showIncomingBanner: function(callerRole) {
-    if (!this.incomingBanner) return;
-    var nameEl = this.incomingBanner.querySelector('.incoming-caller-name');
-    if (nameEl) nameEl.textContent = callerRole === 'E' ? 'E' : 'M';
-    this.incomingBanner.classList.add('show');
-  },
-
-  _hideIncomingBanner: function() {
-    if (this.incomingBanner) this.incomingBanner.classList.remove('show');
-  },
-
   _showMediaError: function(err) {
     var msg = 'Camera/mic unavailable';
-    if (err && err.name === 'NotAllowedError') msg = 'Camera/mic permission denied';
-    if (err && err.name === 'NotFoundError')   msg = 'No camera/mic found';
+    if(err && err.name === 'NotAllowedError') msg = 'Camera/mic permission denied. Please allow access in your browser settings.';
+    if(err && err.name === 'NotFoundError')   msg = 'No camera/mic found';
     var toast = document.createElement('div');
     toast.className = 'upload-toast error';
     toast.textContent = msg;
@@ -433,17 +450,15 @@ var VideoChat = {
     setTimeout(function() {
       toast.classList.remove('show');
       setTimeout(function() { toast.remove(); }, 300);
-    }, 3000);
+    }, 4000);
   },
 
   _setupButtons: function() {
     var self = this;
-    if (self.endBtn)             self.endBtn.addEventListener('click', function() { self._endCall(true); });
-    if (self.muteBtn)            self.muteBtn.addEventListener('click', function() { self.toggleMute(); });
-    if (self.flipCamBtn)         self.flipCamBtn.addEventListener('click', function() { self.flipCamera(); });
-    if (self.callBtn)            self.callBtn.addEventListener('click', function() { self.startCall(); });
-    if (self.incomingAcceptBtn)  self.incomingAcceptBtn.addEventListener('click', function() { self._answerCall(); });
-    if (self.incomingDeclineBtn) self.incomingDeclineBtn.addEventListener('click', function() { self._declineCall(); });
+    if(self.endBtn)     self.endBtn.addEventListener('click', function() { self._endCall(true); });
+    if(self.muteBtn)    self.muteBtn.addEventListener('click', function() { self.toggleMute(); });
+    if(self.flipCamBtn) self.flipCamBtn.addEventListener('click', function() { self.flipCamera(); });
+    if(self.callBtn)    self.callBtn.addEventListener('click', function() { self.startCall(); });
   }
 };
 
