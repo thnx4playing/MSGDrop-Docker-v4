@@ -119,8 +119,13 @@ var VideoChat = {
     self.peer.on('error', function(err) {
       console.error('[VideoChat] PeerJS error:', err.type, err);
       if(err.type === 'peer-unavailable') {
-        // Callee not yet registered on PeerJS - keep overlay open and
-        // wait for the WS 'answered' signal which will trigger a re-call.
+        // Callee not yet registered on PeerJS.
+        // NULL OUT currentCall so the 'answered' signal handler knows
+        // this call is dead and needs a fresh peer.call() when they answer.
+        if(self.currentCall) {
+          try { self.currentCall.close(); } catch(e) {}
+          self.currentCall = null;
+        }
         self._setStatus('Waiting for answer...');
       } else if(err.type === 'unavailable-id') {
         self.myPeerId = self.myPeerId + '_' + Date.now().toString(36).slice(-4);
