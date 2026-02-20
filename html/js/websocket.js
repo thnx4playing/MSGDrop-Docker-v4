@@ -109,6 +109,26 @@ var WebSocketManager = {
         if(event.code === 1008 || event.code === 1006){
           var sessionToken = this.getCookie('session-ok');
           if(!sessionToken || sessionToken === 'true'){
+            // ── Clean up any active or pending video call before navigating away ──
+            // The WS is already closed so we can't send signals, but we still need to:
+            //   1. Stop camera/mic tracks (removes browser camera indicator)
+            //   2. Close the PeerJS call (PeerJS uses its own connection to 0.peerjs.com,
+            //      so the remote side gets a call.on('close') event even after our WS dies)
+            //   3. Remove the call UI so it doesn't linger on the unlock screen
+            if(typeof VideoChat !== 'undefined') {
+              if(VideoChat.isInCall) {
+                // Don't send WS signal (false) — WS is closed. PeerJS handles remote cleanup.
+                VideoChat._endCallInternal(false, 'ended');
+              } else if(VideoChat._pendingCall) {
+                // Unanswered incoming call — close the PeerJS side
+                try { VideoChat._pendingCall.close(); } catch(e) {}
+                VideoChat._pendingCall = null;
+              }
+              // Remove lingering call UI card (incoming or calling state)
+              var callCard = document.getElementById('call-sys-' + VideoChat._callMsgId);
+              if(callCard) callCard.remove();
+            }
+
             var returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
             window.location.href = '/unlock/?next=' + returnUrl;
           }
