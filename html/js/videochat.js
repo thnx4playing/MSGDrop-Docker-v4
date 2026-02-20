@@ -3,14 +3,21 @@
 // VIDEOCHAT.JS - FaceTime-style WebRTC video chat using PeerJS
 // ============================================================================
 // Call flow:
-//   1. Caller clicks video btn → startCall() → sends 'incoming' WS signal
+//   1. Caller clicks video btn → _ensurePeerReady() → startCall()
+//      → sends 'incoming' WS signal with own peerId
 //   2. Server broadcasts signal + fires SMS alert
-//   3. Chat shows caller: "Calling..." | callee: incoming call card with Answer/Decline
-//   4. Callee taps Answer → _answerCall() → sends 'answered' signal WITH own peerId
-//   5. CALLER receives 'answered' + peerId → re-calls peer.call(calleePeerId)
-//      (needed when callee joined LATE and the original call attempt failed with peer-unavailable)
+//   3. Chat shows caller: "Calling..." | callee: incoming call card
+//   4. Callee taps Answer → _answerCall() → sends 'answered' + own peerId
+//   5. CALLER receives 'answered':
+//      - Both in app → currentCall exists (ICE in progress) → do nothing
+//      - Late-join   → currentCall is null (peer-unavailable cleared it) → re-call callee's peerId
 //   6. Callee's peer.on('call') fires → answers → streams connect
 //   7. Either side ends → 'ended' signal → chat shows "Call ended • 0:42"
+//
+// Peer ID broadcasting:
+//   On every PeerJS 'open' event (init AND after reconnect), each client sends
+//   op:'peer_ready' with their current peerId over WS. This ensures the remote
+//   side always has the up-to-date peerId even after idle reconnects.
 // ============================================================================
 
 var VideoChat = {
@@ -21,6 +28,10 @@ var VideoChat = {
   myPeerId: null,
   dropId: null,
   myRole: null,
+
+  // Tracks the other user's CURRENT peerId as broadcast via peer_ready signals.
+  // Falls back to computed ID if we haven't received one yet.
+  _remotePeerId: null,
 
   // DOM refs
   overlay: null,
@@ -56,25 +67,40 @@ var VideoChat = {
 
     this._setupButtons();
     this._initPeer();
-    // Pre-warm camera/mic permissions
-    setTimeout(function() { VideoChat.preWarmMedia(); }, 1500);
+
+    // Pre-warm camera/mic permissions.
+    // ONLY run on browsers that actually support the permissions API
+    // (Chrome/Edge/Firefox). Skip on Safari — permissions.query for
+    // camera/mic throws on Safari, the pre-warm stops all tracks, and
+    // iOS then re-prompts on every real getUserMedia call.
+    setTimeout(function() { VideoChat._tryPreWarm(); }, 1500);
   },
 
   // ─── Permission pre-warm ─────────────────────────────────────────────────
-  preWarmMedia: function() {
+  _tryPreWarm: function() {
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-    if(navigator.permissions && navigator.permissions.query) {
-      Promise.all([
-        navigator.permissions.query({ name: 'camera' }).catch(function(){ return { state: 'unknown' }; }),
-        navigator.permissions.query({ name: 'microphone' }).catch(function(){ return { state: 'unknown' }; })
-      ]).then(function(results) {
-        var camState = results[0].state;
-        var micState = results[1].state;
-        if(camState !== 'granted' || micState !== 'granted') {
-          VideoChat._doMediaPreWarm();
-        }
-      });
+    if(!navigator.permissions || !navigator.permissions.query) {
+      // permissions API not available (Safari) — skip pre-warm entirely.
+      // Safari will prompt when the actual call starts; pre-warming here
+      // doesn't prevent that and just triggers an extra permission dialog.
+      console.log('[VideoChat] permissions API unavailable (Safari?), skipping pre-warm');
+      return;
     }
+    Promise.all([
+      navigator.permissions.query({ name: 'camera' }).catch(function(){ return null; }),
+      navigator.permissions.query({ name: 'microphone' }).catch(function(){ return null; })
+    ]).then(function(results) {
+      // If either query failed (Safari), skip pre-warm
+      if(!results[0] || !results[1]) {
+        console.log('[VideoChat] permissions.query unsupported, skipping pre-warm');
+        return;
+      }
+      if(results[0].state !== 'granted' || results[1].state !== 'granted') {
+        VideoChat._doMediaPreWarm();
+      } else {
+        console.log('[VideoChat] Camera/mic already granted, skipping pre-warm');
+      }
+    });
   },
 
   _doMediaPreWarm: function() {
@@ -93,6 +119,11 @@ var VideoChat = {
   _initPeer: function() {
     var self = this;
 
+    // Always destroy any existing peer before creating a new one
+    if(self.peer && !self.peer.destroyed) {
+      try { self.peer.destroy(); } catch(e) {}
+    }
+
     self.peer = new Peer(self.myPeerId, {
       host: '0.peerjs.com',
       port: 443,
@@ -109,6 +140,17 @@ var VideoChat = {
 
     self.peer.on('open', function(id) {
       console.log('[VideoChat] PeerJS ready, ID:', id);
+      self.myPeerId = id; // update in case it changed
+      // Broadcast our current peerId to the remote side over WS.
+      // This runs on initial connect AND after any reconnect, ensuring
+      // the other user always has our latest peerId.
+      if(typeof WebSocketManager !== 'undefined') {
+        WebSocketManager.sendVideoSignal({
+          op: 'peer_ready',
+          from: self.myRole,
+          peerId: id
+        });
+      }
     });
 
     self.peer.on('call', function(call) {
@@ -119,25 +161,76 @@ var VideoChat = {
     self.peer.on('error', function(err) {
       console.error('[VideoChat] PeerJS error:', err.type, err);
       if(err.type === 'peer-unavailable') {
-        // Callee not yet registered on PeerJS.
-        // NULL OUT currentCall so the 'answered' signal handler knows
-        // this call is dead and needs a fresh peer.call() when they answer.
+        // Callee not yet on PeerJS. Null out currentCall so the
+        // 'answered' handler knows to re-call when they show up.
         if(self.currentCall) {
           try { self.currentCall.close(); } catch(e) {}
           self.currentCall = null;
         }
         self._setStatus('Waiting for answer...');
       } else if(err.type === 'unavailable-id') {
+        // ID conflict — append short suffix and retry.
+        // We broadcast the new ID via peer 'open' handler above.
         self.myPeerId = self.myPeerId + '_' + Date.now().toString(36).slice(-4);
         console.warn('[VideoChat] ID taken, retrying with:', self.myPeerId);
-        self.peer.destroy();
         setTimeout(function() { self._initPeer(); }, 500);
       }
     });
 
     self.peer.on('disconnected', function() {
-      if(!self.peer.destroyed) self.peer.reconnect();
+      console.log('[VideoChat] PeerJS disconnected, reconnecting...');
+      if(!self.peer.destroyed) {
+        // Small delay before reconnect — gives the network time to settle
+        setTimeout(function() {
+          if(self.peer && !self.peer.destroyed) self.peer.reconnect();
+        }, 1000);
+      }
     });
+
+    self.peer.on('close', function() {
+      console.log('[VideoChat] PeerJS peer closed');
+    });
+  },
+
+  // ─── Ensure peer is connected before making a call ───────────────────────
+  // Returns a Promise that resolves when the peer is open and ready.
+  // Times out after 8 seconds and rejects.
+  _ensurePeerReady: function() {
+    var self = this;
+    return new Promise(function(resolve, reject) {
+      // Already open
+      if(self.peer && !self.peer.disconnected && !self.peer.destroyed) {
+        resolve();
+        return;
+      }
+      // Destroyed — full re-init needed
+      if(!self.peer || self.peer.destroyed) {
+        console.log('[VideoChat] Peer destroyed, reinitializing...');
+        self._initPeer();
+      } else {
+        // Disconnected — reconnect
+        console.log('[VideoChat] Peer disconnected, reconnecting...');
+        self.peer.reconnect();
+      }
+      // Wait for open event
+      var timeout = setTimeout(function() {
+        reject(new Error('PeerJS did not connect within 8s'));
+      }, 8000);
+      var onOpen = function() {
+        clearTimeout(timeout);
+        resolve();
+      };
+      self.peer.once('open', onOpen);
+    });
+  },
+
+  // ─── Compute remote peer ID ───────────────────────────────────────────────
+  // Uses the peer ID we received via peer_ready signal if available,
+  // otherwise falls back to the deterministic computed ID.
+  _getRemotePeerId: function() {
+    if(this._remotePeerId) return this._remotePeerId;
+    var otherRole = this.myRole === 'M' ? 'E' : 'M';
+    return (this.dropId + '_' + otherRole).replace(/[^a-zA-Z0-9_-]/g, '_');
   },
 
   // ─── Start call (caller side) ────────────────────────────────────────────
@@ -146,8 +239,14 @@ var VideoChat = {
     var self = this;
     if(self.isInCall) { self._showOverlay(); return; }
 
-    var otherRole    = self.myRole === 'M' ? 'E' : 'M';
-    var remotePeerId = (self.dropId + '_' + otherRole).replace(/[^a-zA-Z0-9_-]/g, '_');
+    // Make sure our peer is registered on PeerJS before we try to call
+    try {
+      await self._ensurePeerReady();
+    } catch(err) {
+      console.error('[VideoChat] Peer not ready:', err);
+      self._showError('Connection unavailable. Please try again.');
+      return;
+    }
 
     try {
       self.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -177,8 +276,8 @@ var VideoChat = {
         });
       }
 
-      // Attempt to call immediately; if callee isn't on PeerJS yet, we'll
-      // get a 'peer-unavailable' error and re-call when they send 'answered'.
+      var remotePeerId = self._getRemotePeerId();
+      console.log('[VideoChat] Calling peer:', remotePeerId);
       var call = self.peer.call(remotePeerId, self.localStream);
       self.currentCall = call;
       self._setupCallHandlers(call);
@@ -211,25 +310,23 @@ var VideoChat = {
         Messages.updateCallMessage(self._callMsgId, 'connecting');
       }
 
-      // ── Include our peerId in the answered signal ──────────────────────
-      // The caller uses this to re-call us via PeerJS if their original
-      // peer.call() failed because we weren't registered yet (late-join).
+      // Include our peerId — the caller uses it to re-call us in the late-join case
       if(typeof WebSocketManager !== 'undefined') {
         WebSocketManager.sendVideoSignal({
           op: 'answered',
           from: self.myRole,
-          peerId: self.myPeerId   // ← key addition
+          peerId: self.myPeerId
         });
       }
 
-      // If the caller's PeerJS call already arrived (both-in-app case), answer it now.
-      // Otherwise, wait — the caller will re-call once they get our 'answered' signal.
       if(self._pendingCall) {
+        // Both-in-app: PeerJS call already arrived, answer it immediately
         self._pendingCall.answer(self.localStream);
         self.currentCall = self._pendingCall;
         self._pendingCall = null;
         self._setupCallHandlers(self.currentCall);
       } else {
+        // Late-join: caller will re-call us after receiving 'answered' signal
         self._waitForPeerCall();
       }
 
@@ -284,7 +381,6 @@ var VideoChat = {
       self.remoteVideo.play().catch(function(e){ console.warn('[VideoChat] remoteVideo.play():', e); });
       self._setStatus('');
       self._callStartTime = Date.now();
-
       if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
         Messages.updateCallMessage(self._callMsgId, 'connected');
       }
@@ -336,7 +432,6 @@ var VideoChat = {
     if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
       Messages.updateCallMessage(this._callMsgId, finalStatus, duration);
     }
-
     if(sendSignal && typeof WebSocketManager !== 'undefined') {
       WebSocketManager.sendVideoSignal({
         op: 'ended',
@@ -347,15 +442,28 @@ var VideoChat = {
     }
   },
 
-  // ─── Handle incoming WS video signals ─────────────────────────────────────
+  // ─── Handle incoming WS video signals ────────────────────────────────────
 
   handleSignal: function(payload) {
     var op   = payload.op;
     var from = payload.from;
     var self = this;
 
+    if(op === 'peer_ready') {
+      // Remote side just connected/reconnected to PeerJS.
+      // Cache their current peerId so we use the right ID when calling.
+      if(from && from !== self.myRole && payload.peerId) {
+        self._remotePeerId = payload.peerId;
+        console.log('[VideoChat] Remote peer ID updated:', payload.peerId, 'for', from);
+      }
+      return;
+    }
+
     if(op === 'incoming') {
-      // We are the CALLEE — show answer/decline card in chat
+      // Cache the caller's peerId from the signal
+      if(payload.peerId && from !== self.myRole) {
+        self._remotePeerId = payload.peerId;
+      }
       if(!this.isInCall) {
         if(typeof Messages !== 'undefined' && Messages.injectCallMessage) {
           Messages.injectCallMessage({
@@ -373,17 +481,15 @@ var VideoChat = {
         Messages.updateCallMessage(this._callMsgId, 'connecting');
       }
 
-      // ── Late-join fix: re-call the callee via PeerJS ──────────────────
-      // When callee was NOT in the app, our original peer.call() got
-      // peer-unavailable and currentCall is null. Re-call now that they answered.
-      //
-      // CRITICAL: Only re-call when currentCall is null.
-      // When both users are already in the app, currentCall is set but
-      // .open is still false during ICE negotiation — closing it here
-      // and re-calling causes a double-call race that breaks connection.
-      var calleePeerId = payload.peerId;
+      // Cache callee's peerId
+      if(payload.peerId) self._remotePeerId = payload.peerId;
+
+      // Late-join fix: only re-call if our original peer.call() failed
+      // (peer-unavailable nulled currentCall). If currentCall exists, ICE
+      // negotiation is already in progress — don't interfere.
+      var calleePeerId = payload.peerId || self._getRemotePeerId();
       if(calleePeerId && self.localStream && !self.currentCall) {
-        console.log('[VideoChat] Late-join re-call to:', calleePeerId);
+        console.log('[VideoChat] Late-join: re-calling callee at peerId:', calleePeerId);
         var newCall = self.peer.call(calleePeerId, self.localStream);
         self.currentCall = newCall;
         self._setupCallHandlers(newCall);
@@ -464,19 +570,20 @@ var VideoChat = {
     this.statusEl.style.display = text ? 'block' : 'none';
   },
 
-  _showMediaError: function(err) {
-    var msg = 'Camera/mic unavailable';
-    if(err && err.name === 'NotAllowedError') msg = 'Camera/mic permission denied. Please allow access in your browser settings.';
-    if(err && err.name === 'NotFoundError')   msg = 'No camera/mic found';
+  _showError: function(msg) {
     var toast = document.createElement('div');
     toast.className = 'upload-toast error';
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(function() { toast.classList.add('show'); }, 10);
-    setTimeout(function() {
-      toast.classList.remove('show');
-      setTimeout(function() { toast.remove(); }, 300);
-    }, 4000);
+    setTimeout(function() { toast.classList.remove('show'); setTimeout(function() { toast.remove(); }, 300); }, 4000);
+  },
+
+  _showMediaError: function(err) {
+    var msg = 'Camera/mic unavailable';
+    if(err && err.name === 'NotAllowedError') msg = 'Camera/mic permission denied. Please allow access in your browser settings.';
+    if(err && err.name === 'NotFoundError')   msg = 'No camera/mic found';
+    this._showError(msg);
   },
 
   _setupButtons: function() {

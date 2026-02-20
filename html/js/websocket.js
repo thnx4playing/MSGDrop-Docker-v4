@@ -1,6 +1,6 @@
 // Path: html/js/websocket.js
 // ============================================================================
-// WEBSOCKET.JS - v4: Added video_signal handling
+// WEBSOCKET.JS - v4: video_signal + auto-reconnect after idle drop
 // ============================================================================
 
 var WebSocketManager = {
@@ -20,6 +20,12 @@ var WebSocketManager = {
   presenceTimeouts: new Map(),
   heartbeatInterval: null,
 
+  // ── Reconnect state ──────────────────────────────────────────────────────
+  _reconnectTimer: null,
+  _reconnectAttempts: 0,
+  _maxReconnectDelay: 30000,
+  _intentionalClose: false,   // set true before auth-redirect so we don't reconnect
+
   getCookie: function(name) {
     var matches = document.cookie.match(new RegExp(
       '(?:^|; )' + name.replace(/([\.$?*|{}\(\)\[\]\\\/\+^])/g, '\\$1') + '=([^;]*)'
@@ -31,120 +37,153 @@ var WebSocketManager = {
     if(!CONFIG.USE_WS) return;
     this.dropId = dropId;
     this.userLabel = userLabel;
+    this._intentionalClose = false;
+    this._doConnect();
+  },
+
+  _doConnect: function(){
     var sessionToken = this.getCookie('session-ok');
-    if(!sessionToken) {
-      console.error('[WS] No session token found');
-      var returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.href = '/unlock/?next=' + returnUrl;
+    if(!sessionToken || sessionToken === 'true') {
+      console.error('[WS] No valid session token, redirecting to unlock');
+      this._redirectToUnlock();
       return;
     }
-    if(sessionToken === 'true') {
-      console.error('[WS] session-ok has old format');
-      var returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.href = '/unlock/?next=' + returnUrl;
-      return;
-    }
-    var url = CONFIG.WS_URL 
+    var url = CONFIG.WS_URL
       + '?sessionToken=' + encodeURIComponent(sessionToken)
-      + '&dropId=' + encodeURIComponent(dropId) 
-      + '&user=' + encodeURIComponent(userLabel);
+      + '&dropId='       + encodeURIComponent(this.dropId)
+      + '&user='         + encodeURIComponent(this.userLabel);
     try {
       this.ws = new WebSocket(url);
-      this.ws.onopen = function(){
-        if(UI.setLive) UI.setLive('Connected (Live)');
-        this.updatePresence(this.userLabel, true);
-        if(this.heartbeatInterval) clearInterval(this.heartbeatInterval);
-        this.heartbeatInterval = setInterval(function(){
-          this.sendHeartbeat();
-        }.bind(this), 30000);
-        this.sendHeartbeat();
-        setTimeout(function(){ this.requestPresence(); }.bind(this), 500);
-        setTimeout(function(){ WebSocketManager.requestGameList(); }, 200);
-        setTimeout(function(){
-          if(typeof Messages !== 'undefined' && Messages.sendReadReceipts) Messages.sendReadReceipts();
-        }, 100);
-      }.bind(this);
-
-      this.ws.onmessage = function(ev){
-        try {
-          var msg = JSON.parse(ev.data || '{}');
-          if(msg.type === 'update'){
-            if(msg.data){ if(this.onUpdateCallback) this.onUpdateCallback(msg.data); }
-            else {
-              if(this.onUpdateCallback && typeof API !== 'undefined'){
-                API.fetchDrop(this.dropId).then(function(data){
-                  if(this.onUpdateCallback) this.onUpdateCallback(data);
-                }.bind(this)).catch(function(e){ console.error('[WS] Failed to fetch drop:', e); });
-              }
-            }
-          } else if(msg.type === 'typing' && msg.payload){
-            if(this.onTypingCallback) this.onTypingCallback(msg.payload);
-          } else if(msg.type === 'presence' && msg.data){
-            this.handlePresence(msg.data);
-          } else if(msg.type === 'presence_request' && msg.data){
-            this.sendHeartbeat();
-          } else if(msg.type === 'game' && msg.payload){
-            if(this.onGameCallback) this.onGameCallback(msg.payload);
-          } else if(msg.type === 'game_list' && msg.data){
-            if(this.onGameListCallback) this.onGameListCallback(msg.data);
-          } else if(msg.type === 'streak' && msg.data){
-            if(this.onStreakCallback) this.onStreakCallback(msg.data);
-          } else if(msg.type === 'delivery_receipt' && msg.data){
-            if(typeof Messages !== 'undefined' && Messages.handleDeliveryReceipt) Messages.handleDeliveryReceipt(msg.data);
-          } else if(msg.type === 'read_receipt' && msg.data){
-            if(typeof Messages !== 'undefined' && Messages.handleReadReceipt) Messages.handleReadReceipt(msg.data);
-          } else if(msg.type === 'video_signal' && msg.payload){
-            if(this.onVideoSignalCallback) this.onVideoSignalCallback(msg.payload);
-            // Also route to VideoChat directly if available
-            if(typeof VideoChat !== 'undefined' && VideoChat.handleSignal) VideoChat.handleSignal(msg.payload);
-          } else if(msg.type === 'error'){
-            console.error('[WS] Server error:', msg.message);
-          }
-        } catch(e){ console.error('[WS] Parse error:', e); }
-      }.bind(this);
-
-      this.ws.onclose = function(event){
-        if(UI.setLive) UI.setLive('Connected (Polling)');
-        if(this.heartbeatInterval){ clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
-        if(event.code === 1008 || event.code === 1006){
-          var sessionToken = this.getCookie('session-ok');
-          if(!sessionToken || sessionToken === 'true'){
-            // ── Clean up any active or pending video call before navigating away ──
-            // The WS is already closed so we can't send signals, but we still need to:
-            //   1. Stop camera/mic tracks (removes browser camera indicator)
-            //   2. Close the PeerJS call (PeerJS uses its own connection to 0.peerjs.com,
-            //      so the remote side gets a call.on('close') event even after our WS dies)
-            //   3. Remove the call UI so it doesn't linger on the unlock screen
-            if(typeof VideoChat !== 'undefined') {
-              if(VideoChat.isInCall) {
-                // Don't send WS signal (false) — WS is closed. PeerJS handles remote cleanup.
-                VideoChat._endCallInternal(false, 'ended');
-              } else if(VideoChat._pendingCall) {
-                // Unanswered incoming call — close the PeerJS side
-                try { VideoChat._pendingCall.close(); } catch(e) {}
-                VideoChat._pendingCall = null;
-              }
-              // Remove lingering call UI card (incoming or calling state)
-              var callCard = document.getElementById('call-sys-' + VideoChat._callMsgId);
-              if(callCard) callCard.remove();
-            }
-
-            var returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-            window.location.href = '/unlock/?next=' + returnUrl;
-          }
-        }
-      }.bind(this);
-
-      this.ws.onerror = function(e){
-        console.error('[WS] Connection error:', e);
-        var sessionToken = this.getCookie('session-ok');
-        if(!sessionToken || sessionToken === 'true'){
-          var returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-          window.location.href = '/unlock/?next=' + returnUrl;
-        }
-      }.bind(this);
+      this.ws.onopen    = this._onOpen.bind(this);
+      this.ws.onmessage = this._onMessage.bind(this);
+      this.ws.onclose   = this._onClose.bind(this);
+      this.ws.onerror   = this._onError.bind(this);
     } catch(e){ console.error('[WS] Init failed:', e); }
   },
+
+  _onOpen: function(){
+    console.log('[WS] Connected');
+    this._reconnectAttempts = 0;
+    if(this._reconnectTimer){ clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
+    if(UI.setLive) UI.setLive('Connected (Live)');
+    this.updatePresence(this.userLabel, true);
+    if(this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+    this.heartbeatInterval = setInterval(this.sendHeartbeat.bind(this), 30000);
+    this.sendHeartbeat();
+    setTimeout(this.requestPresence.bind(this), 500);
+    setTimeout(function(){ WebSocketManager.requestGameList(); }, 200);
+    setTimeout(function(){
+      if(typeof Messages !== 'undefined' && Messages.sendReadReceipts) Messages.sendReadReceipts();
+    }, 100);
+    // Re-broadcast our PeerJS ID so the other side updates their cached remote peer ID
+    // (important after reconnect in case PeerJS re-initialized with a new ID)
+    setTimeout(function(){
+      if(typeof VideoChat !== 'undefined' && VideoChat.myPeerId && VideoChat.peer && !VideoChat.peer.destroyed) {
+        WebSocketManager.sendVideoSignal({ op: 'peer_ready', peerId: VideoChat.myPeerId, from: WebSocketManager.userLabel });
+      }
+    }, 800);
+  },
+
+  _onMessage: function(ev){
+    try {
+      var msg = JSON.parse(ev.data || '{}');
+      if(msg.type === 'update'){
+        if(msg.data){ if(this.onUpdateCallback) this.onUpdateCallback(msg.data); }
+        else {
+          if(this.onUpdateCallback && typeof API !== 'undefined'){
+            API.fetchDrop(this.dropId).then(function(data){
+              if(this.onUpdateCallback) this.onUpdateCallback(data);
+            }.bind(this)).catch(function(e){ console.error('[WS] Failed to fetch drop:', e); });
+          }
+        }
+      } else if(msg.type === 'typing' && msg.payload){
+        if(this.onTypingCallback) this.onTypingCallback(msg.payload);
+      } else if(msg.type === 'presence' && msg.data){
+        this.handlePresence(msg.data);
+      } else if(msg.type === 'presence_request'){
+        this.sendHeartbeat();
+      } else if(msg.type === 'game' && msg.payload){
+        if(this.onGameCallback) this.onGameCallback(msg.payload);
+      } else if(msg.type === 'game_list' && msg.data){
+        if(this.onGameListCallback) this.onGameListCallback(msg.data);
+      } else if(msg.type === 'streak' && msg.data){
+        if(this.onStreakCallback) this.onStreakCallback(msg.data);
+      } else if(msg.type === 'delivery_receipt' && msg.data){
+        if(typeof Messages !== 'undefined' && Messages.handleDeliveryReceipt) Messages.handleDeliveryReceipt(msg.data);
+      } else if(msg.type === 'read_receipt' && msg.data){
+        if(typeof Messages !== 'undefined' && Messages.handleReadReceipt) Messages.handleReadReceipt(msg.data);
+      } else if(msg.type === 'video_signal' && msg.payload){
+        if(this.onVideoSignalCallback) this.onVideoSignalCallback(msg.payload);
+        if(typeof VideoChat !== 'undefined' && VideoChat.handleSignal) VideoChat.handleSignal(msg.payload);
+      } else if(msg.type === 'error'){
+        console.error('[WS] Server error:', msg.message);
+      }
+    } catch(e){ console.error('[WS] Parse error:', e); }
+  },
+
+  _onClose: function(event){
+    if(UI.setLive) UI.setLive('Connected (Polling)');
+    if(this.heartbeatInterval){ clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
+
+    // Auth failure → clean up call and redirect; do not reconnect
+    if(event.code === 1008) {
+      var sessionToken = this.getCookie('session-ok');
+      if(!sessionToken || sessionToken === 'true'){
+        this._cleanupCallOnSessionExpiry();
+        this._redirectToUnlock();
+        return;
+      }
+    }
+
+    // Intentional close (e.g. user navigating away) → do not reconnect
+    if(this._intentionalClose) return;
+
+    // Unexpected drop → reconnect with exponential backoff
+    this._scheduleReconnect();
+  },
+
+  _onError: function(e){
+    console.error('[WS] Connection error:', e);
+    // Auth check - if no valid session, redirect
+    var sessionToken = this.getCookie('session-ok');
+    if(!sessionToken || sessionToken === 'true'){
+      this._cleanupCallOnSessionExpiry();
+      this._redirectToUnlock();
+    }
+    // onclose will fire after onerror, which will schedule reconnect
+  },
+
+  _scheduleReconnect: function(){
+    if(this._reconnectTimer) return; // already scheduled
+    this._reconnectAttempts++;
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s max
+    var delay = Math.min(1000 * Math.pow(2, this._reconnectAttempts - 1), this._maxReconnectDelay);
+    console.log('[WS] Reconnecting in', delay + 'ms (attempt', this._reconnectAttempts + ')');
+    this._reconnectTimer = setTimeout(function(){
+      WebSocketManager._reconnectTimer = null;
+      WebSocketManager._doConnect();
+    }, delay);
+  },
+
+  _cleanupCallOnSessionExpiry: function(){
+    if(typeof VideoChat === 'undefined') return;
+    if(VideoChat.isInCall) {
+      VideoChat._endCallInternal(false, 'ended');
+    } else if(VideoChat._pendingCall) {
+      try { VideoChat._pendingCall.close(); } catch(e) {}
+      VideoChat._pendingCall = null;
+    }
+    var callCard = document.getElementById('call-sys-' + VideoChat._callMsgId);
+    if(callCard) callCard.remove();
+  },
+
+  _redirectToUnlock: function(){
+    this._intentionalClose = true;
+    var returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = '/unlock/?next=' + returnUrl;
+  },
+
+  // ── Send helpers ─────────────────────────────────────────────────────────
 
   sendTyping: function(){
     if(!this.ws || this.ws.readyState !== 1) return;
@@ -178,10 +217,10 @@ var WebSocketManager = {
   },
 
   requestGameList: function(){ this.sendGameAction({ op: 'request_game_list' }); },
-  startGame: function(gameType, gameData){ this.sendGameAction({ op: 'start', gameType: gameType, gameData: gameData }); },
-  joinGame: function(gameId){ this.sendGameAction({ op: 'join_game', gameId: gameId }); },
-  sendMove: function(gameId, moveData){ this.sendGameAction({ op: 'move', gameId: gameId, moveData: moveData }); },
-  endGame: function(gameId, result){ this.sendGameAction({ op: 'end_game', gameId: gameId, result: result }); },
+  startGame:       function(gt, gd){ this.sendGameAction({ op: 'start', gameType: gt, gameData: gd }); },
+  joinGame:        function(id){ this.sendGameAction({ op: 'join_game', gameId: id }); },
+  sendMove:        function(id, md){ this.sendGameAction({ op: 'move', gameId: id, moveData: md }); },
+  endGame:         function(id, r){ this.sendGameAction({ op: 'end_game', gameId: id, result: r }); },
 
   sendHeartbeat: function(){
     if(!this.ws || this.ws.readyState !== 1) return;
@@ -238,6 +277,8 @@ var WebSocketManager = {
   },
 
   disconnect: function(){
+    this._intentionalClose = true;
+    if(this._reconnectTimer){ clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     if(this.heartbeatInterval){ clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
     if(this.ws){ try { this.ws.close(); } catch(e){} this.ws = null; }
   }
