@@ -365,6 +365,137 @@ var Messages = {
   },
 
   // =========================================================================
+  // GEO INVITE MESSAGES
+  // =========================================================================
+
+  injectGeoInvite: function(opts) {
+    var container = UI.els.chatContainer;
+    if (!container) return;
+
+    var existing = document.getElementById('geo-invite-' + opts.id);
+    if (existing) existing.remove();
+
+    var el = document.createElement('div');
+    el.id = 'geo-invite-' + opts.id;
+    el.className = 'call-system-message';
+    el.setAttribute('data-geo-invite-id', opts.id);
+
+    if (opts.status === 'incoming') {
+      el.classList.add('call-incoming-card');
+
+      var iconWrap = document.createElement('div');
+      iconWrap.className = 'call-card-icon-wrap geo-invite-icon-wrap';
+      iconWrap.innerHTML = '<span style="font-size:28px;line-height:1">🌍</span>';
+
+      var label = document.createElement('div');
+      label.className = 'call-card-label';
+
+      var nameEl = document.createElement('div');
+      nameEl.className = 'call-card-name';
+      nameEl.textContent = (opts.role || '?') + ' wants to play GeoGuessr';
+
+      var subEl = document.createElement('div');
+      subEl.className = 'call-card-sub';
+      subEl.textContent = '5 rounds \u00b7 60 seconds each';
+
+      label.appendChild(nameEl);
+      label.appendChild(subEl);
+
+      var actions = document.createElement('div');
+      actions.className = 'call-card-actions';
+
+      var declineBtn = document.createElement('button');
+      declineBtn.className = 'call-card-btn call-card-decline';
+      declineBtn.innerHTML =
+        '<span class="call-card-btn-icon">' +
+          '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
+            '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>' +
+          '</svg>' +
+        '</span>' +
+        '<span class="call-card-btn-label">Decline</span>';
+      declineBtn.onclick = function(e) {
+        e.stopPropagation();
+        if (typeof GeoGame !== 'undefined') GeoGame.declineInvite();
+      };
+
+      var acceptBtn = document.createElement('button');
+      acceptBtn.className = 'call-card-btn call-card-answer';
+      acceptBtn.innerHTML =
+        '<span class="call-card-btn-icon">' +
+          '<span style="font-size:18px;line-height:1">🌍</span>' +
+        '</span>' +
+        '<span class="call-card-btn-label">Accept</span>';
+      acceptBtn.onclick = function(e) {
+        e.stopPropagation();
+        if (typeof GeoGame !== 'undefined') GeoGame.acceptInvite();
+      };
+
+      actions.appendChild(declineBtn);
+      actions.appendChild(acceptBtn);
+
+      el.appendChild(iconWrap);
+      el.appendChild(label);
+      el.appendChild(actions);
+    }
+    else if (opts.status === 'waiting') {
+      var iconEl = document.createElement('span');
+      iconEl.className = 'call-sys-icon';
+      iconEl.textContent = '🌍';
+      iconEl.classList.add('pulse');
+      var textEl = document.createElement('span');
+      textEl.className = 'call-sys-text';
+      textEl.textContent = 'Waiting for response...';
+      var meta = document.createElement('span');
+      meta.className = 'call-sys-time';
+      meta.textContent = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      el.appendChild(iconEl);
+      el.appendChild(textEl);
+      el.appendChild(meta);
+    }
+
+    if (UI.els.typingIndicator) {
+      container.insertBefore(el, UI.els.typingIndicator);
+    } else {
+      container.appendChild(el);
+    }
+    container.scrollTop = container.scrollHeight;
+  },
+
+  updateGeoInvite: function(id, status) {
+    var el = document.getElementById('geo-invite-' + id);
+    if (!el) return;
+
+    if (status === 'starting') {
+      // Remove the card — game is starting
+      el.classList.remove('call-incoming-card');
+      el.innerHTML = '';
+      var iconEl = document.createElement('span');
+      iconEl.className = 'call-sys-icon';
+      iconEl.textContent = '🌍';
+      var textEl = document.createElement('span');
+      textEl.className = 'call-sys-text';
+      textEl.textContent = 'Game starting...';
+      el.appendChild(iconEl);
+      el.appendChild(textEl);
+      el.setAttribute('data-state', 'done');
+      setTimeout(function() { if (el.parentNode) el.remove(); }, 2000);
+    }
+    else if (status === 'declined') {
+      el.classList.remove('call-incoming-card');
+      el.innerHTML = '';
+      var iconEl2 = document.createElement('span');
+      iconEl2.className = 'call-sys-icon';
+      iconEl2.textContent = '🌍';
+      var textEl2 = document.createElement('span');
+      textEl2.className = 'call-sys-text';
+      textEl2.textContent = 'GeoGuessr declined';
+      el.appendChild(iconEl2);
+      el.appendChild(textEl2);
+      el.setAttribute('data-state', 'done');
+    }
+  },
+
+  // =========================================================================
   // AUDIO BUBBLE
   // =========================================================================
 

@@ -221,6 +221,8 @@ var App = {
     if(geoNextBtn){ geoNextBtn.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.nextRound(); }); }
     var geoScoreboardBtn = document.getElementById('geoScoreboardBtn');
     if(geoScoreboardBtn){ geoScoreboardBtn.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.showScoreboard(); }); }
+    var geoViewToggle = document.getElementById('geoViewToggle');
+    if(geoViewToggle){ geoViewToggle.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.toggleMobileView(); }); }
 
     // Game board
     var gameCells = document.querySelectorAll('.game-cell');

@@ -665,6 +665,18 @@
 }
 .call-card-answer:hover { background: #2ab34a; }
 
+/* Geo invite icon variant — green gradient instead of blue */
+.geo-invite-icon-wrap {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  animation: geo-ring-pulse 1.5s ease-out infinite;
+}
+@keyframes geo-ring-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(34, 197, 94, 0.5); }
+  60%  { box-shadow: 0 0 0 18px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0   rgba(34, 197, 94, 0); }
+}
+
 /* ================================================================
    TOOLBAR REDESIGN — centre launcher + left/right groups
    ================================================================ */

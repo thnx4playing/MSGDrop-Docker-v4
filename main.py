@@ -379,6 +379,30 @@ def _get_pending_call(drop_id: str) -> Optional[Dict[str, Any]]:
         return None
     return call
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PENDING GEO INVITE STATE
+# Same pattern as pending calls. Stored when player sends geo_invite,
+# replayed to late joiners, cleared on accept/decline or 5-minute TTL.
+# ─────────────────────────────────────────────────────────────────────────────
+_pending_geo_invites: Dict[str, Dict[str, Any]] = {}
+_PENDING_GEO_INVITE_TTL_S = 300
+
+def _store_pending_geo_invite(drop_id: str, payload: Dict[str, Any]):
+    _pending_geo_invites[drop_id] = {**payload, "ts": time.time()}
+    logger.info(f"[PendingGeoInvite] Stored invite for drop={drop_id} from={payload.get('from')}")
+
+def _clear_pending_geo_invite(drop_id: str):
+    if drop_id in _pending_geo_invites:
+        del _pending_geo_invites[drop_id]
+        logger.info(f"[PendingGeoInvite] Cleared invite for drop={drop_id}")
+
+def _get_pending_geo_invite(drop_id: str) -> Optional[Dict[str, Any]]:
+    invite = _pending_geo_invites.get(drop_id)
+    if invite and time.time() - invite.get("ts", 0) > _PENDING_GEO_INVITE_TTL_S:
+        _clear_pending_geo_invite(drop_id)
+        return None
+    return invite
+
 # --- Twilio notifications ---
 _last_notify: Dict[str, int] = {}
 
@@ -1281,6 +1305,22 @@ async def ws_endpoint(ws: WebSocket):
         except Exception as e:
             logger.warning(f"[PendingCall] Failed to replay call to {user}: {e}")
 
+    # ── Replay pending geo invite for late joiners ────────────────────────
+    pending_geo = _get_pending_geo_invite(drop)
+    if pending_geo and pending_geo.get("from") != user:
+        try:
+            await ws.send_json({
+                "type": "game",
+                "payload": {
+                    "op": "geo_invite",
+                    "from": pending_geo.get("from"),
+                    "inviteId": pending_geo.get("inviteId"),
+                }
+            })
+            logger.info(f"[PendingGeoInvite] Replayed invite to late joiner {user} in drop={drop}")
+        except Exception as e:
+            logger.warning(f"[PendingGeoInvite] Failed to replay invite to {user}: {e}")
+
     try:
         while True:
             msg = await ws.receive_json()
@@ -1471,7 +1511,21 @@ async def ws_endpoint(ws: WebSocket):
                     await hub.broadcast(drop, {"type": "game", "payload": payload})
 
                 # --- GeoGuessr ops ---
-                elif op == "geo_start":
+                elif op == "geo_invite":
+                    invite_id = f"geoinv_{secrets.token_hex(8)}"
+                    _store_pending_geo_invite(drop, {
+                        "from": user,
+                        "inviteId": invite_id,
+                    })
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "geo_invite", "from": user, "inviteId": invite_id
+                    }})
+                    if _should_notify("geo_invite", drop, 120):
+                        inviter = user or "Someone"
+                        notify(f"{inviter} wants to play GeoGuessr! Open MSGDrop to accept.")
+
+                elif op == "geo_invite_accepted":
+                    _clear_pending_geo_invite(drop)
                     locs = random.sample(GEO_LOCATIONS, min(5, len(GEO_LOCATIONS)))
                     gid = f"geo_{secrets.token_hex(8)}"
                     geo_game_manager.create_game(gid, drop, user, locs)
@@ -1493,8 +1547,12 @@ async def ws_endpoint(ws: WebSocket):
                         "round": 1, "totalRounds": 5,
                         "location": {"lat": loc0["lat"], "lng": loc0["lng"]}
                     }})
-                    if (user or "").upper() == "E" and _should_notify("game", drop, 60):
-                        notify("E started a GeoGuessr game")
+
+                elif op == "geo_invite_declined":
+                    _clear_pending_geo_invite(drop)
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "geo_invite_declined", "from": user
+                    }})
 
                 elif op == "geo_guess":
                     gid = payload.get("gameId")
