@@ -33,7 +33,7 @@ var GeoGame = {
       .then(function(data) {
         if (!data.mapsApiKey) { alert('Google Maps API key not configured'); return; }
         var script = document.createElement('script');
-        script.src = 'https://maps.googleapis.com/maps/api/js?key=' + data.mapsApiKey + '&callback=_geoMapsReady';
+        script.src = 'https://maps.googleapis.com/maps/api/js?key=' + data.mapsApiKey + '&loading=async&callback=_geoMapsReady';
         script.async = true;
         window._geoMapsReady = function() {
           delete window._geoMapsReady;
