@@ -24,8 +24,8 @@
 .header-call-btn img {
   display: block;
   pointer-events: none;
-  width: 28px;
-  height: 28px;
+  width: 25px;
+  height: 25px;
 }
 .header-call-btn svg { display: block; pointer-events: none; }
 
