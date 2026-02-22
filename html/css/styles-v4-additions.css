@@ -12,16 +12,12 @@
   height: 28px;
   min-width: 28px;
   min-height: 28px;
-  border-radius: 50%;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: transform 0.15s;
   flex-shrink: 0;
-  -webkit-mask-image: radial-gradient(circle, #fff 100%, transparent 100%);
-  mask-image: radial-gradient(circle, #fff 100%, transparent 100%);
 }
 .header-call-btn:hover { transform: scale(1.05); }
 .header-call-btn:active { transform: scale(0.96); }
@@ -30,6 +26,7 @@
   pointer-events: none;
   width: 28px;
   height: 28px;
+  border-radius: 50%;
   object-fit: cover;
 }
 .header-call-btn svg { display: block; pointer-events: none; }
