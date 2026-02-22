@@ -130,6 +130,20 @@ var App = {
       cameraBtn.addEventListener('click', function(){ Camera.show(); });
     }
 
+    // Logout/lock button (in header)
+    var logoutBtn = document.getElementById('logoutBtn');
+    if(logoutBtn){
+      logoutBtn.addEventListener('click', async function(){
+        try {
+          await fetch(CONFIG.API_BASE_URL.replace(/\/$/, '') + '/logout', {
+            method: 'POST', credentials: 'include'
+          });
+        } catch(e){}
+        var nextUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = '/unlock/?next=' + nextUrl;
+      });
+    }
+
     // Video call button (in header)
     var videoCallBtn = document.getElementById('videoCallBtn');
     if(videoCallBtn && typeof VideoChat !== 'undefined'){
@@ -312,12 +326,16 @@ var App = {
 
   startCountdownTimer: function(){
     if(!UI.els.composeTimer) return;
-    var seconds = 298;
-    if(UI.els.composeTimer) UI.els.composeTimer.textContent = seconds;
+    var seconds = 1198;
+    function fmt(s){
+      if(s >= 60) return Math.ceil(s / 60) + 'm';
+      return s + 's';
+    }
+    UI.els.composeTimer.textContent = fmt(seconds);
     setInterval(function(){
       seconds--;
       if(seconds < 0) seconds = 0;
-      if(UI.els.composeTimer) UI.els.composeTimer.textContent = seconds;
+      if(UI.els.composeTimer) UI.els.composeTimer.textContent = fmt(seconds);
       if(UI.els.composeTimer){
         if(seconds < 10) UI.els.composeTimer.classList.add('warning');
         else UI.els.composeTimer.classList.remove('warning');

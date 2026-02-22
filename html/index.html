@@ -23,7 +23,7 @@
 <link rel="stylesheet" href="/msgdrop/css/message-actions-modal.css?v=20260220">
 <link rel="stylesheet" href="/msgdrop/css/rich-links.css?v=20260220">
 <link rel="stylesheet" href="/msgdrop/css/call-system-messages.css?v=20260220">
-<link rel="stylesheet" href="/msgdrop/css/styles-v4-additions.css?v=20260220">
+<link rel="stylesheet" href="/msgdrop/css/styles-v4-additions.css?v=20260222">
 <link rel="stylesheet" href="/msgdrop/css/geogame.css?v=20260221">
 <link rel="stylesheet" href="/msgdrop/css/qa.css?v=20260222">
 </head>
@@ -52,6 +52,13 @@
       <div class="header-center">
       </div>
       <div class="header-right">
+        <!-- Lock/logout button -->
+        <button id="logoutBtn" class="header-lock-btn" type="button" aria-label="Lock" title="Lock session">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </button>
         <!-- Video call button -->
         <button id="videoCallBtn" class="header-call-btn" type="button" aria-label="Video call" title="Start video call">
           <img alt="" src="/msgdrop/images/video.png?v=1">
@@ -103,7 +110,7 @@
       
       <div class="compose-row">
         <textarea id="reply" class="compose-textarea" placeholder="Message" rows="1"></textarea>
-        <div id="composeTimer" class="compose-timer">298</div>
+        <div id="composeTimer" class="compose-timer">20m</div>
         <button id="postBtn" class="send-btn" type="button" aria-label="Send" title="Send">
           <img alt="" src="/msgdrop/images/reply.png?v=1">
         </button>
@@ -520,7 +527,7 @@
 <script src="/msgdrop/js/camera.js?v=20260220"></script>
 <script src="/msgdrop/js/audio.js?v=20260220"></script>
 <script src="/msgdrop/js/videochat.js?v=20260220"></script>
-<script src="/msgdrop/js/app.js?v=20260220"></script>
+<script src="/msgdrop/js/app.js?v=20260222"></script>
 <script>
 // ── Launcher menu (start menu) wiring ──────────────────────────────────────
 (function(){

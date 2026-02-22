@@ -20,7 +20,7 @@ from pathlib import Path
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:8080")
 DOMAIN          = os.environ.get("DOMAIN", "localhost")
 COOKIE_DOMAIN   = os.environ.get("COOKIE_DOMAIN", "")
-SESSION_TTL     = int(os.environ.get("SESSION_TTL_SECONDS", "300"))
+SESSION_TTL     = int(os.environ.get("SESSION_TTL_SECONDS", "1200"))
 SESSION_COOKIE  = "msgdrop_sess"
 UI_COOKIE       = "session-ok"
 DATA_DIR        = Path(os.environ.get("DATA_DIR", "/data"))
@@ -558,6 +558,12 @@ def unlock(body: UnlockBody, req: Request, response: Response):
     unlock_attempts.pop(client_ip, None)
     token = _generate_token()
     _set_session_cookies(response, token)
+    return {"success": True}
+
+@app.post("/api/logout")
+def logout(req: Request, response: Response):
+    response.delete_cookie(key=SESSION_COOKIE, path="/", domain=(COOKIE_DOMAIN or None))
+    response.delete_cookie(key=UI_COOKIE, path="/", domain=(COOKIE_DOMAIN or None))
     return {"success": True}
 
 # --- Chat APIs ---

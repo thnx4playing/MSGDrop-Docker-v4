@@ -29,6 +29,27 @@
 }
 .header-call-btn svg { display: block; pointer-events: none; }
 
+/* ---- Header lock/logout button ---- */
+.header-lock-btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.header-lock-btn:hover { transform: scale(1.05); }
+.header-lock-btn:active { transform: scale(0.96); }
+.header-lock-btn svg { display: block; width: 14px; height: 14px; }
+
 /* ---- Mic toolbar button ---- */
 .mic-btn {
   color: var(--text);
