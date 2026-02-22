@@ -6,11 +6,12 @@
 .header-call-btn {
   appearance: none;
   background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
+  border: none;
+  padding: 0;
   width: 32px;
   height: 32px;
   border-radius: 50%;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19,13 +20,12 @@
   flex-shrink: 0;
 }
 .header-call-btn:hover {
-  background: rgba(0, 122, 255, 0.12);
-  border-color: #007aff;
-  color: #007aff;
   transform: scale(1.05);
+  opacity: 0.85;
 }
 .header-call-btn:active { transform: scale(0.92); }
-.header-call-btn svg, .header-call-btn img { display: block; pointer-events: none; }
+.header-call-btn img { display: block; pointer-events: none; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.header-call-btn svg { display: block; pointer-events: none; }
 
 /* ---- Mic toolbar button ---- */
 .mic-btn {
