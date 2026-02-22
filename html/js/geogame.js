@@ -208,12 +208,26 @@ var GeoGame = {
         zoomControl: true,
         fullscreenControl: false,
         motionTracking: false,
-        motionTrackingControl: false
+        motionTrackingControl: false,
+        source: google.maps.StreetViewSource.OUTDOOR
       });
     } else {
-      this.panorama.setPosition({lat: this.state.location.lat, lng: this.state.location.lng});
-      this.panorama.setPov({heading: 0, pitch: 0});
-      this.panorama.setZoom(0);
+      // Use StreetViewService to find nearest outdoor panorama
+      var sv = new google.maps.StreetViewService();
+      var loc = this.state.location;
+      sv.getPanorama({
+        location: {lat: loc.lat, lng: loc.lng},
+        radius: 500,
+        source: google.maps.StreetViewSource.OUTDOOR
+      }, function(data, status) {
+        if (status === 'OK' && data && data.location && data.location.latLng) {
+          GeoGame.panorama.setPosition(data.location.latLng);
+        } else {
+          GeoGame.panorama.setPosition({lat: loc.lat, lng: loc.lng});
+        }
+        GeoGame.panorama.setPov({heading: 0, pitch: 0});
+        GeoGame.panorama.setZoom(0);
+      });
     }
 
     // Guess mini-map
@@ -371,15 +385,23 @@ var GeoGame = {
     // Result text
     var resultText = document.getElementById('geoResultText');
     if (resultText) {
+      // Determine round winner
+      var eScore = (data.results.E && data.results.E.score) || 0;
+      var mScore = (data.results.M && data.results.M.score) || 0;
+      var roundWinner = eScore > mScore ? 'E' : (mScore > eScore ? 'M' : null);
+
       var html = '<div class="geo-result-location">' + loc.name + ', ' + loc.country + '</div>';
       ['E', 'M'].forEach(function(p) {
         if (!data.results[p]) return;
         var r = data.results[p];
-        var distStr = r.distance < 1 ? Math.round(r.distance * 1000) + ' m' :
-                      r.distance < 100 ? r.distance.toFixed(1) + ' km' :
-                      Math.round(r.distance) + ' km';
-        html += '<div class="geo-result-player geo-result-' + p.toLowerCase() + '">' +
-          '<span class="geo-player-label">' + p + '</span>' +
+        var distMi = r.distance * 0.621371;
+        var distStr = distMi < 0.1 ? Math.round(distMi * 5280) + ' ft' :
+                      distMi < 100 ? distMi.toFixed(1) + ' mi' :
+                      Math.round(distMi) + ' mi';
+        var winBadge = (roundWinner === p) ? '<span class="geo-round-winner-badge">&#9733;</span>' : '';
+        html += '<div class="geo-result-player geo-result-' + p.toLowerCase() +
+          (roundWinner === p ? ' geo-result-winner' : '') + '">' +
+          '<span class="geo-player-label">' + p + winBadge + '</span>' +
           '<span class="geo-player-dist">' + distStr + '</span>' +
           '<span class="geo-player-score">+' + r.score + '</span>' +
           '</div>';
@@ -493,6 +515,10 @@ var GeoGame = {
       this._resultOverlays.forEach(function(o) { o.setMap(null); });
       this._resultOverlays = [];
     }
+    // Force fresh panorama/maps on next game to avoid stale location display
+    this.panorama = null;
+    this.guessMap = null;
+    this.resultMap = null;
   },
 
   // ─── Timer management ─────────────────────────────

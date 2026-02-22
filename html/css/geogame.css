@@ -145,6 +145,16 @@
 .geo-result-m .geo-player-label { color: #3b82f6; font-weight: 700; }
 .geo-player-dist { color: var(--muted); }
 .geo-player-score { font-weight: 700; color: #22c55e; margin-left: auto; }
+.geo-result-winner {
+  background: rgba(34, 197, 94, 0.08);
+  border-radius: 8px;
+  padding: 6px 10px !important;
+}
+.geo-round-winner-badge {
+  color: #eab308;
+  margin-left: 4px;
+  font-size: 13px;
+}
 
 .geo-next-btn {
   appearance: none;
@@ -292,6 +302,10 @@
     cursor: pointer;
     box-shadow: 0 4px 16px rgba(59,130,246,0.4);
     white-space: nowrap;
+  }
+  .geo-guess-area.show-map .geo-view-toggle {
+    bottom: auto;
+    top: 12px;
   }
   .geo-guess-area.show-map .geo-panorama { display: none; }
   .geo-guess-area.show-map .geo-guess-bottom {

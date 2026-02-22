@@ -304,6 +304,7 @@ var Messages = {
 
     // ── All other states: compact centered status row ──────────────────────
     el.classList.remove('call-incoming-card');
+    el.classList.remove('call-outgoing-card');
 
     var iconEl = document.createElement('span');
     iconEl.className = 'call-sys-icon';
@@ -316,8 +317,32 @@ var Messages = {
     switch(status){
       case 'calling':
         el.setAttribute('data-state', 'active');
+        if(isCaller){
+          // Outgoing call: show compact mini-card
+          el.classList.add('call-outgoing-card');
+          var callIcon = document.createElement('div');
+          callIcon.className = 'call-outgoing-icon vc-icon-bg';
+          callIcon.innerHTML =
+            '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<polygon points="23 7 16 12 23 17 23 7"/>' +
+              '<rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>' +
+            '</svg>';
+          var callInfo = document.createElement('div');
+          callInfo.className = 'call-outgoing-info';
+          var callTitle = document.createElement('div');
+          callTitle.className = 'call-outgoing-title';
+          callTitle.textContent = 'FaceTime Video';
+          var callSub = document.createElement('div');
+          callSub.className = 'call-outgoing-sub';
+          callSub.textContent = 'Calling...';
+          callInfo.appendChild(callTitle);
+          callInfo.appendChild(callSub);
+          el.appendChild(callIcon);
+          el.appendChild(callInfo);
+          return;
+        }
         iconEl.textContent = '📹';
-        textEl.textContent = isCaller ? 'Calling...' : callerName + ' is calling...';
+        textEl.textContent = callerName + ' is calling...';
         iconEl.classList.add('pulse');
         break;
       case 'connecting':
@@ -438,19 +463,25 @@ var Messages = {
       el.appendChild(actions);
     }
     else if (opts.status === 'waiting') {
-      var iconEl = document.createElement('span');
-      iconEl.className = 'call-sys-icon';
-      iconEl.textContent = '🌍';
-      iconEl.classList.add('pulse');
-      var textEl = document.createElement('span');
-      textEl.className = 'call-sys-text';
-      textEl.textContent = 'Waiting for response...';
-      var meta = document.createElement('span');
-      meta.className = 'call-sys-time';
-      meta.textContent = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      el.appendChild(iconEl);
-      el.appendChild(textEl);
-      el.appendChild(meta);
+      el.classList.add('call-outgoing-card');
+
+      var iconWrap = document.createElement('div');
+      iconWrap.className = 'call-outgoing-icon geo-icon-bg';
+      iconWrap.innerHTML = '<span style="font-size:20px;line-height:1">🌍</span>';
+
+      var info = document.createElement('div');
+      info.className = 'call-outgoing-info';
+      var title = document.createElement('div');
+      title.className = 'call-outgoing-title';
+      title.textContent = 'GeoGuessr Invite Sent';
+      var sub = document.createElement('div');
+      sub.className = 'call-outgoing-sub';
+      sub.textContent = 'Waiting for response...';
+      info.appendChild(title);
+      info.appendChild(sub);
+
+      el.appendChild(iconWrap);
+      el.appendChild(info);
     }
 
     if (UI.els.typingIndicator) {
@@ -468,6 +499,7 @@ var Messages = {
     if (status === 'starting') {
       // Remove the card — game is starting
       el.classList.remove('call-incoming-card');
+      el.classList.remove('call-outgoing-card');
       el.innerHTML = '';
       var iconEl = document.createElement('span');
       iconEl.className = 'call-sys-icon';
@@ -482,6 +514,7 @@ var Messages = {
     }
     else if (status === 'declined') {
       el.classList.remove('call-incoming-card');
+      el.classList.remove('call-outgoing-card');
       el.innerHTML = '';
       var iconEl2 = document.createElement('span');
       iconEl2.className = 'call-sys-icon';

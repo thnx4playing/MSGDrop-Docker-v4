@@ -665,6 +665,57 @@
 }
 .call-card-answer:hover { background: #2ab34a; }
 
+/* ── Outgoing/waiting mini-card (used for Calling... and GeoGuessr invites) ── */
+.call-outgoing-card {
+  background: var(--panel, #1c1c1e);
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  border-radius: 18px;
+  padding: 14px 18px;
+  max-width: 280px;
+  margin: 12px auto;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  flex-direction: row;
+  align-items: center;
+  animation: card-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.call-outgoing-card .call-outgoing-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.call-outgoing-card .call-outgoing-icon.vc-icon-bg {
+  background: linear-gradient(135deg, #007aff, #5856d6);
+  box-shadow: 0 0 0 0 rgba(0, 122, 255, 0.5);
+  animation: call-ring-pulse 1.5s ease-out infinite;
+}
+.call-outgoing-card .call-outgoing-icon.geo-icon-bg {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  animation: geo-ring-pulse 1.5s ease-out infinite;
+}
+.call-outgoing-card .call-outgoing-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.call-outgoing-card .call-outgoing-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text, #fff);
+}
+.call-outgoing-card .call-outgoing-sub {
+  font-size: 12px;
+  color: var(--muted, rgba(255,255,255,0.5));
+  font-weight: 400;
+}
+
 /* Geo invite icon variant — green gradient instead of blue */
 .geo-invite-icon-wrap {
   background: linear-gradient(135deg, #22c55e, #16a34a) !important;
