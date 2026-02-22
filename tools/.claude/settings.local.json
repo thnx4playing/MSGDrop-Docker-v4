@@ -3,7 +3,10 @@
     "allow": [
       "Bash(cd /mnt/c/Users/Mike/OneDrive/_Coding/MSGDrop_v4 && python -c \"import py_compile; py_compile.compile\\('main.py', doraise=True\\)\" 2>&1)",
       "Bash(cd /mnt/c/Users/Mike/OneDrive/_Coding/MSGDrop_v4 && python3 -c \"import py_compile; py_compile.compile\\('main.py', doraise=True\\)\" 2>&1)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.tiktok.com)",
+      "WebFetch(domain:www.tiktok.com)"
     ]
   }
 }

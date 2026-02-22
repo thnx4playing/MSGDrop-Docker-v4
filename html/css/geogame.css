@@ -138,22 +138,23 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 0;
+  padding: 6px 10px;
   font-size: 14px;
 }
 .geo-result-e .geo-player-label { color: #ef4444; font-weight: 700; }
 .geo-result-m .geo-player-label { color: #3b82f6; font-weight: 700; }
+.geo-player-label { min-width: 24px; }
 .geo-player-dist { color: var(--muted); }
 .geo-player-score { font-weight: 700; color: #22c55e; margin-left: auto; }
 .geo-result-winner {
   background: rgba(34, 197, 94, 0.08);
   border-radius: 8px;
-  padding: 6px 10px !important;
 }
 .geo-round-winner-badge {
   color: #eab308;
-  margin-left: 4px;
   font-size: 13px;
+  margin-left: 6px;
+  flex-shrink: 0;
 }
 
 .geo-next-btn {

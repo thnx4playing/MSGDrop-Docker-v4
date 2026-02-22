@@ -81,6 +81,7 @@ var App = {
       };
       WebSocketManager.onGameListCallback = function(data){ Game.handleGameList(data); };
       WebSocketManager.onStreakCallback = function(data){ if(typeof Streak !== 'undefined') Streak.handleWebSocketUpdate(data); };
+      WebSocketManager.onQACallback = function(data){ if(typeof QA !== 'undefined') QA.applyMessage(data); };
       // VideoChat signal callback handled directly in websocket.js
 
       WebSocketManager.connect(this.dropId, this.myRole);
@@ -224,6 +225,14 @@ var App = {
     var geoViewToggle = document.getElementById('geoViewToggle');
     if(geoViewToggle){ geoViewToggle.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.toggleMobileView(); }); }
 
+    // Q&A
+    var qaBtn = document.getElementById('qaBtn');
+    if(qaBtn){ qaBtn.addEventListener('click', function(){ if(typeof QA !== 'undefined') QA.openModal(); }); }
+    var qaCloseBtn = document.getElementById('qaCloseBtn');
+    if(qaCloseBtn){ qaCloseBtn.addEventListener('click', function(){ UI.hideQAModal(); }); }
+    var qaModal = document.getElementById('qaModal');
+    if(qaModal){ qaModal.addEventListener('click', function(e){ if(e.target === qaModal) UI.hideQAModal(); }); }
+
     // Game board
     var gameCells = document.querySelectorAll('.game-cell');
     gameCells.forEach(function(cell){
@@ -245,6 +254,7 @@ var App = {
         Messages.exitReplyMode();
         if(self.giphyPicker && self.giphyPicker.modal && self.giphyPicker.modal.style.display === 'flex') self.giphyPicker.hide();
         if(typeof Camera !== 'undefined' && Camera.isOpen) Camera.hide();
+        UI.hideQAModal();
         // Don't close active video call with Escape
       }
     });

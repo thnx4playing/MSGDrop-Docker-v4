@@ -76,6 +76,14 @@ var GeoGame = {
     }));
   },
 
+  cancelInvite: function() {
+    if (!WebSocketManager.ws || WebSocketManager.ws.readyState !== 1) return;
+    WebSocketManager.ws.send(JSON.stringify({
+      action: 'game',
+      payload: {op: 'geo_invite_cancelled', inviteId: this.state.pendingInviteId}
+    }));
+  },
+
   // ─── Incoming WS message router ────────────────────
   applyGame: function(data) {
     if (!data || !data.op) return;
@@ -100,6 +108,13 @@ var GeoGame = {
     else if (op === 'geo_invite_declined') {
       if (typeof Messages !== 'undefined' && Messages.updateGeoInvite) {
         Messages.updateGeoInvite(this.state.pendingInviteId, 'declined');
+      }
+      this.state.pendingInviteId = null;
+      return;
+    }
+    else if (op === 'geo_invite_cancelled') {
+      if (typeof Messages !== 'undefined' && Messages.updateGeoInvite) {
+        Messages.updateGeoInvite(this.state.pendingInviteId, 'cancelled');
       }
       this.state.pendingInviteId = null;
       return;
@@ -398,12 +413,13 @@ var GeoGame = {
         var distStr = distMi < 0.1 ? Math.round(distMi * 5280) + ' ft' :
                       distMi < 100 ? distMi.toFixed(1) + ' mi' :
                       Math.round(distMi) + ' mi';
-        var winBadge = (roundWinner === p) ? '<span class="geo-round-winner-badge">&#9733;</span>' : '';
+        var isWinner = (roundWinner === p);
         html += '<div class="geo-result-player geo-result-' + p.toLowerCase() +
-          (roundWinner === p ? ' geo-result-winner' : '') + '">' +
-          '<span class="geo-player-label">' + p + winBadge + '</span>' +
+          (isWinner ? ' geo-result-winner' : '') + '">' +
+          '<span class="geo-player-label">' + p + '</span>' +
           '<span class="geo-player-dist">' + distStr + '</span>' +
           '<span class="geo-player-score">+' + r.score + '</span>' +
+          (isWinner ? '<span class="geo-round-winner-badge">&#9733;</span>' : '') +
           '</div>';
       });
       resultText.innerHTML = html;
@@ -488,7 +504,7 @@ var GeoGame = {
 
   // ─── Close / Forfeit ────────────────────────────────
   closeGame: function() {
-    if (this.state.phase === 'guessing' || this.state.phase === 'waiting') {
+    if (this.state.phase === 'guessing' || this.state.phase === 'waiting' || this.state.phase === 'result') {
       if (!confirm('Leave the game? This will forfeit.')) return;
       WebSocketManager.ws.send(JSON.stringify({
         action: 'game',

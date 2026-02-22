@@ -403,6 +403,23 @@ def _get_pending_geo_invite(drop_id: str) -> Optional[Dict[str, Any]]:
         return None
     return invite
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ACTIVE Q&A STATE
+# One Q&A per drop. Persists until read or replaced.
+# Shape: { id, asker, question, answer, state: "pending"|"answered", ts }
+# ─────────────────────────────────────────────────────────────────────────────
+_active_qa: Dict[str, Dict[str, Any]] = {}
+
+def _get_active_qa(drop_id: str) -> Optional[Dict[str, Any]]:
+    return _active_qa.get(drop_id)
+
+def _set_active_qa(drop_id: str, qa: Dict[str, Any]):
+    _active_qa[drop_id] = qa
+
+def _clear_active_qa(drop_id: str):
+    if drop_id in _active_qa:
+        del _active_qa[drop_id]
+
 # --- Twilio notifications ---
 _last_notify: Dict[str, int] = {}
 
@@ -1321,6 +1338,21 @@ async def ws_endpoint(ws: WebSocket):
         except Exception as e:
             logger.warning(f"[PendingGeoInvite] Failed to replay invite to {user}: {e}")
 
+    # ── Replay active Q&A for late joiners ────────────────────────────────
+    active_qa = _get_active_qa(drop)
+    if active_qa:
+        try:
+            await ws.send_json({
+                "type": "qa",
+                "payload": {
+                    "op": "qa_state",
+                    **active_qa
+                }
+            })
+            logger.info(f"[QA] Replayed Q&A state to late joiner {user} in drop={drop}")
+        except Exception as e:
+            logger.warning(f"[QA] Failed to replay Q&A to {user}: {e}")
+
     try:
         while True:
             msg = await ws.receive_json()
@@ -1554,6 +1586,12 @@ async def ws_endpoint(ws: WebSocket):
                         "op": "geo_invite_declined", "from": user
                     }})
 
+                elif op == "geo_invite_cancelled":
+                    _clear_pending_geo_invite(drop)
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "geo_invite_cancelled", "from": user
+                    }})
+
                 elif op == "geo_guess":
                     gid = payload.get("gameId")
                     g_lat = payload.get("lat")
@@ -1644,6 +1682,50 @@ async def ws_endpoint(ws: WebSocket):
 
                 else:
                     await hub.broadcast(drop, {"type": "game", "payload": payload})
+
+            elif t == "qa":
+                op = (payload or {}).get("op")
+
+                if op == "qa_ask":
+                    question_text = (payload or {}).get("question", "").strip()
+                    if not question_text:
+                        await ws.send_json({"type": "error", "error": "question required"})
+                        continue
+                    qa_id = f"qa_{secrets.token_hex(6)}"
+                    qa_obj = {
+                        "id": qa_id,
+                        "asker": user,
+                        "question": question_text[:280],
+                        "answer": None,
+                        "state": "pending",
+                        "ts": int(time.time() * 1000),
+                    }
+                    _set_active_qa(drop, qa_obj)
+                    await hub.broadcast(drop, {"type": "qa", "payload": {"op": "qa_ask", **qa_obj}})
+                    logger.info(f"[QA] {user} asked a question in drop={drop}")
+                    if _should_notify("qa", drop, 60):
+                        notify(f"{user} asked a Q&A question!")
+
+                elif op == "qa_answer":
+                    answer_text = (payload or {}).get("answer", "").strip()
+                    qa = _get_active_qa(drop)
+                    if not qa or qa["state"] != "pending":
+                        continue
+                    if not answer_text:
+                        await ws.send_json({"type": "error", "error": "answer required"})
+                        continue
+                    qa["answer"] = answer_text[:280]
+                    qa["state"] = "answered"
+                    _set_active_qa(drop, qa)
+                    await hub.broadcast(drop, {"type": "qa", "payload": {"op": "qa_answer", **qa}})
+                    logger.info(f"[QA] {user} answered Q&A in drop={drop}")
+
+                elif op == "qa_read":
+                    qa = _get_active_qa(drop)
+                    if qa and qa.get("asker") == user:
+                        _clear_active_qa(drop)
+                        await hub.broadcast(drop, {"type": "qa", "payload": {"op": "qa_read"}})
+                        logger.info(f"[QA] {user} read Q&A answer in drop={drop}, cleared")
 
     except WebSocketDisconnect:
         await hub.leave(drop, ws)

@@ -480,8 +480,17 @@ var Messages = {
       info.appendChild(title);
       info.appendChild(sub);
 
+      var cancelBtn = document.createElement('button');
+      cancelBtn.className = 'geo-cancel-invite-btn';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.onclick = function(e) {
+        e.stopPropagation();
+        if (typeof GeoGame !== 'undefined') GeoGame.cancelInvite();
+      };
+
       el.appendChild(iconWrap);
       el.appendChild(info);
+      el.appendChild(cancelBtn);
     }
 
     if (UI.els.typingIndicator) {
@@ -524,6 +533,20 @@ var Messages = {
       textEl2.textContent = 'GeoGuessr declined';
       el.appendChild(iconEl2);
       el.appendChild(textEl2);
+      el.setAttribute('data-state', 'done');
+    }
+    else if (status === 'cancelled') {
+      el.classList.remove('call-incoming-card');
+      el.classList.remove('call-outgoing-card');
+      el.innerHTML = '';
+      var iconEl3 = document.createElement('span');
+      iconEl3.className = 'call-sys-icon';
+      iconEl3.textContent = '🌍';
+      var textEl3 = document.createElement('span');
+      textEl3.className = 'call-sys-text';
+      textEl3.textContent = 'GeoGuessr invite cancelled';
+      el.appendChild(iconEl3);
+      el.appendChild(textEl3);
       el.setAttribute('data-state', 'done');
     }
   },

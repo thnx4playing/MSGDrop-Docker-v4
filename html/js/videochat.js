@@ -60,6 +60,7 @@ var VideoChat = {
     this.localVideo = document.getElementById('localVideo');
     this.remoteVideo= document.getElementById('remoteVideo');
     this.statusEl   = document.getElementById('videoChatStatus');
+    this.callingCard= document.getElementById('vcCallingCard');
     this.endBtn     = document.getElementById('videoEndBtn');
     this.muteBtn    = document.getElementById('videoMuteBtn');
     this.flipCamBtn = document.getElementById('videoFlipBtn');
@@ -566,8 +567,23 @@ var VideoChat = {
 
   _setStatus: function(text) {
     if(!this.statusEl) return;
-    this.statusEl.textContent = text;
-    this.statusEl.style.display = text ? 'block' : 'none';
+    var isCalling = (text === 'Calling...' || text === 'Waiting for answer...');
+    // Show calling card for calling/waiting states, plain text for others
+    if(this.callingCard) {
+      if(isCalling) {
+        var subEl = this.callingCard.querySelector('.vc-calling-sub');
+        if(subEl) subEl.textContent = text;
+        this.callingCard.style.display = 'flex';
+        this.statusEl.style.display = 'none';
+      } else {
+        this.callingCard.style.display = 'none';
+        this.statusEl.textContent = text;
+        this.statusEl.style.display = text ? 'block' : 'none';
+      }
+    } else {
+      this.statusEl.textContent = text;
+      this.statusEl.style.display = text ? 'block' : 'none';
+    }
   },
 
   _showError: function(msg) {

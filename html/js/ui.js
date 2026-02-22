@@ -47,7 +47,8 @@ var UI = {
       activeGamesTitle: document.getElementById('activeGamesTitle'),
       presenceE: document.getElementById('presenceE'),
       presenceM: document.getElementById('presenceM'),
-      geoModal: document.getElementById('geoModal')
+      geoModal: document.getElementById('geoModal'),
+      qaModal: document.getElementById('qaModal')
     };
   },
 
@@ -163,6 +164,18 @@ var UI = {
   hideGeoModal: function(){
     if(!this.els.geoModal) return;
     this.els.geoModal.classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  },
+
+  showQAModal: function(){
+    if(!this.els.qaModal) return;
+    this.els.qaModal.classList.add('show');
+    document.body.classList.add('no-scroll');
+  },
+
+  hideQAModal: function(){
+    if(!this.els.qaModal) return;
+    this.els.qaModal.classList.remove('show');
     document.body.classList.remove('no-scroll');
   },
 

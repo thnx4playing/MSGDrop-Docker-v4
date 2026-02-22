@@ -25,6 +25,7 @@
 <link rel="stylesheet" href="/msgdrop/css/call-system-messages.css?v=20260220">
 <link rel="stylesheet" href="/msgdrop/css/styles-v4-additions.css?v=20260220">
 <link rel="stylesheet" href="/msgdrop/css/geogame.css?v=20260221">
+<link rel="stylesheet" href="/msgdrop/css/qa.css?v=20260222">
 </head>
 <body>
 <div id="appRoot" aria-live="polite">
@@ -143,6 +144,13 @@
               </span>
               <span class="lm-label">Games</span>
             </button>
+            <button id="qaBtn" class="launcher-menu-btn" type="button" aria-label="Q&A" title="Q&A">
+              <span class="lm-icon">
+                <span class="lm-icon-emoji">❓</span>
+                <span id="qaBadge" class="active-games-badge" style="display: none;">1</span>
+              </span>
+              <span class="lm-label">Q&A</span>
+            </button>
             <button id="cameraBtn" class="launcher-menu-btn" type="button" aria-label="Cage Cam" title="Cage Cam">
               <span class="lm-icon"><img alt="" src="/msgdrop/images/webcam.png?v=1"></span>
               <span class="lm-label">Cam</span>
@@ -251,6 +259,18 @@
         <div class="geo-actions">
           <button id="geoScoreboardBtn" class="game-btn secondary" type="button">History</button>
           <button id="geoCloseGameBtn" class="game-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q&A Modal -->
+    <div id="qaModal" class="qa-modal">
+      <div class="qa-panel">
+        <button id="qaCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
+        <div class="qa-header">
+          <span class="qa-title">Q&A</span>
+        </div>
+        <div id="qaContent" class="qa-content">
         </div>
       </div>
     </div>
@@ -416,6 +436,18 @@
   
   <!-- Status text (Calling... / Connecting...) -->
   <div id="videoChatStatus" class="vc-status" style="display:none;"></div>
+
+  <!-- Calling card (shown while waiting for answer) -->
+  <div id="vcCallingCard" class="vc-calling-card" style="display:none;">
+    <div class="vc-calling-icon">
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+    </div>
+    <div class="vc-calling-title">FaceTime Video</div>
+    <div class="vc-calling-sub">Calling...</div>
+  </div>
   
   <!-- Local (self) video - small PiP in corner -->
   <div class="vc-local-wrapper" id="localVideoWrapper">
@@ -476,6 +508,7 @@
 <script src="/msgdrop/js/streak.js?v=20260220"></script>
 <script src="/msgdrop/js/game.js?v=20260220"></script>
 <script src="/msgdrop/js/geogame.js?v=20260221"></script>
+<script src="/msgdrop/js/qa.js?v=20260222"></script>
 <script src="/msgdrop/js/giphy.js?v=20260220"></script>
 <script src="/msgdrop/js/camera.js?v=20260220"></script>
 <script src="/msgdrop/js/audio.js?v=20260220"></script>

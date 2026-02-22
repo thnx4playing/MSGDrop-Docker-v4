@@ -16,6 +16,7 @@ var WebSocketManager = {
   onGameListCallback: null,
   onStreakCallback: null,
   onVideoSignalCallback: null,
+  onQACallback: null,
   presenceState: new Map(),
   presenceTimeouts: new Map(),
   heartbeatInterval: null,
@@ -115,6 +116,8 @@ var WebSocketManager = {
       } else if(msg.type === 'video_signal' && msg.payload){
         if(this.onVideoSignalCallback) this.onVideoSignalCallback(msg.payload);
         if(typeof VideoChat !== 'undefined' && VideoChat.handleSignal) VideoChat.handleSignal(msg.payload);
+      } else if(msg.type === 'qa' && msg.payload){
+        if(this.onQACallback) this.onQACallback(msg.payload);
       } else if(msg.type === 'error'){
         console.error('[WS] Server error:', msg.message);
       }
@@ -214,6 +217,12 @@ var WebSocketManager = {
     if(!this.ws || this.ws.readyState !== 1) return;
     try { this.ws.send(JSON.stringify({ action: 'game', type: 'game', payload: payload })); }
     catch(e){ console.error('[WS] Failed to send game action:', e); }
+  },
+
+  sendQA: function(payload){
+    if(!this.ws || this.ws.readyState !== 1) return;
+    try { this.ws.send(JSON.stringify({ action: 'qa', type: 'qa', payload: payload })); }
+    catch(e){ console.error('[WS] Failed to send QA action:', e); }
   },
 
   requestGameList: function(){ this.sendGameAction({ op: 'request_game_list' }); },
