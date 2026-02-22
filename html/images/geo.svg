@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Blue circle background -->
+  <circle cx="128" cy="128" r="128" fill="#2196F3"/>
+  <!-- Globe grid lines -->
+  <g fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="4">
+    <!-- Equator and latitude lines -->
+    <ellipse cx="128" cy="128" rx="90" ry="90"/>
+    <ellipse cx="128" cy="128" rx="90" ry="30"/>
+    <ellipse cx="128" cy="128" rx="90" ry="60"/>
+    <!-- Longitude lines -->
+    <ellipse cx="128" cy="128" rx="30" ry="90"/>
+    <ellipse cx="128" cy="128" rx="60" ry="90"/>
+    <!-- Vertical and horizontal center lines -->
+    <line x1="38" y1="128" x2="218" y2="128"/>
+    <line x1="128" y1="38" x2="128" y2="218"/>
+  </g>
+  <!-- Red map marker pin -->
+  <g transform="translate(148, 52)">
+    <path d="M30 0C13.4 0 0 13.4 0 30c0 22.5 30 50 30 50s30-27.5 30-50C60 13.4 46.6 0 30 0z" fill="#EF4444" stroke="#B91C1C" stroke-width="3"/>
+    <circle cx="30" cy="28" r="12" fill="#fff"/>
+  </g>
+</svg>

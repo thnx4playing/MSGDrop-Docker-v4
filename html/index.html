@@ -52,12 +52,9 @@
       <div class="header-center">
       </div>
       <div class="header-right">
-        <!-- FaceTime-style video call button -->
+        <!-- Video call button -->
         <button id="videoCallBtn" class="header-call-btn" type="button" aria-label="Video call" title="Start video call">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="23 7 16 12 23 17 23 7"/>
-            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-          </svg>
+          <img alt="" src="/msgdrop/images/video.png?v=1" width="18" height="18" style="border-radius:4px;">
         </button>
         <button id="themeToggle" class="themeBtn" type="button" aria-label="Toggle theme" title="Toggle theme">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -133,28 +130,40 @@
         <div class="toolbar-launcher-wrap">
           <!-- Popup menu (hidden until launcher tapped) -->
           <div id="launcherMenu" class="launcher-menu" aria-hidden="true">
-            <button id="userBtn" class="launcher-menu-btn" type="button" aria-label="Select Role" title="Select Role">
-              <span class="lm-icon"><img alt="" src="/msgdrop/images/user.png?v=1"></span>
-              <span class="lm-label">Profile</span>
-            </button>
-            <button id="gamesBtn" class="launcher-menu-btn" type="button" aria-label="Games" title="Play Tic-Tac-Toe">
-              <span class="lm-icon">
-                <img alt="" src="/msgdrop/images/games.png?v=1">
-                <span id="activeGamesBadge" class="active-games-badge" style="display: none;"></span>
-              </span>
-              <span class="lm-label">Games</span>
-            </button>
-            <button id="qaBtn" class="launcher-menu-btn" type="button" aria-label="Q&A" title="Q&A">
-              <span class="lm-icon">
-                <img alt="" src="/msgdrop/images/qa.svg?v=1">
-                <span id="qaBadge" class="active-games-badge" style="display: none;">1</span>
-              </span>
-              <span class="lm-label">Q&A</span>
-            </button>
-            <button id="cameraBtn" class="launcher-menu-btn" type="button" aria-label="Cage Cam" title="Cage Cam">
-              <span class="lm-icon"><img alt="" src="/msgdrop/images/webcam.png?v=1"></span>
-              <span class="lm-label">Cam</span>
-            </button>
+            <!-- Games section -->
+            <div class="launcher-section-label">Games</div>
+            <div class="launcher-section">
+              <button id="ticTacToeBtn2" class="launcher-menu-btn" type="button" aria-label="Tic-Tac-Toe" title="Tic-Tac-Toe">
+                <span class="lm-icon">
+                  <img alt="" src="/msgdrop/images/games.png?v=1">
+                  <span id="activeGamesBadge" class="active-games-badge" style="display: none;"></span>
+                </span>
+                <span class="lm-label">Tic-Tac-Toe</span>
+              </button>
+              <button id="geoGuessrBtn2" class="launcher-menu-btn" type="button" aria-label="GeoGuessr" title="GeoGuessr">
+                <span class="lm-icon"><img alt="" src="/msgdrop/images/geo.svg?v=1"></span>
+                <span class="lm-label">GeoGuessr</span>
+              </button>
+            </div>
+            <!-- Apps section -->
+            <div class="launcher-section-label">Apps</div>
+            <div class="launcher-section">
+              <button id="userBtn" class="launcher-menu-btn" type="button" aria-label="Select Role" title="Select Role">
+                <span class="lm-icon"><img alt="" src="/msgdrop/images/user.png?v=1"></span>
+                <span class="lm-label">Profile</span>
+              </button>
+              <button id="qaBtn" class="launcher-menu-btn" type="button" aria-label="Q&A" title="Q&A">
+                <span class="lm-icon">
+                  <img alt="" src="/msgdrop/images/qa.png?v=1">
+                  <span id="qaBadge" class="active-games-badge" style="display: none;">1</span>
+                </span>
+                <span class="lm-label">Q&A</span>
+              </button>
+              <button id="cameraBtn" class="launcher-menu-btn" type="button" aria-label="Cage Cam" title="Cage Cam">
+                <span class="lm-icon"><img alt="" src="/msgdrop/images/webcam.png?v=1"></span>
+                <span class="lm-label">Cam</span>
+              </button>
+            </div>
           </div>
 
           <!-- Launcher button — macOS Launchpad style -->
@@ -182,10 +191,13 @@
           </button>
         </div>
 
-        <!-- Right group: GIPHY, audio message, video call -->
+        <!-- Right group: GIPHY, GeoGuessr shortcut, audio message -->
         <div class="toolbar-group toolbar-right">
           <button id="gif-button" class="tool-btn" type="button" aria-label="Send GIF" title="Send GIF">
             <img alt="" src="/msgdrop/images/giphy.png?v=1">
+          </button>
+          <button id="geoShortcutBtn" class="tool-btn" type="button" aria-label="GeoGuessr" title="GeoGuessr">
+            <img alt="" src="/msgdrop/images/geo.svg?v=1" width="22" height="22" style="border-radius:50%;">
           </button>
           <!-- Microphone / voice message button -->
           <button id="micBtn" class="tool-btn mic-btn" type="button" aria-label="Record voice message" title="Tap to record voice message">
@@ -194,12 +206,6 @@
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
               <line x1="12" y1="19" x2="12" y2="23"/>
               <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-          </button>
-          <button id="videoCallBtn2" class="tool-btn" type="button" aria-label="Video call" title="Start video call">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="23 7 16 12 23 17 23 7"/>
-              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
             </svg>
           </button>
         </div>
@@ -548,11 +554,6 @@
   });
 })();
 
-// ── Wire videoCallBtn2 (toolbar) → VideoChat.startCall ────────────────────
-(function(){
-  var btn2 = document.getElementById('videoCallBtn2');
-  if(btn2) btn2.addEventListener('click', function(){ if(typeof VideoChat !== 'undefined') VideoChat.startCall(); });
-})();
 </script>
 </body>
 </html>

@@ -25,7 +25,7 @@
   transform: scale(1.05);
 }
 .header-call-btn:active { transform: scale(0.92); }
-.header-call-btn svg { display: block; pointer-events: none; }
+.header-call-btn svg, .header-call-btn img { display: block; pointer-events: none; }
 
 /* ---- Mic toolbar button ---- */
 .mic-btn {
@@ -838,6 +838,30 @@
   display: block;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
 }
+.tool-btn-launcher .active-games-badge {
+  z-index: 2;
+  top: 0;
+  right: 0;
+}
+
+/* ── Launcher section labels ── */
+.launcher-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted, rgba(255,255,255,0.45));
+  padding: 0 6px 4px;
+  margin-top: 4px;
+}
+.launcher-section-label:first-child {
+  margin-top: 0;
+}
+.launcher-section {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 6px;
+}
 
 /* ── Launcher popup menu ── */
 .launcher-menu {
@@ -851,8 +875,8 @@
   border-radius: 18px;
   padding: 10px 8px;
   display: flex;
-  flex-direction: row;
-  gap: 4px;
+  flex-direction: column;
+  gap: 2px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.45);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);

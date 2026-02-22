@@ -192,10 +192,9 @@ var App = {
       });
     }
 
-    // Games
-    if(UI.els.gamesBtn){
-      UI.els.gamesBtn.addEventListener('click', function(){ WebSocketManager.requestGameList(); UI.showGamesMenu(); });
-    }
+    // Games — launcher menu buttons
+    var ticTacToeBtn2 = document.getElementById('ticTacToeBtn2');
+    if(ticTacToeBtn2){ ticTacToeBtn2.addEventListener('click', function(){ Game.startNewGame(); }); }
     if(UI.els.ticTacToeBtn){ UI.els.ticTacToeBtn.addEventListener('click', function(){ Game.startNewGame(); }); }
     var gamesPopoverClose = document.getElementById('gamesPopoverClose');
     if(gamesPopoverClose){ gamesPopoverClose.addEventListener('click', function(){ UI.hideGamesMenu(); }); }
@@ -207,10 +206,18 @@ var App = {
       UI.els.gamesPopover.addEventListener('click', function(e){ if(e.target === UI.els.gamesPopover) UI.hideGamesMenu(); });
     }
 
-    // GeoGuessr
+    // GeoGuessr — launcher menu button, toolbar shortcut, and games popover button
     var geoGuessrBtn = document.getElementById('geoGuessrBtn');
     if(geoGuessrBtn && typeof GeoGame !== 'undefined'){
       geoGuessrBtn.addEventListener('click', function(){ GeoGame.startNewGame(); });
+    }
+    var geoGuessrBtn2 = document.getElementById('geoGuessrBtn2');
+    if(geoGuessrBtn2 && typeof GeoGame !== 'undefined'){
+      geoGuessrBtn2.addEventListener('click', function(){ GeoGame.startNewGame(); });
+    }
+    var geoShortcutBtn = document.getElementById('geoShortcutBtn');
+    if(geoShortcutBtn && typeof GeoGame !== 'undefined'){
+      geoShortcutBtn.addEventListener('click', function(){ GeoGame.startNewGame(); });
     }
     var geoCloseBtn = document.getElementById('geoCloseBtn');
     if(geoCloseBtn){ geoCloseBtn.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.closeGame(); }); }

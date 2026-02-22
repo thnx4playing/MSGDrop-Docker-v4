@@ -40,7 +40,6 @@ var UI = {
       gameStatus: document.getElementById('gameStatus'),
       gameCloseBtn: document.getElementById('gameCloseBtn'),
       gameEndBtn: document.getElementById('gameEndBtn'),
-      gamesBtn: document.getElementById('gamesBtn'),
       gamesPopover: document.getElementById('gamesPopover'),
       ticTacToeBtn: document.getElementById('ticTacToeBtn'),
       activeGamesList: document.getElementById('activeGamesList'),
