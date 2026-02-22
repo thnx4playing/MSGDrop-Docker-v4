@@ -1,0 +1,8 @@
+[
+  {
+    "t": 1771714208498,
+    "ts": "2026-02-21T22:50:08.498Z",
+    "dir": "INFO",
+    "data": "Connected to wss://api.geoguessr.com/ws"
+  }
+]

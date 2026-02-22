@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GeoGuessr WebSocket Spy</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; padding: 20px; }
+    h1 { color: #00d4ff; margin-bottom: 10px; }
+    .subtitle { color: #888; margin-bottom: 20px; font-size: 13px; }
+    .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    button {
+      padding: 8px 16px; border: 1px solid #444; background: #2a2a4a;
+      color: #fff; cursor: pointer; border-radius: 4px; font-family: monospace;
+    }
+    button:hover { background: #3a3a5a; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.danger { border-color: #ff4444; color: #ff4444; }
+    button.success { border-color: #44ff44; color: #44ff44; }
+    #status {
+      padding: 10px; background: #222; border-left: 3px solid #666;
+      margin-bottom: 20px; white-space: pre-wrap; font-size: 13px;
+    }
+    #status.connected { border-left-color: #44ff44; }
+    #status.error { border-left-color: #ff4444; }
+    #log {
+      background: #111; border: 1px solid #333; padding: 10px;
+      height: 60vh; overflow-y: auto; font-size: 12px; line-height: 1.4;
+    }
+    .frame { margin-bottom: 8px; padding: 6px; border-radius: 3px; }
+    .frame.sent { background: #1a2a1a; border-left: 3px solid #44ff44; }
+    .frame.recv { background: #1a1a2a; border-left: 3px solid #4488ff; }
+    .frame.info { background: #2a2a1a; border-left: 3px solid #ffaa44; }
+    .frame-header { color: #888; font-size: 11px; margin-bottom: 3px; }
+    .frame-body { white-space: pre-wrap; word-break: break-all; }
+    .input-group { margin-bottom: 15px; }
+    .input-group label { display: block; color: #aaa; margin-bottom: 4px; font-size: 12px; }
+    .input-group input, .input-group textarea {
+      width: 100%; padding: 8px; background: #222; border: 1px solid #444;
+      color: #fff; font-family: monospace; border-radius: 4px;
+    }
+    .input-group textarea { height: 60px; resize: vertical; }
+    .section { margin-bottom: 20px; padding: 15px; background: #1e1e3e; border-radius: 6px; }
+    .section h2 { color: #00d4ff; margin-bottom: 10px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>GeoGuessr WebSocket Spy</h1>
+  <p class="subtitle">Captures all WebSocket frames for reverse-engineering the Party system</p>
+
+  <div class="section">
+    <h2>1. Paste Your Cookies</h2>
+    <p style="color:#aaa;font-size:12px;margin-bottom:10px;">
+      Open geoguessr.com → DevTools → Console → run: <code style="color:#ffaa44;">document.cookie</code> → paste the result below
+    </p>
+    <div class="input-group">
+      <label>Full cookie string:</label>
+      <textarea id="cookies" placeholder="devicetoken=XXX; _ncfa=XXX; session=XXX; ..."></textarea>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>2. Connect & Capture</h2>
+    <div class="controls">
+      <button id="btnConnect" class="success" onclick="connect()">Connect WebSocket</button>
+      <button id="btnDisconnect" class="danger" onclick="disconnect()" disabled>Disconnect</button>
+      <button id="btnSendRaw" onclick="promptSend()" disabled>Send Raw Frame</button>
+    </div>
+    <div id="status">Not connected. Paste cookies and click Connect.</div>
+  </div>
+
+  <div class="section">
+    <h2>3. Interact via Browser</h2>
+    <p style="color:#aaa;font-size:12px;margin-bottom:10px;">
+      While this is connected, open <a href="https://www.geoguessr.com/party" target="_blank" style="color:#00d4ff;">geoguessr.com/party</a>
+      in another tab (same browser, logged in). Create a party, change settings, start a game.
+      This tool will capture everything on the WebSocket.
+    </p>
+    <p style="color:#ffaa44;font-size:12px;">
+      ⚠ Note: GeoGuessr may only allow one WS connection per session. If the site tab stops working,
+      this spy has "stolen" the connection. That's fine — we're capturing what matters.
+      Alternatively, just watch the frames from the site's own connection (see option 4).
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>4. Alternative: Proxy the Browser's Own Connection</h2>
+    <p style="color:#aaa;font-size:12px;margin-bottom:10px;">
+      If you'd rather just inject a logger into the geoguessr.com tab, open DevTools Console on
+      that tab and paste this snippet <strong>before</strong> navigating to /party:
+    </p>
+    <pre style="background:#111;padding:10px;border-radius:4px;font-size:11px;overflow-x:auto;color:#44ff44;margin-bottom:8px;">
+// Monkey-patch WebSocket to log all frames
+(function() {
+  const _WS = window.WebSocket;
+  const log = [];
+  window.__wsLog = log;
+  window.WebSocket = function(url, proto) {
+    const ws = proto ? new _WS(url, proto) : new _WS(url);
+    console.log('[WS-SPY] new connection:', url);
+    log.push({t: Date.now(), dir: 'INFO', data: 'Connected to ' + url});
+
+    ws.addEventListener('message', e => {
+      const d = typeof e.data === 'string' ? e.data : '(binary)';
+      console.log('[WS-SPY] ←', d);
+      log.push({t: Date.now(), dir: 'RECV', data: d});
+    });
+
+    const origSend = ws.send.bind(ws);
+    ws.send = function(data) {
+      const d = typeof data === 'string' ? data : '(binary)';
+      console.log('[WS-SPY] →', d);
+      log.push({t: Date.now(), dir: 'SENT', data: d});
+      return origSend(data);
+    };
+
+    ws.addEventListener('close', e => {
+      log.push({t: Date.now(), dir: 'INFO', data: 'Connection closed: ' + e.code});
+    });
+
+    return ws;
+  };
+  window.WebSocket.prototype = _WS.prototype;
+  console.log('[WS-SPY] Installed! Navigate to /party now.');
+  console.log('[WS-SPY] When done, run: copy(JSON.stringify(window.__wsLog, null, 2))');
+})();
+    </pre>
+    <p style="color:#aaa;font-size:12px;">
+      Then navigate to /party, do your thing, and run in console:<br>
+      <code style="color:#ffaa44;">copy(JSON.stringify(window.__wsLog, null, 2))</code><br>
+      That copies all frames to your clipboard. Paste into a gist.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>Log Output</h2>
+    <div class="controls">
+      <button onclick="downloadLog()">Download Log (JSON)</button>
+      <button onclick="copyLog()">Copy to Clipboard</button>
+      <button onclick="clearLog()">Clear</button>
+    </div>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    let ws = null;
+    const frames = [];
+
+    function setStatus(msg, cls) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = cls || '';
+    }
+
+    function addFrame(dir, data) {
+      const entry = {
+        timestamp: new Date().toISOString(),
+        ms: Date.now(),
+        direction: dir,
+        data: data
+      };
+      frames.push(entry);
+
+      const logEl = document.getElementById('log');
+      const div = document.createElement('div');
+      div.className = 'frame ' + (dir === 'SENT' ? 'sent' : dir === 'RECV' ? 'recv' : 'info');
+
+      let pretty = data;
+      try {
+        const parsed = JSON.parse(data);
+        pretty = JSON.stringify(parsed, null, 2);
+      } catch(e) {}
+
+      div.innerHTML =
+        '<div class="frame-header">' +
+        (dir === 'SENT' ? '→ SENT' : dir === 'RECV' ? '← RECV' : 'ℹ INFO') +
+        ' @ ' + entry.timestamp +
+        '</div><div class="frame-body">' + escHtml(pretty) + '</div>';
+
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function connect() {
+      const cookies = document.getElementById('cookies').value.trim();
+      if (!cookies) {
+        // Try connecting anyway — the browser will send its own cookies if same-origin
+        // But since this is a local file, we need cookies for auth context
+      }
+
+      // Note: browsers won't let us set Cookie headers on WebSocket from a local page.
+      // This tool is primarily for the console-injection approach (Option 4).
+      // For a direct connection, we'd need a Node.js script.
+
+      addFrame('INFO', 'Attempting WebSocket connection to wss://api.geoguessr.com/ws ...');
+      addFrame('INFO', 'NOTE: If connecting from a local file, the browser cannot send GeoGuessr cookies.');
+      addFrame('INFO', 'Use Option 4 (console injection) for best results.');
+
+      try {
+        ws = new WebSocket('wss://api.geoguessr.com/ws');
+
+        ws.onopen = () => {
+          setStatus('Connected to wss://api.geoguessr.com/ws', 'connected');
+          addFrame('INFO', 'WebSocket connection established!');
+          document.getElementById('btnConnect').disabled = true;
+          document.getElementById('btnDisconnect').disabled = false;
+          document.getElementById('btnSendRaw').disabled = false;
+        };
+
+        ws.onmessage = (e) => {
+          const data = typeof e.data === 'string' ? e.data : '(binary frame)';
+          addFrame('RECV', data);
+        };
+
+        ws.onclose = (e) => {
+          setStatus('Disconnected (code: ' + e.code + ', reason: ' + (e.reason || 'none') + ')', 'error');
+          addFrame('INFO', 'Connection closed. Code: ' + e.code + ' Reason: ' + (e.reason || 'none'));
+          document.getElementById('btnConnect').disabled = false;
+          document.getElementById('btnDisconnect').disabled = true;
+          document.getElementById('btnSendRaw').disabled = true;
+          ws = null;
+        };
+
+        ws.onerror = (e) => {
+          setStatus('Connection error', 'error');
+          addFrame('INFO', 'WebSocket error occurred. Check console for details.');
+        };
+
+      } catch(err) {
+        setStatus('Failed: ' + err.message, 'error');
+        addFrame('INFO', 'Connection failed: ' + err.message);
+      }
+    }
+
+    function disconnect() {
+      if (ws) ws.close();
+    }
+
+    function promptSend() {
+      const msg = prompt('Enter raw WebSocket frame to send (JSON):');
+      if (msg && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(msg);
+        addFrame('SENT', msg);
+      }
+    }
+
+    function getLogData() {
+      return JSON.stringify(frames, null, 2);
+    }
+
+    function downloadLog() {
+      const blob = new Blob([getLogData()], {type: 'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'geoguessr_ws_log_' + new Date().toISOString().replace(/[:.]/g,'-') + '.json';
+      a.click();
+    }
+
+    function copyLog() {
+      navigator.clipboard.writeText(getLogData()).then(
+        () => alert('Copied ' + frames.length + ' frames to clipboard!'),
+        () => alert('Copy failed — try the download button instead')
+      );
+    }
+
+    function clearLog() {
+      frames.length = 0;
+      document.getElementById('log').innerHTML = '';
+    }
+  </script>
+</body>
+</html>

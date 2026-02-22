@@ -1,4 +1,4 @@
-import os, json, hmac, hashlib, time, secrets, mimetypes, logging, re
+import os, json, hmac, hashlib, time, secrets, mimetypes, logging, re, math, random
 import subprocess
 import asyncio
 import tempfile
@@ -28,6 +28,7 @@ BLOB_DIR        = DATA_DIR / "blob"
 DB_PATH         = DATA_DIR / "messages.db"
 
 ALLOW_EXTERNAL_FETCH = os.environ.get("ALLOW_EXTERNAL_FETCH", "false").lower() == "true"
+GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 
 MSGDROP_SECRET_JSON = os.environ.get("MSGDROP_SECRET_JSON", "")
 try:
@@ -145,8 +146,199 @@ def init_db():
             updated_at integer not null
         );
         """)
+        conn.exec_driver_sql("""
+        create table if not exists geo_games(
+            id text primary key,
+            drop_id text not null,
+            started_by text not null,
+            started_at integer not null,
+            ended_at integer,
+            status text not null default 'active',
+            locations text not null,
+            e_total_score integer default 0,
+            m_total_score integer default 0,
+            winner text
+        );
+        """)
+        conn.exec_driver_sql("""
+        create table if not exists geo_rounds(
+            id integer primary key autoincrement,
+            game_id text not null,
+            round_num integer not null,
+            lat real not null,
+            lng real not null,
+            country text,
+            location_name text,
+            e_guess_lat real, e_guess_lng real, e_distance_km real, e_score integer, e_guessed_at integer,
+            m_guess_lat real, m_guess_lng real, m_distance_km real, m_score integer, m_guessed_at integer,
+            revealed_at integer
+        );
+        """)
 
 init_db()
+
+# --- GeoGuessr utilities ---
+def haversine(lat1, lng1, lat2, lng2):
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+def geo_score(distance_km):
+    return max(0, round(5000 * math.exp(-distance_km / 1500)))
+
+GEO_LOCATIONS = [
+    # EUROPE
+    {"lat": 48.8584, "lng": 2.2945, "country": "France", "name": "Eiffel Tower, Paris"},
+    {"lat": 41.9029, "lng": 12.4534, "country": "Italy", "name": "Vatican City, Rome"},
+    {"lat": 51.5014, "lng": -0.1419, "country": "UK", "name": "Big Ben, London"},
+    {"lat": 52.3676, "lng": 4.9041, "country": "Netherlands", "name": "Amsterdam Canals"},
+    {"lat": 40.4168, "lng": -3.7038, "country": "Spain", "name": "Puerta del Sol, Madrid"},
+    {"lat": 37.9715, "lng": 23.7267, "country": "Greece", "name": "Acropolis, Athens"},
+    {"lat": 48.2082, "lng": 16.3738, "country": "Austria", "name": "St. Stephen's, Vienna"},
+    {"lat": 41.0082, "lng": 28.9784, "country": "Turkey", "name": "Hagia Sophia, Istanbul"},
+    {"lat": 59.3293, "lng": 18.0686, "country": "Sweden", "name": "Gamla Stan, Stockholm"},
+    {"lat": 55.6761, "lng": 12.5683, "country": "Denmark", "name": "Nyhavn, Copenhagen"},
+    {"lat": 50.0755, "lng": 14.4378, "country": "Czech Republic", "name": "Old Town Square, Prague"},
+    {"lat": 47.4979, "lng": 19.0402, "country": "Hungary", "name": "Chain Bridge, Budapest"},
+    {"lat": 52.5200, "lng": 13.4050, "country": "Germany", "name": "Brandenburg Gate, Berlin"},
+    {"lat": 48.1351, "lng": 11.5820, "country": "Germany", "name": "Marienplatz, Munich"},
+    {"lat": 45.4408, "lng": 12.3155, "country": "Italy", "name": "St. Mark's Square, Venice"},
+    {"lat": 43.7696, "lng": 11.2558, "country": "Italy", "name": "Ponte Vecchio, Florence"},
+    {"lat": 41.3851, "lng": 2.1734, "country": "Spain", "name": "La Rambla, Barcelona"},
+    {"lat": 38.7223, "lng": -9.1393, "country": "Portugal", "name": "Belem Tower, Lisbon"},
+    {"lat": 53.3498, "lng": -6.2603, "country": "Ireland", "name": "Temple Bar, Dublin"},
+    {"lat": 55.9533, "lng": -3.1883, "country": "UK", "name": "Royal Mile, Edinburgh"},
+    {"lat": 60.1699, "lng": 24.9384, "country": "Finland", "name": "Senate Square, Helsinki"},
+    {"lat": 59.9139, "lng": 10.7522, "country": "Norway", "name": "Karl Johans Gate, Oslo"},
+    {"lat": 46.9480, "lng": 7.4474, "country": "Switzerland", "name": "Old Town, Bern"},
+    {"lat": 47.3769, "lng": 8.5417, "country": "Switzerland", "name": "Bahnhofstrasse, Zurich"},
+    {"lat": 43.2965, "lng": 5.3698, "country": "France", "name": "Old Port, Marseille"},
+    {"lat": 45.7640, "lng": 4.8357, "country": "France", "name": "Place Bellecour, Lyon"},
+    {"lat": 51.2194, "lng": 4.4025, "country": "Belgium", "name": "Grote Markt, Antwerp"},
+    {"lat": 50.8503, "lng": 4.3517, "country": "Belgium", "name": "Grand Place, Brussels"},
+    {"lat": 44.4268, "lng": 26.1025, "country": "Romania", "name": "Old Town, Bucharest"},
+    {"lat": 42.6977, "lng": 23.3219, "country": "Bulgaria", "name": "Alexander Nevsky, Sofia"},
+    {"lat": 45.8150, "lng": 15.9819, "country": "Croatia", "name": "Ban Jelacic Square, Zagreb"},
+    {"lat": 43.5081, "lng": 16.4402, "country": "Croatia", "name": "Diocletian's Palace, Split"},
+    {"lat": 42.4304, "lng": 19.2594, "country": "Montenegro", "name": "Old Town, Kotor"},
+    {"lat": 64.1466, "lng": -21.9426, "country": "Iceland", "name": "Hallgrimskirkja, Reykjavik"},
+    {"lat": 36.7213, "lng": -4.4214, "country": "Spain", "name": "Malaga Port, Malaga"},
+    # AMERICAS
+    {"lat": 40.7580, "lng": -73.9855, "country": "USA", "name": "Times Square, New York"},
+    {"lat": 37.7749, "lng": -122.4194, "country": "USA", "name": "Fisherman's Wharf, San Francisco"},
+    {"lat": 34.0522, "lng": -118.2437, "country": "USA", "name": "Hollywood Blvd, Los Angeles"},
+    {"lat": 41.8781, "lng": -87.6298, "country": "USA", "name": "Michigan Avenue, Chicago"},
+    {"lat": 25.7617, "lng": -80.1918, "country": "USA", "name": "South Beach, Miami"},
+    {"lat": 36.1699, "lng": -115.1398, "country": "USA", "name": "The Strip, Las Vegas"},
+    {"lat": 47.6062, "lng": -122.3321, "country": "USA", "name": "Pike Place Market, Seattle"},
+    {"lat": 38.8977, "lng": -77.0365, "country": "USA", "name": "White House, Washington DC"},
+    {"lat": 29.9511, "lng": -90.0715, "country": "USA", "name": "French Quarter, New Orleans"},
+    {"lat": 42.3601, "lng": -71.0589, "country": "USA", "name": "Faneuil Hall, Boston"},
+    {"lat": 39.7392, "lng": -104.9903, "country": "USA", "name": "16th Street Mall, Denver"},
+    {"lat": 30.2672, "lng": -97.7431, "country": "USA", "name": "6th Street, Austin"},
+    {"lat": 32.7157, "lng": -117.1611, "country": "USA", "name": "Gaslamp Quarter, San Diego"},
+    {"lat": 45.5152, "lng": -122.6784, "country": "USA", "name": "Pioneer Square, Portland"},
+    {"lat": 21.2769, "lng": -157.8268, "country": "USA", "name": "Waikiki Beach, Hawaii"},
+    {"lat": 43.6532, "lng": -79.3832, "country": "Canada", "name": "CN Tower, Toronto"},
+    {"lat": 49.2827, "lng": -123.1207, "country": "Canada", "name": "Stanley Park, Vancouver"},
+    {"lat": 45.5017, "lng": -73.5673, "country": "Canada", "name": "Old Montreal, Montreal"},
+    {"lat": -22.9068, "lng": -43.1729, "country": "Brazil", "name": "Copacabana, Rio de Janeiro"},
+    {"lat": -23.5505, "lng": -46.6333, "country": "Brazil", "name": "Paulista Avenue, Sao Paulo"},
+    {"lat": 19.4326, "lng": -99.1332, "country": "Mexico", "name": "Zocalo, Mexico City"},
+    {"lat": 20.6296, "lng": -87.0739, "country": "Mexico", "name": "Tulum Beach, Tulum"},
+    {"lat": -33.4489, "lng": -70.6693, "country": "Chile", "name": "Plaza de Armas, Santiago"},
+    {"lat": -34.6037, "lng": -58.3816, "country": "Argentina", "name": "La Boca, Buenos Aires"},
+    {"lat": -12.0464, "lng": -77.0428, "country": "Peru", "name": "Plaza Mayor, Lima"},
+    {"lat": -0.1807, "lng": -78.4678, "country": "Ecuador", "name": "Old Town, Quito"},
+    {"lat": 4.7110, "lng": -74.0721, "country": "Colombia", "name": "La Candelaria, Bogota"},
+    {"lat": 18.4655, "lng": -66.1057, "country": "Puerto Rico", "name": "Old San Juan"},
+    {"lat": 23.1136, "lng": -82.3666, "country": "Cuba", "name": "Malecon, Havana"},
+    # ASIA
+    {"lat": 35.6762, "lng": 139.6503, "country": "Japan", "name": "Shibuya Crossing, Tokyo"},
+    {"lat": 34.9686, "lng": 135.7728, "country": "Japan", "name": "Fushimi Inari, Kyoto"},
+    {"lat": 34.6937, "lng": 135.5023, "country": "Japan", "name": "Dotonbori, Osaka"},
+    {"lat": 37.5665, "lng": 126.9780, "country": "South Korea", "name": "Gwanghwamun, Seoul"},
+    {"lat": 35.1796, "lng": 129.0756, "country": "South Korea", "name": "Haeundae Beach, Busan"},
+    {"lat": 1.3521, "lng": 103.8198, "country": "Singapore", "name": "Marina Bay, Singapore"},
+    {"lat": 13.7563, "lng": 100.5018, "country": "Thailand", "name": "Grand Palace, Bangkok"},
+    {"lat": 7.8804, "lng": 98.3923, "country": "Thailand", "name": "Patong Beach, Phuket"},
+    {"lat": 22.3193, "lng": 114.1694, "country": "Hong Kong", "name": "Victoria Peak, Hong Kong"},
+    {"lat": 25.0330, "lng": 121.5654, "country": "Taiwan", "name": "Taipei 101, Taipei"},
+    {"lat": 14.5995, "lng": 120.9842, "country": "Philippines", "name": "Intramuros, Manila"},
+    {"lat": 21.0285, "lng": 105.8542, "country": "Vietnam", "name": "Old Quarter, Hanoi"},
+    {"lat": 10.8231, "lng": 106.6297, "country": "Vietnam", "name": "Ben Thanh Market, Ho Chi Minh"},
+    {"lat": 3.1390, "lng": 101.6869, "country": "Malaysia", "name": "Petronas Towers, Kuala Lumpur"},
+    {"lat": -8.4095, "lng": 115.1889, "country": "Indonesia", "name": "Tanah Lot, Bali"},
+    {"lat": 28.6139, "lng": 77.2090, "country": "India", "name": "India Gate, New Delhi"},
+    {"lat": 19.0760, "lng": 72.8777, "country": "India", "name": "Gateway of India, Mumbai"},
+    {"lat": 27.1751, "lng": 78.0421, "country": "India", "name": "Taj Mahal, Agra"},
+    {"lat": 39.9042, "lng": 116.4074, "country": "China", "name": "Tiananmen Square, Beijing"},
+    {"lat": 31.2304, "lng": 121.4737, "country": "China", "name": "The Bund, Shanghai"},
+    {"lat": 25.1972, "lng": 55.2744, "country": "UAE", "name": "Burj Khalifa, Dubai"},
+    {"lat": 24.4539, "lng": 54.3773, "country": "UAE", "name": "Sheikh Zayed Mosque, Abu Dhabi"},
+    {"lat": 31.7683, "lng": 35.2137, "country": "Israel", "name": "Western Wall, Jerusalem"},
+    {"lat": 32.0853, "lng": 34.7818, "country": "Israel", "name": "Jaffa Port, Tel Aviv"},
+    {"lat": 41.7151, "lng": 44.8271, "country": "Georgia", "name": "Old Town, Tbilisi"},
+    {"lat": 40.4093, "lng": 49.8671, "country": "Azerbaijan", "name": "Flame Towers, Baku"},
+    {"lat": 27.7172, "lng": 85.3240, "country": "Nepal", "name": "Durbar Square, Kathmandu"},
+    {"lat": 6.9271, "lng": 79.8612, "country": "Sri Lanka", "name": "Galle Face Green, Colombo"},
+    # OCEANIA
+    {"lat": -33.8688, "lng": 151.2093, "country": "Australia", "name": "Sydney Opera House, Sydney"},
+    {"lat": -37.8136, "lng": 144.9631, "country": "Australia", "name": "Federation Square, Melbourne"},
+    {"lat": -27.4698, "lng": 153.0251, "country": "Australia", "name": "South Bank, Brisbane"},
+    {"lat": -36.8485, "lng": 174.7633, "country": "New Zealand", "name": "Sky Tower, Auckland"},
+    {"lat": -41.2924, "lng": 174.7787, "country": "New Zealand", "name": "Cuba Street, Wellington"},
+    # AFRICA
+    {"lat": -33.9249, "lng": 18.4241, "country": "South Africa", "name": "V&A Waterfront, Cape Town"},
+    {"lat": -26.2041, "lng": 28.0473, "country": "South Africa", "name": "Nelson Mandela Square, Johannesburg"},
+    {"lat": 30.0444, "lng": 31.2357, "country": "Egypt", "name": "Tahrir Square, Cairo"},
+    {"lat": 29.9773, "lng": 31.1325, "country": "Egypt", "name": "Great Pyramids, Giza"},
+    {"lat": -1.2921, "lng": 36.8219, "country": "Kenya", "name": "Kenyatta Avenue, Nairobi"},
+    {"lat": 33.9716, "lng": -6.8498, "country": "Morocco", "name": "Hassan Tower, Rabat"},
+    {"lat": 33.5731, "lng": -7.5898, "country": "Morocco", "name": "Hassan II Mosque, Casablanca"},
+    {"lat": 31.6295, "lng": -7.9811, "country": "Morocco", "name": "Jemaa el-Fnaa, Marrakech"},
+    {"lat": 36.8065, "lng": 10.1815, "country": "Tunisia", "name": "Medina, Tunis"},
+    {"lat": 6.5244, "lng": 3.3792, "country": "Nigeria", "name": "Victoria Island, Lagos"},
+    {"lat": -3.3869, "lng": 29.3609, "country": "Burundi", "name": "Independence Square, Bujumbura"},
+    # MIDDLE EAST / CENTRAL ASIA
+    {"lat": 33.5138, "lng": 36.2765, "country": "Syria", "name": "Old City, Damascus"},
+    {"lat": 33.8938, "lng": 35.5018, "country": "Lebanon", "name": "Corniche, Beirut"},
+    {"lat": 40.1792, "lng": 44.4991, "country": "Armenia", "name": "Republic Square, Yerevan"},
+    {"lat": 41.2995, "lng": 69.2401, "country": "Uzbekistan", "name": "Chorsu Bazaar, Tashkent"},
+    {"lat": 39.6693, "lng": 66.9597, "country": "Uzbekistan", "name": "Registan Square, Samarkand"},
+    # RUSSIA
+    {"lat": 55.7558, "lng": 37.6173, "country": "Russia", "name": "Red Square, Moscow"},
+    {"lat": 59.9343, "lng": 30.3351, "country": "Russia", "name": "Nevsky Prospect, St. Petersburg"},
+    # CARIBBEAN / ISLANDS
+    {"lat": 18.2208, "lng": -66.5901, "country": "Puerto Rico", "name": "Rincon Beach"},
+    {"lat": 25.0343, "lng": -77.3963, "country": "Bahamas", "name": "Bay Street, Nassau"},
+    {"lat": 18.4861, "lng": -69.9312, "country": "Dominican Republic", "name": "Colonial Zone, Santo Domingo"},
+    # ADDITIONAL EUROPE
+    {"lat": 37.9838, "lng": 23.7275, "country": "Greece", "name": "Plaka District, Athens"},
+    {"lat": 35.8989, "lng": 14.5146, "country": "Malta", "name": "Valletta Waterfront, Malta"},
+    {"lat": 43.7384, "lng": 7.4246, "country": "Monaco", "name": "Monte Carlo Casino"},
+    {"lat": 43.9424, "lng": 12.4578, "country": "San Marino", "name": "Guaita Tower, San Marino"},
+    {"lat": 42.5063, "lng": 1.5218, "country": "Andorra", "name": "Andorra la Vella"},
+    {"lat": 49.6117, "lng": 6.1300, "country": "Luxembourg", "name": "Place d'Armes, Luxembourg City"},
+    # ADDITIONAL AMERICAS
+    {"lat": 36.1147, "lng": -115.1728, "country": "USA", "name": "Fremont Street, Las Vegas"},
+    {"lat": 33.7490, "lng": -84.3880, "country": "USA", "name": "Centennial Park, Atlanta"},
+    {"lat": 35.2271, "lng": -80.8431, "country": "USA", "name": "Uptown, Charlotte"},
+    {"lat": 39.0997, "lng": -94.5786, "country": "USA", "name": "Country Club Plaza, Kansas City"},
+    {"lat": 44.9778, "lng": -93.2650, "country": "USA", "name": "Nicollet Mall, Minneapolis"},
+    {"lat": 29.4241, "lng": -98.4936, "country": "USA", "name": "River Walk, San Antonio"},
+    {"lat": 35.1495, "lng": -90.0490, "country": "USA", "name": "Beale Street, Memphis"},
+    {"lat": 36.1627, "lng": -86.7816, "country": "USA", "name": "Broadway, Nashville"},
+    # ADDITIONAL ASIA
+    {"lat": 35.0116, "lng": 135.7681, "country": "Japan", "name": "Kinkaku-ji, Kyoto"},
+    {"lat": 43.0621, "lng": 141.3544, "country": "Japan", "name": "Odori Park, Sapporo"},
+    {"lat": 22.2783, "lng": 114.1747, "country": "Hong Kong", "name": "Tsim Sha Tsui Promenade"},
+    {"lat": 13.4125, "lng": 103.8670, "country": "Cambodia", "name": "Angkor Wat, Siem Reap"},
+    {"lat": 16.8661, "lng": 96.1951, "country": "Myanmar", "name": "Shwedagon Pagoda, Yangon"},
+    {"lat": 47.9184, "lng": 106.9177, "country": "Mongolia", "name": "Sukhbaatar Square, Ulaanbaatar"},
+]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PENDING CALL STATE
@@ -938,6 +1130,65 @@ class GameManager:
 
 game_manager = GameManager()
 
+# --- GeoGuessr Game State Management ---
+class GeoGameManager:
+    def __init__(self):
+        self.games: Dict[str, Dict[str, Any]] = {}
+
+    def create_game(self, game_id: str, drop_id: str, starter: str, locations: list):
+        self.games[game_id] = {
+            "gameId": game_id, "dropId": drop_id, "starter": starter,
+            "status": "active", "currentRound": 1, "totalRounds": 5,
+            "locations": locations, "scores": {"E": 0, "M": 0},
+            "guesses": {}, "roundResults": {},
+            "createdAt": int(time.time() * 1000),
+        }
+
+    def get_game(self, game_id: str) -> Optional[Dict[str, Any]]:
+        return self.games.get(game_id)
+
+    def record_guess(self, game_id: str, player: str, lat: float, lng: float) -> bool:
+        game = self.games.get(game_id)
+        if not game:
+            return False
+        rnd = game["currentRound"]
+        game["guesses"].setdefault(rnd, {})
+        game["guesses"][rnd][player] = {"lat": lat, "lng": lng}
+        return len(game["guesses"][rnd]) == 2
+
+    def calculate_round_result(self, game_id: str) -> Dict:
+        game = self.games[game_id]
+        rnd = game["currentRound"]
+        loc = game["locations"][rnd - 1]
+        guesses = game["guesses"][rnd]
+        result = {}
+        for player in ["E", "M"]:
+            if player in guesses:
+                g = guesses[player]
+                dist = haversine(loc["lat"], loc["lng"], g["lat"], g["lng"])
+                score = geo_score(dist)
+                result[player] = {"distance": round(dist, 1), "score": score,
+                                  "guessLat": g["lat"], "guessLng": g["lng"]}
+                game["scores"][player] += score
+        game["roundResults"][rnd] = result
+        return result
+
+    def advance_round(self, game_id: str) -> int:
+        game = self.games.get(game_id)
+        if not game:
+            return 0
+        if game["currentRound"] >= game["totalRounds"]:
+            game["status"] = "ended"
+            return 0
+        game["currentRound"] += 1
+        return game["currentRound"]
+
+    def end_game(self, game_id: str):
+        if game_id in self.games:
+            self.games[game_id]["status"] = "ended"
+
+geo_game_manager = GeoGameManager()
+
 def _build_full_drop(drop: str) -> dict:
     with engine.begin() as conn:
         rows = conn.execute(text("select * from messages where drop_id=:d order by seq"), {"d": drop}).mappings().all()
@@ -1205,11 +1456,147 @@ async def ws_endpoint(ws: WebSocket):
                     await ws.send_json({"type": "game_list", "data": {"games": active_games}})
                 elif op in ["player_opened", "player_closed"]:
                     await hub.broadcast(drop, {"type": "game", "payload": payload})
+
+                # --- GeoGuessr ops ---
+                elif op == "geo_start":
+                    locs = random.sample(GEO_LOCATIONS, min(5, len(GEO_LOCATIONS)))
+                    gid = f"geo_{secrets.token_hex(8)}"
+                    geo_game_manager.create_game(gid, drop, user, locs)
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            insert into geo_games(id,drop_id,started_by,started_at,status,locations)
+                            values(:id,:d,:s,:t,'active',:l)
+                        """), {"id": gid, "d": drop, "s": user, "t": int(time.time()*1000),
+                               "l": json.dumps(locs, separators=(",",":"))})
+                        for i, loc in enumerate(locs, 1):
+                            conn.execute(text("""
+                                insert into geo_rounds(game_id,round_num,lat,lng,country,location_name)
+                                values(:gid,:rnd,:lat,:lng,:c,:n)
+                            """), {"gid": gid, "rnd": i, "lat": loc["lat"], "lng": loc["lng"],
+                                   "c": loc["country"], "n": loc["name"]})
+                    loc0 = locs[0]
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "geo_started", "gameId": gid, "gameType": "geo",
+                        "round": 1, "totalRounds": 5,
+                        "location": {"lat": loc0["lat"], "lng": loc0["lng"]}
+                    }})
+                    if (user or "").upper() == "E" and _should_notify("game", drop, 60):
+                        notify("E started a GeoGuessr game")
+
+                elif op == "geo_guess":
+                    gid = payload.get("gameId")
+                    g_lat = payload.get("lat")
+                    g_lng = payload.get("lng")
+                    game = geo_game_manager.get_game(gid)
+                    if not game or g_lat is None or g_lng is None:
+                        continue
+                    rnd = game["currentRound"]
+                    existing = game["guesses"].get(rnd, {})
+                    if user in existing:
+                        continue
+                    both_done = geo_game_manager.record_guess(gid, user, float(g_lat), float(g_lng))
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "geo_guess_received", "gameId": gid, "player": user, "round": rnd
+                    }})
+                    if both_done:
+                        result = geo_game_manager.calculate_round_result(gid)
+                        loc = game["locations"][rnd - 1]
+                        now_ms = int(time.time() * 1000)
+                        with engine.begin() as conn:
+                            for p in ["E", "M"]:
+                                if p in result:
+                                    r = result[p]
+                                    col_prefix = p.lower()
+                                    conn.execute(text(f"""
+                                        update geo_rounds set
+                                            {col_prefix}_guess_lat=:glat, {col_prefix}_guess_lng=:glng,
+                                            {col_prefix}_distance_km=:dist, {col_prefix}_score=:score,
+                                            {col_prefix}_guessed_at=:ts, revealed_at=:ts
+                                        where game_id=:gid and round_num=:rnd
+                                    """), {"glat": r["guessLat"], "glng": r["guessLng"],
+                                           "dist": r["distance"], "score": r["score"],
+                                           "ts": now_ms, "gid": gid, "rnd": rnd})
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "geo_round_result", "gameId": gid, "round": rnd,
+                            "location": {"lat": loc["lat"], "lng": loc["lng"],
+                                         "country": loc["country"], "name": loc["name"]},
+                            "results": result, "totalScores": game["scores"]
+                        }})
+                        if rnd >= game["totalRounds"]:
+                            winner = "E" if game["scores"]["E"] > game["scores"]["M"] else (
+                                "M" if game["scores"]["M"] > game["scores"]["E"] else "tie")
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    update geo_games set status='ended',ended_at=:ts,
+                                        e_total_score=:es,m_total_score=:ms,winner=:w
+                                    where id=:gid
+                                """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
+                                       "ms": game["scores"]["M"], "w": winner, "gid": gid})
+                            all_rounds = []
+                            for r_num in range(1, 6):
+                                loc_r = game["locations"][r_num - 1]
+                                all_rounds.append({"round": r_num, "location": loc_r,
+                                                   "results": game["roundResults"].get(r_num, {})})
+                            await hub.broadcast(drop, {"type": "game", "payload": {
+                                "op": "geo_game_end", "gameId": gid,
+                                "totalScores": game["scores"], "winner": winner,
+                                "roundResults": all_rounds
+                            }})
+                            geo_game_manager.end_game(gid)
+
+                elif op == "geo_next":
+                    gid = payload.get("gameId")
+                    game = geo_game_manager.get_game(gid)
+                    if not game:
+                        continue
+                    new_round = geo_game_manager.advance_round(gid)
+                    if new_round > 0:
+                        loc = game["locations"][new_round - 1]
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "geo_next_round", "gameId": gid,
+                            "round": new_round, "totalRounds": 5,
+                            "location": {"lat": loc["lat"], "lng": loc["lng"]}
+                        }})
+
+                elif op == "geo_forfeit":
+                    gid = payload.get("gameId")
+                    geo_game_manager.end_game(gid)
+                    with engine.begin() as conn:
+                        conn.execute(text("update geo_games set status='forfeit',ended_at=:ts where id=:gid"),
+                                     {"ts": int(time.time()*1000), "gid": gid})
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "geo_forfeit", "gameId": gid, "player": user
+                    }})
+
+                elif op in ["geo_player_opened", "geo_player_closed"]:
+                    await hub.broadcast(drop, {"type": "game", "payload": payload})
+
                 else:
                     await hub.broadcast(drop, {"type": "game", "payload": payload})
 
     except WebSocketDisconnect:
         await hub.leave(drop, ws)
+
+# --- GeoGuessr REST endpoints ---
+@app.get("/api/geo/config")
+def geo_config(req: Request):
+    require_session(req)
+    return {"mapsApiKey": GOOGLE_MAPS_API_KEY}
+
+@app.get("/api/geo/scores/{drop_id}")
+def get_geo_scores(drop_id: str, limit: int = 20, req: Request = None):
+    require_session(req)
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            select id,started_by,started_at,ended_at,e_total_score,m_total_score,winner
+            from geo_games where drop_id=:d and status in ('ended','forfeit')
+            order by started_at desc limit :n
+        """), {"d": drop_id, "n": limit}).mappings().all()
+    games = [dict(r) for r in rows]
+    e_wins = sum(1 for g in games if g["winner"] == "E")
+    m_wins = sum(1 for g in games if g["winner"] == "M")
+    ties = sum(1 for g in games if g["winner"] == "tie")
+    return {"games": games, "stats": {"eWins": e_wins, "mWins": m_wins, "ties": ties, "total": len(games)}}
 
 # --- Static UI ---
 app.mount("/msgdrop", StaticFiles(directory="html", html=True), name="msgdrop")

@@ -24,6 +24,7 @@
 <link rel="stylesheet" href="/msgdrop/css/rich-links.css?v=20260220">
 <link rel="stylesheet" href="/msgdrop/css/call-system-messages.css?v=20260220">
 <link rel="stylesheet" href="/msgdrop/css/styles-v4-additions.css?v=20260220">
+<link rel="stylesheet" href="/msgdrop/css/geogame.css?v=20260221">
 </head>
 <body>
 <div id="appRoot" aria-live="polite">
@@ -220,6 +221,38 @@
       </div>
     </div>
 
+    <!-- GeoGuessr Game Modal -->
+    <div id="geoModal" class="geo-modal">
+      <div class="geo-panel">
+        <button id="geoCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
+        <div class="geo-header">
+          <span id="geoRoundLabel" class="geo-round-label">Round 1 of 5</span>
+          <span id="geoScoreDisplay" class="geo-score-display">E: 0 — M: 0</span>
+        </div>
+        <div id="geoGuessArea" class="geo-guess-area" style="display:flex;">
+          <div id="geoPanorama" class="geo-panorama"></div>
+          <div class="geo-guess-bottom">
+            <div id="geoGuessMap" class="geo-guess-map"></div>
+            <div class="geo-guess-controls">
+              <span id="geoGuessStatus" class="geo-guess-status">Drop a pin on the map to guess</span>
+              <button id="geoSubmitBtn" class="geo-submit-btn" type="button" disabled>Submit Guess</button>
+            </div>
+          </div>
+        </div>
+        <div id="geoResultArea" class="geo-result-area" style="display:none;">
+          <div id="geoResultMap" class="geo-result-map"></div>
+          <div id="geoResultText" class="geo-result-text"></div>
+          <button id="geoNextBtn" class="geo-next-btn" type="button" style="display:none;">Next Round</button>
+        </div>
+        <div id="geoSummaryArea" class="geo-summary-area" style="display:none;"></div>
+        <div id="geoScoreboardArea" class="geo-scoreboard-area" style="display:none;"></div>
+        <div class="geo-actions">
+          <button id="geoScoreboardBtn" class="game-btn secondary" type="button">History</button>
+          <button id="geoCloseGameBtn" class="game-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Thumbnails Section -->
     <div id="thumbSection" class="thumb-section">
       <button id="thumbCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
@@ -263,6 +296,10 @@
     <button type="button" class="game-item" id="ticTacToeBtn">
       <span class="game-item-icon">⭕</span>
       <span class="game-item-name">Tic-Tac-Toe</span>
+    </button>
+    <button type="button" class="game-item" id="geoGuessrBtn">
+      <span class="game-item-icon">🌍</span>
+      <span class="game-item-name">GeoGuessr</span>
     </button>
   </div>
   <h3 class="games-section-title" id="activeGamesTitle" style="display:none;">Active Games</h3>
@@ -436,6 +473,7 @@
 <script src="/msgdrop/js/images.js?v=20260220"></script>
 <script src="/msgdrop/js/streak.js?v=20260220"></script>
 <script src="/msgdrop/js/game.js?v=20260220"></script>
+<script src="/msgdrop/js/geogame.js?v=20260221"></script>
 <script src="/msgdrop/js/giphy.js?v=20260220"></script>
 <script src="/msgdrop/js/camera.js?v=20260220"></script>
 <script src="/msgdrop/js/audio.js?v=20260220"></script>

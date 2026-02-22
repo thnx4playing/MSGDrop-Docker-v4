@@ -1,0 +1,1 @@
+var b=new Blob([JSON.stringify(window.__wsLog,null,2)],{type:"application/json"});var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="geoguessr_ws_log.json";a.click();

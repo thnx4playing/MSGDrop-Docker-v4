@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:efisha.com)",
+      "WebFetch(domain:www.geoguessr.com)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:geoguessr.com)",
+      "Bash(head:*)",
+      "Bash(curl -s \"https://api.github.com/repos/bmutafov/geoguessr-bot/contents/src\" 2>&1 | python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f['name']\\) for f in data]\" 2>&1)",
+      "Bash(curl -s \"https://api.github.com/repos/lajp/geoguessr-bot-rs/contents/src\" 2>&1 | python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f['name']\\) for f in data]\" 2>&1)",
+      "Bash(curl -s \"https://api.github.com/repos/bmutafov/geoguessr-bot/contents/src/geoguessr-api\" 2>&1 | python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f['name']\\) for f in data]\" 2>&1)",
+      "Bash(curl -s \"https://api.github.com/repos/lajp/geoguessr-bot-rs/contents/src/geoguessr_api\" 2>&1 | python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f['name']\\) for f in data]\" 2>&1)",
+      "Bash(curl -s \"https://api.github.com/repos/bmutafov/geoguessr-bot/contents/src/geoguessr-api/api\" 2>&1 | python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(f['name']\\) for f in data]\" 2>&1)",
+      "Bash(curl:*)",
+      "WebFetch(domain:demaga.github.io)",
+      "Bash(cd /mnt/c/Users/Mike/OneDrive/_Coding/MSGDrop_v4/tools && npm install ws 2>&1)"
+    ]
+  }
+}

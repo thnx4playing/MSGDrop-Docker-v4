@@ -46,7 +46,8 @@ var UI = {
       activeGamesList: document.getElementById('activeGamesList'),
       activeGamesTitle: document.getElementById('activeGamesTitle'),
       presenceE: document.getElementById('presenceE'),
-      presenceM: document.getElementById('presenceM')
+      presenceM: document.getElementById('presenceM'),
+      geoModal: document.getElementById('geoModal')
     };
   },
 
@@ -151,6 +152,18 @@ var UI = {
   hideGameModal: function(){
     if(!this.els.gameModal) return;
     this.els.gameModal.classList.remove('show');
+  },
+
+  showGeoModal: function(){
+    if(!this.els.geoModal) return;
+    this.els.geoModal.classList.add('show');
+    document.body.classList.add('no-scroll');
+  },
+
+  hideGeoModal: function(){
+    if(!this.els.geoModal) return;
+    this.els.geoModal.classList.remove('show');
+    document.body.classList.remove('no-scroll');
   },
 
   insertAtCursor: function(el, text){

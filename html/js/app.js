@@ -72,7 +72,13 @@ var App = {
 
       WebSocketManager.onUpdateCallback = function(data){ Messages.applyDrop(data); };
       WebSocketManager.onTypingCallback = function(data){ Messages.handleTyping(data); };
-      WebSocketManager.onGameCallback = function(data){ Game.applyGame(data); };
+      WebSocketManager.onGameCallback = function(data){
+        if(data && data.op && data.op.indexOf('geo_') === 0){
+          if(typeof GeoGame !== 'undefined') GeoGame.applyGame(data);
+        } else {
+          Game.applyGame(data);
+        }
+      };
       WebSocketManager.onGameListCallback = function(data){ Game.handleGameList(data); };
       WebSocketManager.onStreakCallback = function(data){ if(typeof Streak !== 'undefined') Streak.handleWebSocketUpdate(data); };
       // VideoChat signal callback handled directly in websocket.js
@@ -199,6 +205,22 @@ var App = {
     if(UI.els.gamesPopover){
       UI.els.gamesPopover.addEventListener('click', function(e){ if(e.target === UI.els.gamesPopover) UI.hideGamesMenu(); });
     }
+
+    // GeoGuessr
+    var geoGuessrBtn = document.getElementById('geoGuessrBtn');
+    if(geoGuessrBtn && typeof GeoGame !== 'undefined'){
+      geoGuessrBtn.addEventListener('click', function(){ GeoGame.startNewGame(); });
+    }
+    var geoCloseBtn = document.getElementById('geoCloseBtn');
+    if(geoCloseBtn){ geoCloseBtn.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.closeGame(); }); }
+    var geoCloseGameBtn = document.getElementById('geoCloseGameBtn');
+    if(geoCloseGameBtn){ geoCloseGameBtn.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.closeGame(); }); }
+    var geoSubmitBtn = document.getElementById('geoSubmitBtn');
+    if(geoSubmitBtn){ geoSubmitBtn.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.submitGuess(); }); }
+    var geoNextBtn = document.getElementById('geoNextBtn');
+    if(geoNextBtn){ geoNextBtn.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.nextRound(); }); }
+    var geoScoreboardBtn = document.getElementById('geoScoreboardBtn');
+    if(geoScoreboardBtn){ geoScoreboardBtn.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.showScoreboard(); }); }
 
     // Game board
     var gameCells = document.querySelectorAll('.game-cell');
