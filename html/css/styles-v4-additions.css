@@ -818,6 +818,7 @@
 
 /* Launcher button — slightly larger than regular tool-btn */
 .tool-btn-launcher {
+  position: relative;
   width: 46px !important;
   height: 46px !important;
   padding: 6px !important;

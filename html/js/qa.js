@@ -32,12 +32,17 @@ var QA = {
           state: 'answered'
         };
       }
+      // Auto-close modal for the responder after they answer
+      var modal = document.getElementById('qaModal');
+      if (modal && modal.classList.contains('show') && this.state.asker !== this._getMyRole()) {
+        UI.hideQAModal();
+      }
     } else if (op === 'qa_read') {
       this.state = null;
     }
 
     this.updateBadge();
-    // Re-render if modal is open
+    // Re-render if modal is still open
     var modal = document.getElementById('qaModal');
     if (modal && modal.classList.contains('show')) {
       this.render();
@@ -47,11 +52,14 @@ var QA = {
   askQuestion: function(text) {
     if (!text || !text.trim()) return;
     WebSocketManager.sendQA({ op: 'qa_ask', question: text.trim().substring(0, this.MAX_CHARS) });
+    // Auto-close after asking
+    UI.hideQAModal();
   },
 
   submitAnswer: function(text) {
     if (!text || !text.trim()) return;
     WebSocketManager.sendQA({ op: 'qa_answer', answer: text.trim().substring(0, this.MAX_CHARS) });
+    // Modal will be auto-closed by applyMessage when broadcast comes back
   },
 
   markRead: function() {
@@ -63,10 +71,6 @@ var QA = {
   },
 
   openModal: function() {
-    // If answered and I'm the asker, auto-mark as read
-    if (this.state && this.state.state === 'answered' && this.state.asker === this._getMyRole()) {
-      this.markRead();
-    }
     this.render();
     UI.showQAModal();
   },
@@ -100,15 +104,7 @@ var QA = {
 
     // Pending — question asked, waiting for answer
     if (s.state === 'pending') {
-      if (s.asker === myRole) {
-        // I asked — waiting for their answer
-        content.innerHTML =
-          '<div class="qa-question-display">' +
-            '<div class="qa-bubble-label">Your question</div>' +
-            this._escapeHtml(s.question) +
-          '</div>' +
-          '<div class="qa-status">Waiting for their answer...</div>';
-      } else {
+      if (s.asker !== myRole) {
         // They asked — I need to answer
         content.innerHTML =
           '<div class="qa-question-display">' +
@@ -130,6 +126,14 @@ var QA = {
             }
           });
         }
+      } else {
+        // I asked — nothing to show (modal was auto-closed), but if they open it:
+        content.innerHTML =
+          '<div class="qa-question-display">' +
+            '<div class="qa-bubble-label">Your question</div>' +
+            this._escapeHtml(s.question) +
+          '</div>' +
+          '<div class="qa-status">Sent! You\'ll be notified when they answer.</div>';
       }
       return;
     }
@@ -149,18 +153,18 @@ var QA = {
         '</div>';
 
       if (s.asker === myRole) {
-        // I asked — I'm reading the answer; state will reset via markRead
-        html += '<button id="qaResetBtn" class="qa-reset-btn" type="button">Ask Another</button>';
+        // I asked — reading the answer, "Done" resets it
+        html += '<button id="qaDoneBtn" class="qa-submit-btn" type="button">Done</button>';
         content.innerHTML = html;
-        var resetBtn = document.getElementById('qaResetBtn');
-        if (resetBtn) {
-          resetBtn.addEventListener('click', function() {
+        var doneBtn = document.getElementById('qaDoneBtn');
+        if (doneBtn) {
+          doneBtn.addEventListener('click', function() {
+            QA.markRead();
             UI.hideQAModal();
           });
         }
       } else {
-        // They asked — I answered, waiting for them to read
-        html += '<div class="qa-status">Waiting for them to read...</div>';
+        // I answered — show the pair, they haven't read it yet
         content.innerHTML = html;
       }
       return;
@@ -169,7 +173,7 @@ var QA = {
 
   updateBadge: function() {
     var badge = document.getElementById('qaBadge');
-    if (!badge) return;
+    var launcherBadge = document.getElementById('launcherBadge');
     var myRole = this._getMyRole();
     var s = this.state;
 
@@ -180,8 +184,14 @@ var QA = {
       showBadge = true;  // Asker sees badge (answer ready)
     }
 
-    badge.style.display = showBadge ? '' : 'none';
-    badge.textContent = showBadge ? '1' : '';
+    if (badge) {
+      badge.style.display = showBadge ? '' : 'none';
+      badge.textContent = showBadge ? '1' : '';
+    }
+    if (launcherBadge) {
+      launcherBadge.style.display = showBadge ? '' : 'none';
+      launcherBadge.textContent = showBadge ? '1' : '';
+    }
   },
 
   _wireInput: function(inputId, countId, btnId) {

@@ -1410,10 +1410,9 @@ async def ws_endpoint(ws: WebSocket):
                         "from": from_user,
                         "peerId": (payload or {}).get("peerId", ""),
                     })
-                    # SMS alert
-                    if _should_notify("video_call", drop, 120):
-                        caller_name = from_user or "Someone"
-                        notify(f"{caller_name} is calling... Open MSGDrop to answer! 📹")
+                    # SMS alert — only when E calls
+                    if (from_user or "").upper() == "E" and _should_notify("video_call", drop, 120):
+                        notify("E is calling... Open MSGDrop to answer!")
 
                 elif op in ("ended", "declined", "answered"):
                     _clear_pending_call(drop)
@@ -1552,9 +1551,8 @@ async def ws_endpoint(ws: WebSocket):
                     await hub.broadcast(drop, {"type": "game", "payload": {
                         "op": "geo_invite", "from": user, "inviteId": invite_id
                     }})
-                    if _should_notify("geo_invite", drop, 120):
-                        inviter = user or "Someone"
-                        notify(f"{inviter} wants to play GeoGuessr! Open MSGDrop to accept.")
+                    if (user or "").upper() == "E" and _should_notify("geo_invite", drop, 120):
+                        notify("E wants to play GeoGuessr! Open MSGDrop to accept.")
 
                 elif op == "geo_invite_accepted":
                     _clear_pending_geo_invite(drop)
@@ -1703,8 +1701,8 @@ async def ws_endpoint(ws: WebSocket):
                     _set_active_qa(drop, qa_obj)
                     await hub.broadcast(drop, {"type": "qa", "payload": {"op": "qa_ask", **qa_obj}})
                     logger.info(f"[QA] {user} asked a question in drop={drop}")
-                    if _should_notify("qa", drop, 60):
-                        notify(f"{user} asked a Q&A question!")
+                    if (user or "").upper() == "E" and _should_notify("qa", drop, 60):
+                        notify("E asked a Q&A question!")
 
                 elif op == "qa_answer":
                     answer_text = (payload or {}).get("answer", "").strip()
