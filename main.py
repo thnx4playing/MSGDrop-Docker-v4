@@ -28,7 +28,20 @@ BLOB_DIR        = DATA_DIR / "blob"
 DB_PATH         = DATA_DIR / "messages.db"
 
 ALLOW_EXTERNAL_FETCH = os.environ.get("ALLOW_EXTERNAL_FETCH", "false").lower() == "true"
-GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+def _load_google_maps_key():
+    # 1) Check env var first (for local dev)
+    key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip()
+    if key:
+        return key
+    # 2) Read from file on persistent volume (production)
+    keyfile = DATA_DIR / ".google_maps_key"
+    try:
+        if keyfile.exists():
+            return keyfile.read_text().strip()
+    except Exception:
+        pass
+    return ""
+GOOGLE_MAPS_API_KEY = _load_google_maps_key()
 
 MSGDROP_SECRET_JSON = os.environ.get("MSGDROP_SECRET_JSON", "")
 try:

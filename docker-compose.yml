@@ -17,7 +17,6 @@ services:
       - PUBLIC_BASE_URL=https://msg4.wikistories.org
       - SSL_CERT_PATH=/etc/letsencrypt/live/msg4.wikistories.org/fullchain.pem
       - SSL_KEY_PATH=/etc/letsencrypt/live/msg4.wikistories.org/privkey.pem
-      - GOOGLE_MAPS_API_KEY=AIzaSyCkYze3eWkwj3XtS5E7TLkMLizMAtV1Nnk
       - MSGDROP_SECRET_JSON={"edgeAuthToken":"your_random_token_here"}
     volumes:
       - /srv/msgdrop4/data:/data
