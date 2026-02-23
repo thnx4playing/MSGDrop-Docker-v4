@@ -35,15 +35,6 @@ var GeoGame = {
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data.mapsApiKey) { alert('Google Maps API key not configured'); return; }
-        // Block iOS "Motion & Fitness" permission prompt triggered by Google Maps.
-        // Maps probes DeviceOrientationEvent.requestPermission even when motionTracking
-        // is disabled. Stub it out so it silently returns 'denied' without prompting.
-        if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission = function(){ return Promise.resolve('denied'); };
-        }
-        if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-          DeviceMotionEvent.requestPermission = function(){ return Promise.resolve('denied'); };
-        }
         var script = document.createElement('script');
         script.src = 'https://maps.googleapis.com/maps/api/js?key=' + data.mapsApiKey + '&loading=async&callback=_geoMapsReady';
         script.async = true;
