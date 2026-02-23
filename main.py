@@ -1122,7 +1122,7 @@ class Hub:
         user_label = self.rooms.get(drop_id, {}).get(ws, "anon")
         try:
             del self.rooms.get(drop_id, {})[ws]
-            if not self.rooms.get(drop_id): 
+            if not self.rooms.get(drop_id):
                 self.rooms.pop(drop_id, None)
         except KeyError:
             pass
@@ -1131,6 +1131,21 @@ class Hub:
             "data": {"user": user_label, "state": "offline", "ts": int(time.time() * 1000)},
             "online": self._online(drop_id)
         })
+        # Pause active geo game when a player disconnects —
+        # but only if that user has NO remaining connections in the room
+        # (handles browser refresh where new WS joins before old one leaves)
+        still_connected = any(
+            u == user_label for u in self.rooms.get(drop_id, {}).values()
+        )
+        if not still_connected:
+            active_geo = geo_game_manager.find_active_game_for_drop(drop_id)
+            if active_geo and active_geo["status"] == "active":
+                geo_game_manager.pause_game(active_geo["gameId"], user_label)
+                await self.broadcast(drop_id, {"type": "game", "payload": {
+                    "op": "geo_player_disconnected",
+                    "gameId": active_geo["gameId"],
+                    "player": user_label,
+                }})
 
     def _online(self, drop_id: str) -> int:
         return len(self.rooms.get(drop_id, {}))
@@ -1247,6 +1262,56 @@ class GeoGameManager:
         if game_id in self.games:
             self.games[game_id]["status"] = "ended"
 
+    def find_active_game_for_drop(self, drop_id):
+        for gid, game in self.games.items():
+            if game.get("dropId") == drop_id and game.get("status") in ("active", "paused"):
+                return game
+        return None
+
+    def pause_game(self, game_id, disconnected_player):
+        game = self.games.get(game_id)
+        if game and game["status"] == "active":
+            game["status"] = "paused"
+            game["pausedAt"] = int(time.time() * 1000)
+            game["disconnectedPlayer"] = disconnected_player
+
+    def resume_game(self, game_id):
+        game = self.games.get(game_id)
+        if game and game["status"] == "paused":
+            game["status"] = "active"
+            game.pop("pausedAt", None)
+            game.pop("disconnectedPlayer", None)
+
+    def get_game_state_snapshot(self, game_id, for_player):
+        game = self.games.get(game_id)
+        if not game:
+            return None
+        rnd = game["currentRound"]
+        loc = game["locations"][rnd - 1]
+        guesses = game["guesses"].get(rnd, {})
+        other = "M" if for_player == "E" else "E"
+        has_result = rnd in game["roundResults"]
+        return {
+            "gameId": game["gameId"], "round": rnd, "totalRounds": game["totalRounds"],
+            "location": {"lat": loc["lat"], "lng": loc["lng"]},
+            "scores": game["scores"],
+            "phase": "result" if has_result else "guessing",
+            "myGuessSubmitted": for_player in guesses,
+            "otherPlayerGuessed": other in guesses,
+            "roundResult": game["roundResults"].get(rnd),
+            "roundHistory": [
+                {"round": r, "location": game["locations"][r-1], "results": game["roundResults"].get(r, {})}
+                for r in range(1, rnd+1) if r in game["roundResults"]
+            ],
+        }
+
+    def cleanup_stale_paused_games(self):
+        now = int(time.time() * 1000)
+        stale = [gid for gid, g in self.games.items()
+                 if g.get("status") == "paused" and now - g.get("pausedAt", 0) > 300000]
+        for gid in stale:
+            self.games[gid]["status"] = "ended"
+
 geo_game_manager = GeoGameManager()
 
 def _build_full_drop(drop: str) -> dict:
@@ -1343,6 +1408,26 @@ async def ws_endpoint(ws: WebSocket):
             logger.info(f"[PendingGeoInvite] Replayed invite to late joiner {user} in drop={drop}")
         except Exception as e:
             logger.warning(f"[PendingGeoInvite] Failed to replay invite to {user}: {e}")
+
+    # ── Replay active/paused geo game for reconnecting player ──────────
+    geo_game_manager.cleanup_stale_paused_games()
+    active_geo = geo_game_manager.find_active_game_for_drop(drop)
+    if active_geo:
+        snapshot = geo_game_manager.get_game_state_snapshot(active_geo["gameId"], user)
+        if snapshot:
+            try:
+                await ws.send_json({"type": "game", "payload": {"op": "geo_resume", **snapshot}})
+                logger.info(f"[GeoResume] Replayed geo game state to {user} in drop={drop}")
+            except Exception as e:
+                logger.warning(f"[GeoResume] Failed to replay geo state to {user}: {e}")
+            # If this player caused the pause, resume the game and notify other player
+            if active_geo.get("status") == "paused" and active_geo.get("disconnectedPlayer") == user:
+                geo_game_manager.resume_game(active_geo["gameId"])
+                await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
+                    "op": "geo_player_reconnected",
+                    "gameId": active_geo["gameId"],
+                    "player": user,
+                }})
 
     # ── Replay active Q&A for late joiners ────────────────────────────────
     active_qa = _get_active_qa(drop)
@@ -1601,7 +1686,7 @@ async def ws_endpoint(ws: WebSocket):
                     g_lat = payload.get("lat")
                     g_lng = payload.get("lng")
                     game = geo_game_manager.get_game(gid)
-                    if not game or g_lat is None or g_lng is None:
+                    if not game or game.get("status") not in ("active", "paused") or g_lat is None or g_lng is None:
                         continue
                     rnd = game["currentRound"]
                     existing = game["guesses"].get(rnd, {})

@@ -178,6 +178,10 @@ var WebSocketManager = {
     }
     var callCard = document.getElementById('call-sys-' + VideoChat._callMsgId);
     if(callCard) callCard.remove();
+    // Stop geo timer so it doesn't auto-submit while session is expired
+    if(typeof GeoGame !== 'undefined' && GeoGame.state.gameId) {
+      GeoGame.stopTimer();
+    }
   },
 
   _redirectToUnlock: function(){

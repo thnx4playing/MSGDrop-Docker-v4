@@ -174,6 +174,77 @@ var GeoGame = {
         this.renderForfeitMessage();
       }
     }
+    else if (op === 'geo_player_disconnected') {
+      if (data.player !== Messages.myRole && this.state.gameId) {
+        this.state.phase = 'paused';
+        this.stopTimer();
+        if (typeof Messages !== 'undefined' && Messages.injectGeoPauseCard) {
+          Messages.injectGeoPauseCard({gameId: data.gameId, player: data.player});
+        }
+        this.renderPauseOverlay(data.player);
+      }
+    }
+    else if (op === 'geo_player_reconnected') {
+      if (data.player !== Messages.myRole && this.state.gameId) {
+        // Restore phase based on state
+        if (this.state.roundResult) {
+          this.state.phase = 'result';
+        } else if (this.state.myGuess) {
+          this.state.phase = 'waiting';
+        } else {
+          this.state.phase = 'guessing';
+          this.startTimer();
+        }
+        if (typeof Messages !== 'undefined' && Messages.removeGeoPauseCard) {
+          Messages.removeGeoPauseCard(data.gameId);
+        }
+        this.removePauseOverlay();
+      }
+    }
+    else if (op === 'geo_resume') {
+      // I'm reconnecting — rebuild my game UI from server snapshot
+      this.state.gameId = data.gameId;
+      this.state.round = data.round;
+      this.state.totalRounds = data.totalRounds;
+      this.state.location = data.location;
+      this.state.scores = data.scores;
+      this.state.otherPlayerGuessed = data.otherPlayerGuessed || false;
+      this.state.roundHistory = data.roundHistory || [];
+      this.state.myGuess = null;
+
+      if (data.phase === 'result' && data.roundResult) {
+        this.state.phase = 'result';
+        this.state.roundResult = {
+          location: data.location,
+          results: data.roundResult,
+          totalScores: data.scores
+        };
+        this.loadMapsAPI(function() {
+          GeoGame.mapsLoaded = true;
+          UI.showGeoModal();
+          GeoGame.renderRoundResult();
+        });
+      } else if (data.myGuessSubmitted) {
+        this.state.phase = 'waiting';
+        this.loadMapsAPI(function() {
+          GeoGame.mapsLoaded = true;
+          UI.showGeoModal();
+          GeoGame.renderGuessing();
+          // Re-show waiting state
+          var btn = document.getElementById('geoSubmitBtn');
+          if (btn) { btn.disabled = true; btn.textContent = 'Waiting...'; }
+          GeoGame.stopTimer();
+          GeoGame.updateGuessStatus();
+        });
+      } else {
+        this.state.phase = 'guessing';
+        this.loadMapsAPI(function() {
+          GeoGame.mapsLoaded = true;
+          UI.showGeoModal();
+          GeoGame.renderGuessing();
+        });
+      }
+    }
     else if (op === 'geo_player_opened') {
       if (data.player !== Messages.myRole) this.state.otherPlayerHasGameOpen = true;
     }
@@ -502,15 +573,37 @@ var GeoGame = {
     }
   },
 
+  // ─── Pause overlay (inside geo modal) ────────────────
+  renderPauseOverlay: function(player) {
+    this.removePauseOverlay();
+    var panel = document.querySelector('.geo-panel');
+    if (!panel) return;
+    var overlay = document.createElement('div');
+    overlay.className = 'geo-pause-overlay';
+    overlay.innerHTML =
+      '<div class="geo-pause-content">' +
+        '<div class="geo-pause-title">Game Paused</div>' +
+        '<div class="geo-pause-sub">' + player + ' disconnected</div>' +
+        '<div class="geo-pause-hint">Waiting for them to return\u2026</div>' +
+      '</div>';
+    panel.appendChild(overlay);
+  },
+
+  removePauseOverlay: function() {
+    var overlay = document.querySelector('.geo-pause-overlay');
+    if (overlay) overlay.remove();
+  },
+
   // ─── Close / Forfeit ────────────────────────────────
   closeGame: function() {
-    if (this.state.phase === 'guessing' || this.state.phase === 'waiting' || this.state.phase === 'result') {
+    if (this.state.phase === 'guessing' || this.state.phase === 'waiting' || this.state.phase === 'result' || this.state.phase === 'paused') {
       if (!confirm('Leave the game? This will forfeit.')) return;
       WebSocketManager.ws.send(JSON.stringify({
         action: 'game',
         payload: {op: 'geo_forfeit', gameId: this.state.gameId}
       }));
     }
+    this.removePauseOverlay();
     this.resetState();
     UI.hideGeoModal();
   },

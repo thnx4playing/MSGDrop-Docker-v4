@@ -552,6 +552,111 @@ var Messages = {
   },
 
   // =========================================================================
+  // GEO PAUSE CARD (player disconnected during game)
+  // =========================================================================
+
+  injectGeoPauseCard: function(opts) {
+    var container = UI.els.chatContainer;
+    if (!container) return;
+
+    var existing = document.getElementById('geo-pause-' + opts.gameId);
+    if (existing) existing.remove();
+
+    var el = document.createElement('div');
+    el.id = 'geo-pause-' + opts.gameId;
+    el.className = 'call-system-message call-incoming-card';
+    el.setAttribute('data-geo-pause-id', opts.gameId);
+
+    var iconWrap = document.createElement('div');
+    iconWrap.className = 'call-card-icon-wrap geo-pause-icon-wrap';
+    iconWrap.innerHTML = '<span style="font-size:28px;line-height:1">🌍</span>';
+
+    var label = document.createElement('div');
+    label.className = 'call-card-label';
+
+    var nameEl = document.createElement('div');
+    nameEl.className = 'call-card-name';
+    nameEl.textContent = (opts.player || '?') + ' disconnected';
+
+    var subEl = document.createElement('div');
+    subEl.className = 'call-card-sub';
+    subEl.textContent = 'GeoGuessr game paused';
+
+    label.appendChild(nameEl);
+    label.appendChild(subEl);
+
+    var actions = document.createElement('div');
+    actions.className = 'call-card-actions';
+
+    var endBtn = document.createElement('button');
+    endBtn.className = 'call-card-btn call-card-decline';
+    endBtn.innerHTML =
+      '<span class="call-card-btn-icon">' +
+        '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
+          '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>' +
+        '</svg>' +
+      '</span>' +
+      '<span class="call-card-btn-label">End Game</span>';
+    endBtn.onclick = function(e) {
+      e.stopPropagation();
+      if (typeof GeoGame !== 'undefined' && GeoGame.state.gameId) {
+        WebSocketManager.ws.send(JSON.stringify({
+          action: 'game',
+          payload: {op: 'geo_forfeit', gameId: GeoGame.state.gameId}
+        }));
+        GeoGame.resetState();
+        GeoGame.removePauseOverlay();
+        UI.hideGeoModal();
+      }
+      if (el.parentNode) el.remove();
+    };
+
+    var waitBtn = document.createElement('button');
+    waitBtn.className = 'call-card-btn call-card-answer';
+    waitBtn.innerHTML =
+      '<span class="call-card-btn-icon">' +
+        '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
+          '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' +
+        '</svg>' +
+      '</span>' +
+      '<span class="call-card-btn-label">Wait</span>';
+    waitBtn.onclick = function(e) {
+      e.stopPropagation();
+      if (el.parentNode) el.remove();
+    };
+
+    actions.appendChild(endBtn);
+    actions.appendChild(waitBtn);
+
+    el.appendChild(iconWrap);
+    el.appendChild(label);
+    el.appendChild(actions);
+
+    if (UI.els.typingIndicator) {
+      container.insertBefore(el, UI.els.typingIndicator);
+    } else {
+      container.appendChild(el);
+    }
+    container.scrollTop = container.scrollHeight;
+  },
+
+  removeGeoPauseCard: function(gameId) {
+    var el = document.getElementById('geo-pause-' + gameId);
+    if (!el) return;
+    el.classList.remove('call-incoming-card');
+    el.innerHTML = '';
+    var iconEl = document.createElement('span');
+    iconEl.className = 'call-sys-icon';
+    iconEl.textContent = '🌍';
+    var textEl = document.createElement('span');
+    textEl.className = 'call-sys-text';
+    textEl.textContent = 'Player reconnected \u2014 game resumed';
+    el.appendChild(iconEl);
+    el.appendChild(textEl);
+    setTimeout(function() { if (el.parentNode) el.remove(); }, 3000);
+  },
+
+  // =========================================================================
   // AUDIO BUBBLE
   // =========================================================================
 
