@@ -250,10 +250,7 @@ var VideoChat = {
     }
 
     try {
-      self.localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: { ideal: 0.01 } }
-      });
+      self.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       self.localVideo.srcObject = self.localStream;
       self.localVideo.muted = true;
       self.localVideo.play().catch(function(e){ console.warn('[VideoChat] localVideo.play():', e); });
@@ -300,10 +297,7 @@ var VideoChat = {
     var self = this;
 
     try {
-      self.localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: { ideal: 0.01 } }
-      });
+      self.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       self.localVideo.srcObject = self.localStream;
       self.localVideo.muted = true;
       self.localVideo.play().catch(function(e){ console.warn('[VideoChat] localVideo.play():', e); });
@@ -386,20 +380,6 @@ var VideoChat = {
       console.log('[VideoChat] Remote stream received');
       self.remoteVideo.srcObject = remoteStream;
       self.remoteVideo.play().catch(function(e){ console.warn('[VideoChat] remoteVideo.play():', e); });
-
-      // Minimize A/V sync lag (lip-sync): reduce jitter buffer on audio receiver
-      try {
-        var pc = call.peerConnection;
-        if(pc && pc.getReceivers) {
-          pc.getReceivers().forEach(function(receiver) {
-            if(receiver.track && receiver.track.kind === 'audio' && typeof receiver.jitterBufferTarget !== 'undefined') {
-              receiver.jitterBufferTarget = 0; // let browser use minimum buffering
-              console.log('[VideoChat] Set audio jitterBufferTarget to minimum');
-            }
-          });
-        }
-      } catch(e) { console.warn('[VideoChat] jitterBuffer tweak skipped:', e); }
-
       self._setStatus('');
       self._callStartTime = Date.now();
       if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
