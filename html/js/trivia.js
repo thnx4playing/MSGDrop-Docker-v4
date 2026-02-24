@@ -377,7 +377,7 @@ window.TriviaGame = new (class extends GameEngine {
         if (!r) return;
         var color = p === 'E' ? '#ef4444' : '#3b82f6';
         html += '<span style="color:' + color + ';font-weight:700">' + p + '</span>: ';
-        html += r.correct ? '+' + r.score + ' pts' : 'Wrong';
+        html += r.correct ? 'Correct' : 'Wrong';
         html += '  ';
       });
       resultText.innerHTML = html;
@@ -409,7 +409,24 @@ window.TriviaGame = new (class extends GameEngine {
     html += '<div class="trivia-summary-player' + (data.winner === 'E' ? ' winner' : '') + '">E: ' + data.totalScores.E + '</div>';
     html += '<div class="trivia-summary-player' + (data.winner === 'M' ? ' winner' : '') + '">M: ' + data.totalScores.M + '</div>';
     html += '</div>';
+    html += '<div id="triviaWinsTracker" class="trivia-wins-tracker"></div>';
     summaryArea.innerHTML = html;
+
+    // Fetch all-time game wins
+    var self = this;
+    if (this.scoreboardUrl && App.dropId) {
+      fetch(this.scoreboardUrl + encodeURIComponent(App.dropId), { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(sb) {
+          var el = document.getElementById('triviaWinsTracker');
+          if (!el || !sb.stats) return;
+          el.innerHTML = '<span class="trivia-wins-label">Game Wins</span>'
+            + '<span style="color:#ef4444;font-weight:700">E: ' + sb.stats.eWins + '</span>'
+            + '<span style="color:var(--muted)"> \u2014 </span>'
+            + '<span style="color:#3b82f6;font-weight:700">M: ' + sb.stats.mWins + '</span>';
+        })
+        .catch(function() {});
+    }
   }
 
   renderScoreboard(data) {

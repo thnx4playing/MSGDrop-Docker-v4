@@ -149,6 +149,23 @@
   color: #22c55e;
   font-weight: 800;
 }
+.trivia-wins-tracker {
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.trivia-wins-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
 
 /* ── Scoreboard area ── */
 .trivia-scoreboard-area {

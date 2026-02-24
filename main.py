@@ -1598,7 +1598,7 @@ class TriviaGameManager(BaseGameManager):
         for p in ["E", "M"]:
             a = answers.get(p, {"answerIdx": -1, "timeMs": 15000})
             is_correct = a["answerIdx"] == correct_idx
-            score = max(100, round(1000 - a["timeMs"] / 15)) if is_correct else 0
+            score = 1 if is_correct else 0
             result[p] = {"answerIdx": a["answerIdx"], "correct": is_correct,
                          "score": score, "timeMs": a["timeMs"]}
             game["scores"][p] += score
