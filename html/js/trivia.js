@@ -4,18 +4,18 @@
 // ============================================================================
 
 var TRIVIA_CATEGORIES = [
-  { id: null, name: 'Any Category',      icon: '\u{1F3B2}' },
-  { id: 9,    name: 'General Knowledge',  icon: '\u{1F9E0}' },
-  { id: 11,   name: 'Film',               icon: '\u{1F3AC}' },
-  { id: 12,   name: 'Music',              icon: '\u{1F3B5}' },
-  { id: 14,   name: 'Television',         icon: '\u{1F4FA}' },
-  { id: 15,   name: 'Video Games',        icon: '\u{1F3AE}' },
-  { id: 17,   name: 'Science & Nature',   icon: '\u{1F52C}' },
-  { id: 21,   name: 'Sports',             icon: '\u{26BD}' },
-  { id: 22,   name: 'Geography',          icon: '\u{1F30D}' },
-  { id: 23,   name: 'History',            icon: '\u{1F4DC}' },
-  { id: 27,   name: 'Animals',            icon: '\u{1F43E}' },
-  { id: 26,   name: 'Celebrities',          icon: '\u{2B50}' },
+  { id: null, name: 'Any',       icon: '\u{1F3B0}' },
+  { id: 9,    name: 'General',   icon: '\u{1F4A1}' },
+  { id: 11,   name: 'Film',      icon: '\u{1F3AC}' },
+  { id: 12,   name: 'Music',     icon: '\u{1F3B8}' },
+  { id: 14,   name: 'TV',        icon: '\u{1F4FA}' },
+  { id: 15,   name: 'Games',     icon: '\u{1F3AE}' },
+  { id: 17,   name: 'Science',   icon: '\u{1F9EA}' },
+  { id: 21,   name: 'Sports',    icon: '\u{1F3C6}' },
+  { id: 22,   name: 'Geography', icon: '\u{1F5FA}' },
+  { id: 23,   name: 'History',   icon: '\u{1F3DB}' },
+  { id: 27,   name: 'Animals',   icon: '\u{1F981}' },
+  { id: 26,   name: 'Celebs',    icon: '\u{1F31F}' },
 ];
 
 window.TriviaGame = new (class extends GameEngine {
