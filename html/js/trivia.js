@@ -358,15 +358,32 @@ window.TriviaGame = new (class extends GameEngine {
   renderQuestionResult(data) {
     this.stopTimer();
     // data: {correctIdx, results: {E: {answerIdx, correct, score, timeMs}, M: {...}}, totalScores}
+    var me = Messages.myRole;
+    var them = me === 'E' ? 'M' : 'E';
     var buttons = document.querySelectorAll('.trivia-option');
     buttons.forEach(function(btn, i) {
       btn.disabled = true;
       if (i === data.correctIdx) btn.classList.add('correct');
+      // Tag wrong guesses with whose guess it was
       ['E', 'M'].forEach(function(p) {
         if (data.results[p] && data.results[p].answerIdx === i && !data.results[p].correct) {
-          btn.classList.add('wrong');
+          if (p === me) {
+            btn.classList.add('wrong-mine');
+          } else {
+            btn.classList.add('wrong-theirs');
+          }
         }
       });
+      // Add "You" / player tag to guessed options
+      var tags = [];
+      if (data.results[me] && data.results[me].answerIdx === i) tags.push('You');
+      if (data.results[them] && data.results[them].answerIdx === i) tags.push(them);
+      if (tags.length > 0) {
+        var tag = document.createElement('span');
+        tag.className = 'trivia-option-tag';
+        tag.textContent = tags.join(' & ');
+        btn.appendChild(tag);
+      }
     });
 
     var resultText = document.getElementById('triviaResultText');
@@ -375,10 +392,12 @@ window.TriviaGame = new (class extends GameEngine {
       ['E', 'M'].forEach(function(p) {
         var r = data.results[p];
         if (!r) return;
-        var color = p === 'E' ? '#ef4444' : '#3b82f6';
-        html += '<span style="color:' + color + ';font-weight:700">' + p + '</span>: ';
-        html += r.correct ? 'Correct' : 'Wrong';
-        html += '  ';
+        var isCorrect = r.correct;
+        var cls = 'trivia-result-badge ' + (isCorrect ? 'trivia-result-correct' : 'trivia-result-wrong');
+        html += '<span class="' + cls + '">'
+          + '<span class="trivia-result-player">' + p + '</span>'
+          + (isCorrect ? '\u2713' : '\u2717')
+          + '</span>';
       });
       resultText.innerHTML = html;
     }
