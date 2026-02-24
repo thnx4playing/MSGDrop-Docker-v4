@@ -1,12 +1,17 @@
 /* ================== WORDLE BATTLE ================== */
 /* Modal/panel/header/timer/actions/pause use shared classes from games-shared.css */
 
-/* Force full-screen panel (mobile-first app) */
+/* Force full-screen (mobile-first app) */
+.wordle-modal {
+  background: var(--panel) !important;
+  backdrop-filter: none !important;
+}
 .wordle-panel {
-  width: 100vw !important;
-  height: 100vh !important;
-  height: 100dvh !important;
+  width: 100% !important;
+  height: 100% !important;
   border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* ── Guess area: grid centered + keyboard pinned to bottom ── */
