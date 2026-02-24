@@ -1,6 +1,19 @@
 /* ================== DRAWING GUESS ================== */
 /* Modal/panel/header/timer/actions/pause use shared classes from games-shared.css */
 
+/* Force full-screen — panel fills viewport edge-to-edge */
+.draw-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 /* Game area */
 .draw-game-area {
   flex: 1;
@@ -217,12 +230,6 @@
 
 /* Mobile responsive */
 @media (max-width: 640px) {
-  .draw-panel {
-    width: 100vw;
-    height: 100vh;
-    height: 100dvh;
-    border-radius: 0;
-  }
   .draw-canvas-wrap {
     min-height: 0;
     flex: 1;

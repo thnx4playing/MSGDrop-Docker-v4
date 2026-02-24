@@ -1,6 +1,19 @@
 /* ================== GEOGUESSR GAME ================== */
 /* Modal/panel/header/timer/actions/pause use shared classes from games-shared.css */
 
+/* Force full-screen — panel fills viewport edge-to-edge */
+.geo-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 /* Guessing area - vertical split */
 .geo-guess-area {
   flex: 1;
@@ -209,12 +222,6 @@
 
 /* Mobile responsive */
 @media (max-width: 640px) {
-  .geo-panel {
-    width: 100vw;
-    height: 100vh;
-    height: 100dvh;
-    border-radius: 0;
-  }
   .geo-guess-area { position: relative; }
   .geo-view-toggle {
     display: block;
