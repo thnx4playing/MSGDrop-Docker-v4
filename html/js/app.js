@@ -389,18 +389,33 @@ var App = {
 
   startCountdownTimer: function(){
     if(!UI.els.composeTimer) return;
-    var seconds = 1198;
+    // Read real expiry from the session-ok token cookie
+    var expiry = 0;
+    try {
+      var token = Storage.getCookie('session-ok');
+      if(token){
+        // Token is base64url: {"exp":TIMESTAMP}.HMAC — decode the payload before the dot
+        var raw = atob(token.replace(/-/g, '+').replace(/_/g, '/') + '==');
+        var dot = raw.indexOf('.');
+        if(dot > 0){
+          var payload = JSON.parse(raw.substring(0, dot));
+          if(payload.exp) expiry = payload.exp;
+        }
+      }
+    } catch(e){}
     function fmt(s){
       if(s >= 60) return Math.ceil(s / 60) + 'm';
       return s + 's';
     }
-    UI.els.composeTimer.textContent = fmt(seconds);
+    function remaining(){ return Math.max(0, expiry - Math.floor(Date.now() / 1000)); }
+    // Fall back to 1198s if we couldn't read the token
+    if(!expiry) expiry = Math.floor(Date.now() / 1000) + 1198;
+    UI.els.composeTimer.textContent = fmt(remaining());
     setInterval(function(){
-      seconds--;
-      if(seconds < 0) seconds = 0;
-      if(UI.els.composeTimer) UI.els.composeTimer.textContent = fmt(seconds);
+      var secs = remaining();
+      if(UI.els.composeTimer) UI.els.composeTimer.textContent = fmt(secs);
       if(UI.els.composeTimer){
-        if(seconds < 10) UI.els.composeTimer.classList.add('warning');
+        if(secs < 10) UI.els.composeTimer.classList.add('warning');
         else UI.els.composeTimer.classList.remove('warning');
       }
     }, 1000);
