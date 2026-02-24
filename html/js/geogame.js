@@ -1,35 +1,38 @@
 // Path: html/js/geogame.js
 // ============================================================================
-// GEOGAME.JS - GeoGuessr clone for MSGDrop v4
+// GEOGAME.JS - GeoGuessr clone for MSGDrop v4  (extends GameEngine)
 // ============================================================================
 
-var GeoGame = {
-  state: {
-    gameId: null,
-    round: 0,
-    totalRounds: 5,
-    phase: 'idle',       // idle | guessing | waiting | result | summary | scoreboard
-    location: null,
-    myGuess: null,
-    otherPlayerGuessed: false,
-    roundResult: null,
-    scores: {E: 0, M: 0},
-    roundHistory: [],
-    otherPlayerHasGameOpen: false,
-    timerInterval: null,
-    timerSeconds: 60,
-    pendingInviteId: null
-  },
+window.GeoGame = new (class extends GameEngine {
 
-  panorama: null,
-  guessMap: null,
-  guessMarker: null,
-  resultMap: null,
-  mapsLoaded: false,
-  _resultOverlays: [],
+  constructor(config) {
+    super(config);
 
-  // ─── Google Maps API loading ────────────────────────
-  loadMapsAPI: function(callback) {
+    // ── Geo-specific state (merged into base this.state) ──
+    this.state.round            = 0;
+    this.state.totalRounds      = 5;
+    this.state.location         = null;
+    this.state.myGuess           = null;
+    this.state.otherPlayerGuessed = false;
+    this.state.roundResult       = null;
+    this.state.scores            = {E: 0, M: 0};
+    this.state.roundHistory      = [];
+    this.state.otherPlayerHasGameOpen = false;
+
+    // ── Google Maps objects ──
+    this.panorama        = null;
+    this.guessMap        = null;
+    this.guessMarker     = null;
+    this.resultMap       = null;
+    this.mapsLoaded      = false;
+    this._resultOverlays = [];
+  }
+
+  // =========================================================================
+  //  GOOGLE MAPS API LOADING
+  // =========================================================================
+
+  loadMapsAPI(callback) {
     if (window.google && window.google.maps) { callback(); return; }
     fetch('/api/geo/config', {credentials: 'include'})
       .then(function(r) { return r.json(); })
@@ -45,87 +48,15 @@ var GeoGame = {
         document.head.appendChild(script);
       })
       .catch(function(e) { console.error('[GeoGame] Failed to load Maps API config:', e); });
-  },
+  }
 
-  // ─── Game lifecycle ─────────────────────────────────
-  startNewGame: function() {
-    if (!Messages.myRole) { alert('Please select your role first'); return; }
-    if (!WebSocketManager.ws || WebSocketManager.ws.readyState !== 1) {
-      alert('Not connected to server'); return;
-    }
-    WebSocketManager.ws.send(JSON.stringify({
-      action: 'game',
-      payload: {op: 'geo_invite'}
-    }));
-    UI.hideGamesMenu();
-  },
+  // =========================================================================
+  //  OP ROUTING  (game-specific ops)
+  // =========================================================================
 
-  acceptInvite: function() {
-    if (!WebSocketManager.ws || WebSocketManager.ws.readyState !== 1) return;
-    WebSocketManager.ws.send(JSON.stringify({
-      action: 'game',
-      payload: {op: 'geo_invite_accepted', inviteId: this.state.pendingInviteId}
-    }));
-  },
-
-  declineInvite: function() {
-    if (!WebSocketManager.ws || WebSocketManager.ws.readyState !== 1) return;
-    WebSocketManager.ws.send(JSON.stringify({
-      action: 'game',
-      payload: {op: 'geo_invite_declined', inviteId: this.state.pendingInviteId}
-    }));
-  },
-
-  cancelInvite: function() {
-    if (!WebSocketManager.ws || WebSocketManager.ws.readyState !== 1) return;
-    WebSocketManager.ws.send(JSON.stringify({
-      action: 'game',
-      payload: {op: 'geo_invite_cancelled', inviteId: this.state.pendingInviteId}
-    }));
-  },
-
-  // ─── Incoming WS message router ────────────────────
-  applyGame: function(data) {
-    if (!data || !data.op) return;
-    var op = data.op;
-
-    if (op === 'geo_invite') {
-      var fromPlayer = data.from;
-      this.state.pendingInviteId = data.inviteId;
-      if (fromPlayer === Messages.myRole) {
-        // I sent the invite — show "waiting" status in chat
-        if (typeof Messages !== 'undefined' && Messages.injectGeoInvite) {
-          Messages.injectGeoInvite({id: data.inviteId, role: fromPlayer, status: 'waiting'});
-        }
-      } else {
-        // Other player invited me — show accept/decline card
-        if (typeof Messages !== 'undefined' && Messages.injectGeoInvite) {
-          Messages.injectGeoInvite({id: data.inviteId, role: fromPlayer, status: 'incoming'});
-        }
-      }
-      return;
-    }
-    else if (op === 'geo_invite_declined') {
-      if (typeof Messages !== 'undefined' && Messages.updateGeoInvite) {
-        Messages.updateGeoInvite(this.state.pendingInviteId, 'declined');
-      }
-      this.state.pendingInviteId = null;
-      return;
-    }
-    else if (op === 'geo_invite_cancelled') {
-      if (typeof Messages !== 'undefined' && Messages.updateGeoInvite) {
-        Messages.updateGeoInvite(this.state.pendingInviteId, 'cancelled');
-      }
-      this.state.pendingInviteId = null;
-      return;
-    }
-
+  handleGameOp(op, data) {
     if (op === 'geo_started') {
-      // Clear the invite card when game starts
-      if (this.state.pendingInviteId && typeof Messages !== 'undefined' && Messages.updateGeoInvite) {
-        Messages.updateGeoInvite(this.state.pendingInviteId, 'starting');
-      }
-      this.state.pendingInviteId = null;
+      this.clearInviteCard();
       this.state.gameId = data.gameId;
       this.state.round = data.round;
       this.state.totalRounds = data.totalRounds;
@@ -135,10 +66,11 @@ var GeoGame = {
       this.state.otherPlayerGuessed = false;
       this.state.scores = {E: 0, M: 0};
       this.state.roundHistory = [];
+      var self = this;
       this.loadMapsAPI(function() {
-        GeoGame.mapsLoaded = true;
-        UI.showGeoModal();
-        GeoGame.renderGuessing();
+        self.mapsLoaded = true;
+        self.showModal();
+        self.renderGuessing();
       });
     }
     else if (op === 'geo_guess_received') {
@@ -168,93 +100,165 @@ var GeoGame = {
       this.state.scores = data.totalScores;
       this.renderGameSummary(data);
     }
-    else if (op === 'geo_forfeit') {
-      if (data.player !== Messages.myRole) {
-        this.state.phase = 'summary';
-        this.renderForfeitMessage();
-      }
-    }
-    else if (op === 'geo_player_disconnected') {
-      if (data.player !== Messages.myRole && this.state.gameId) {
-        this.state.phase = 'paused';
-        this.stopTimer();
-        if (typeof Messages !== 'undefined' && Messages.injectGeoPauseCard) {
-          Messages.injectGeoPauseCard({gameId: data.gameId, player: data.player});
-        }
-        this.renderPauseOverlay(data.player);
-      }
-    }
-    else if (op === 'geo_player_reconnected') {
-      if (data.player !== Messages.myRole && this.state.gameId) {
-        // Restore phase based on state
-        if (this.state.roundResult) {
-          this.state.phase = 'result';
-        } else if (this.state.myGuess) {
-          this.state.phase = 'waiting';
-        } else {
-          this.state.phase = 'guessing';
-          this.startTimer();
-        }
-        if (typeof Messages !== 'undefined' && Messages.removeGeoPauseCard) {
-          Messages.removeGeoPauseCard(data.gameId);
-        }
-        this.removePauseOverlay();
-      }
-    }
-    else if (op === 'geo_resume') {
-      // I'm reconnecting — rebuild my game UI from server snapshot
-      this.state.gameId = data.gameId;
-      this.state.round = data.round;
-      this.state.totalRounds = data.totalRounds;
-      this.state.location = data.location;
-      this.state.scores = data.scores;
-      this.state.otherPlayerGuessed = data.otherPlayerGuessed || false;
-      this.state.roundHistory = data.roundHistory || [];
-      this.state.myGuess = null;
-
-      if (data.phase === 'result' && data.roundResult) {
-        this.state.phase = 'result';
-        this.state.roundResult = {
-          location: data.location,
-          results: data.roundResult,
-          totalScores: data.scores
-        };
-        this.loadMapsAPI(function() {
-          GeoGame.mapsLoaded = true;
-          UI.showGeoModal();
-          GeoGame.renderRoundResult();
-        });
-      } else if (data.myGuessSubmitted) {
-        this.state.phase = 'waiting';
-        this.loadMapsAPI(function() {
-          GeoGame.mapsLoaded = true;
-          UI.showGeoModal();
-          GeoGame.renderGuessing();
-          // Re-show waiting state
-          var btn = document.getElementById('geoSubmitBtn');
-          if (btn) { btn.disabled = true; btn.textContent = 'Waiting...'; }
-          GeoGame.stopTimer();
-          GeoGame.updateGuessStatus();
-        });
-      } else {
-        this.state.phase = 'guessing';
-        this.loadMapsAPI(function() {
-          GeoGame.mapsLoaded = true;
-          UI.showGeoModal();
-          GeoGame.renderGuessing();
-        });
-      }
-    }
     else if (op === 'geo_player_opened') {
       if (data.player !== Messages.myRole) this.state.otherPlayerHasGameOpen = true;
     }
     else if (op === 'geo_player_closed') {
       if (data.player !== Messages.myRole) this.state.otherPlayerHasGameOpen = false;
     }
-  },
+  }
 
-  // ─── Rendering: Guessing Phase ──────────────────────
-  renderGuessing: function() {
+  // =========================================================================
+  //  RESUME  (reconnecting player rebuilds UI from server snapshot)
+  // =========================================================================
+
+  handleResume(data) {
+    this.state.gameId = data.gameId;
+    this.state.round = data.round;
+    this.state.totalRounds = data.totalRounds;
+    this.state.location = data.location;
+    this.state.scores = data.scores;
+    this.state.otherPlayerGuessed = data.otherPlayerGuessed || false;
+    this.state.roundHistory = data.roundHistory || [];
+    this.state.myGuess = null;
+
+    var self = this;
+
+    if (data.phase === 'result' && data.roundResult) {
+      this.state.phase = 'result';
+      this.state.roundResult = {
+        location: data.location,
+        results: data.roundResult,
+        totalScores: data.scores
+      };
+      this.loadMapsAPI(function() {
+        self.mapsLoaded = true;
+        self.showModal();
+        self.renderRoundResult();
+      });
+    } else if (data.myGuessSubmitted) {
+      this.state.phase = 'waiting';
+      this.loadMapsAPI(function() {
+        self.mapsLoaded = true;
+        self.showModal();
+        self.renderGuessing();
+        // Re-show waiting state
+        var btn = document.getElementById('geoSubmitBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Waiting...'; }
+        self.stopTimer();
+        self.updateGuessStatus();
+      });
+    } else {
+      this.state.phase = 'guessing';
+      this.loadMapsAPI(function() {
+        self.mapsLoaded = true;
+        self.showModal();
+        self.renderGuessing();
+      });
+    }
+  }
+
+  // =========================================================================
+  //  PLAYER RECONNECTED  (geo-specific phase restoration)
+  // =========================================================================
+
+  handlePlayerReconnected(data) {
+    if (data.player === Messages.myRole) return;
+    if (!this.state.gameId) return;
+
+    // Let base class remove pause card & overlay
+    super.handlePlayerReconnected(data);
+
+    // Restore phase based on current state
+    if (this.state.roundResult) {
+      this.state.phase = 'result';
+    } else if (this.state.myGuess) {
+      this.state.phase = 'waiting';
+    } else {
+      this.state.phase = 'guessing';
+      this._startGeoTimer();
+    }
+  }
+
+  // =========================================================================
+  //  FORFEIT  (override to show geo-specific UI)
+  // =========================================================================
+
+  renderForfeitMessage() {
+    var guessArea = document.getElementById('geoGuessArea');
+    var resultArea = document.getElementById('geoResultArea');
+    var summaryArea = document.getElementById('geoSummaryArea');
+    if (guessArea) guessArea.style.display = 'none';
+    if (resultArea) resultArea.style.display = 'none';
+    if (summaryArea) {
+      summaryArea.style.display = 'block';
+      summaryArea.innerHTML = '<div class="geo-summary-title">Other player left the game</div>';
+    }
+  }
+
+  // =========================================================================
+  //  RESET STATE
+  // =========================================================================
+
+  resetState() {
+    super.resetState();
+    this.state.round = 0;
+    this.state.totalRounds = 5;
+    this.state.location = null;
+    this.state.myGuess = null;
+    this.state.otherPlayerGuessed = false;
+    this.state.roundResult = null;
+    this.state.scores = {E: 0, M: 0};
+    this.state.roundHistory = [];
+    if (this.guessMarker) { this.guessMarker.setMap(null); this.guessMarker = null; }
+    if (this._resultOverlays) {
+      this._resultOverlays.forEach(function(o) { o.setMap(null); });
+      this._resultOverlays = [];
+    }
+    // Force fresh panorama/maps on next game to avoid stale location display
+    this.panorama = null;
+    this.guessMap = null;
+    this.resultMap = null;
+  }
+
+  // =========================================================================
+  //  GEO TIMER  (uses base class startTimer with geo-specific callbacks)
+  // =========================================================================
+
+  /** Start the 60-second guess timer with geo-specific tick & expiry logic. */
+  _startGeoTimer() {
+    var self = this;
+    this.startTimer(60,
+      // onTick
+      function(remaining) {
+        var timerEl = document.getElementById('geoTimer');
+        if (timerEl) {
+          timerEl.textContent = self.getTimerDisplay(remaining);
+          if (remaining <= 10) timerEl.classList.add('warning');
+          else timerEl.classList.remove('warning');
+        }
+      },
+      // onExpire
+      function() {
+        if (self.state.phase === 'guessing') {
+          if (!self.state.myGuess) {
+            // Auto-guess center of map
+            var center = self.guessMap
+              ? self.guessMap.getCenter()
+              : {lat: function(){return 20;}, lng: function(){return 0;}};
+            self.placeGuess(center.lat(), center.lng());
+          }
+          self.submitGuess();
+        }
+      }
+    );
+  }
+
+  // =========================================================================
+  //  RENDERING: GUESSING PHASE
+  // =========================================================================
+
+  renderGuessing() {
     var roundLabel = document.getElementById('geoRoundLabel');
     if (roundLabel) roundLabel.textContent = 'Round ' + this.state.round + ' of ' + this.state.totalRounds;
 
@@ -301,23 +305,25 @@ var GeoGame = {
       // Use StreetViewService to find nearest outdoor panorama
       var sv = new google.maps.StreetViewService();
       var loc = this.state.location;
+      var self = this;
       sv.getPanorama({
         location: {lat: loc.lat, lng: loc.lng},
         radius: 500,
         source: google.maps.StreetViewSource.OUTDOOR
       }, function(data, status) {
         if (status === 'OK' && data && data.location && data.location.latLng) {
-          GeoGame.panorama.setPosition(data.location.latLng);
+          self.panorama.setPosition(data.location.latLng);
         } else {
-          GeoGame.panorama.setPosition({lat: loc.lat, lng: loc.lng});
+          self.panorama.setPosition({lat: loc.lat, lng: loc.lng});
         }
-        GeoGame.panorama.setPov({heading: 0, pitch: 0});
-        GeoGame.panorama.setZoom(0);
+        self.panorama.setPov({heading: 0, pitch: 0});
+        self.panorama.setZoom(0);
       });
     }
 
     // Guess mini-map
     var mapDiv = document.getElementById('geoGuessMap');
+    var self = this;
     if (!this.guessMap) {
       this.guessMap = new google.maps.Map(mapDiv, {
         center: {lat: 20, lng: 0},
@@ -329,7 +335,7 @@ var GeoGame = {
         clickableIcons: false
       });
       this.guessMap.addListener('click', function(e) {
-        GeoGame.placeGuess(e.latLng.lat(), e.latLng.lng());
+        self.placeGuess(e.latLng.lat(), e.latLng.lng());
       });
     } else {
       this.guessMap.setCenter({lat: 20, lng: 0});
@@ -340,12 +346,17 @@ var GeoGame = {
     if (this.guessMarker) { this.guessMarker.setMap(null); this.guessMarker = null; }
     this.state.myGuess = null;
     this.updateGuessStatus();
-    this.startTimer();
-  },
+    this._startGeoTimer();
+  }
 
-  placeGuess: function(lat, lng) {
+  // =========================================================================
+  //  GUESS PLACEMENT & SUBMISSION
+  // =========================================================================
+
+  placeGuess(lat, lng) {
     if (this.state.phase !== 'guessing') return;
     this.state.myGuess = {lat: lat, lng: lng};
+    var self = this;
     if (this.guessMarker) {
       this.guessMarker.setPosition({lat: lat, lng: lng});
     } else {
@@ -356,32 +367,28 @@ var GeoGame = {
         title: 'Your guess'
       });
       this.guessMarker.addListener('dragend', function(e) {
-        GeoGame.state.myGuess = {lat: e.latLng.lat(), lng: e.latLng.lng()};
+        self.state.myGuess = {lat: e.latLng.lat(), lng: e.latLng.lng()};
       });
     }
     var btn = document.getElementById('geoSubmitBtn');
     if (btn) btn.disabled = false;
-  },
+  }
 
-  submitGuess: function() {
+  submitGuess() {
     if (!this.state.myGuess || this.state.phase !== 'guessing') return;
     this.stopTimer();
     var btn = document.getElementById('geoSubmitBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Waiting...'; }
     this.state.phase = 'waiting';
-    WebSocketManager.ws.send(JSON.stringify({
-      action: 'game',
-      payload: {
-        op: 'geo_guess',
-        gameId: this.state.gameId,
-        lat: this.state.myGuess.lat,
-        lng: this.state.myGuess.lng
-      }
-    }));
+    this._sendOp('geo_guess', {
+      gameId: this.state.gameId,
+      lat: this.state.myGuess.lat,
+      lng: this.state.myGuess.lng
+    });
     this.updateGuessStatus();
-  },
+  }
 
-  updateGuessStatus: function() {
+  updateGuessStatus() {
     var statusEl = document.getElementById('geoGuessStatus');
     if (!statusEl) return;
     var otherPlayer = Messages.myRole === 'E' ? 'M' : 'E';
@@ -394,10 +401,13 @@ var GeoGame = {
         ? otherPlayer + ' has guessed \u2014 your turn!'
         : 'Drop a pin on the map to guess';
     }
-  },
+  }
 
-  // ─── Rendering: Round Result ────────────────────────
-  renderRoundResult: function() {
+  // =========================================================================
+  //  RENDERING: ROUND RESULT
+  // =========================================================================
+
+  renderRoundResult() {
     this.stopTimer();
     var data = this.state.roundResult;
     var guessArea = document.getElementById('geoGuessArea');
@@ -442,12 +452,13 @@ var GeoGame = {
     bounds.extend({lat: loc.lat, lng: loc.lng});
 
     var colors = {E: '#ef4444', M: '#3b82f6'};
+    var self = this;
     ['E', 'M'].forEach(function(p) {
       if (!data.results[p]) return;
       var r = data.results[p];
       var marker = new google.maps.Marker({
         position: {lat: r.guessLat, lng: r.guessLng},
-        map: GeoGame.resultMap,
+        map: self.resultMap,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           fillColor: colors[p], fillOpacity: 1,
@@ -460,9 +471,9 @@ var GeoGame = {
         path: [{lat: loc.lat, lng: loc.lng}, {lat: r.guessLat, lng: r.guessLng}],
         geodesic: true,
         strokeColor: colors[p], strokeOpacity: 0.7, strokeWeight: 2,
-        map: GeoGame.resultMap
+        map: self.resultMap
       });
-      GeoGame._resultOverlays.push(marker, line);
+      self._resultOverlays.push(marker, line);
       bounds.extend({lat: r.guessLat, lng: r.guessLng});
     });
 
@@ -471,7 +482,6 @@ var GeoGame = {
     // Result text
     var resultText = document.getElementById('geoResultText');
     if (resultText) {
-      // Determine round winner
       var eScore = (data.results.E && data.results.E.score) || 0;
       var mScore = (data.results.M && data.results.M.score) || 0;
       var roundWinner = eScore > mScore ? 'E' : (mScore > eScore ? 'M' : null);
@@ -509,25 +519,33 @@ var GeoGame = {
         nextBtn.textContent = 'Next Round';
       }
     }
-  },
+  }
 
-  nextRound: function() {
-    WebSocketManager.ws.send(JSON.stringify({
-      action: 'game',
-      payload: {op: 'geo_next', gameId: this.state.gameId}
-    }));
-  },
+  // =========================================================================
+  //  NEXT ROUND
+  // =========================================================================
 
-  updateScoreDisplay: function() {
+  nextRound() {
+    this._sendOp('geo_next', {gameId: this.state.gameId});
+  }
+
+  // =========================================================================
+  //  SCORE DISPLAY
+  // =========================================================================
+
+  updateScoreDisplay() {
     var el = document.getElementById('geoScoreDisplay');
     if (!el) return;
     el.innerHTML = '<span class="geo-score-e">E: ' + (this.state.scores.E || 0) + '</span>' +
       '<span class="geo-score-sep"> \u2014 </span>' +
       '<span class="geo-score-m">M: ' + (this.state.scores.M || 0) + '</span>';
-  },
+  }
 
-  // ─── Rendering: Game Summary ────────────────────────
-  renderGameSummary: function(data) {
+  // =========================================================================
+  //  RENDERING: GAME SUMMARY
+  // =========================================================================
+
+  renderGameSummary(data) {
     var guessArea = document.getElementById('geoGuessArea');
     var resultArea = document.getElementById('geoResultArea');
     var summaryArea = document.getElementById('geoSummaryArea');
@@ -559,118 +577,13 @@ var GeoGame = {
     html += '</div>';
 
     summaryArea.innerHTML = html;
-  },
+  }
 
-  renderForfeitMessage: function() {
-    var guessArea = document.getElementById('geoGuessArea');
-    var resultArea = document.getElementById('geoResultArea');
-    var summaryArea = document.getElementById('geoSummaryArea');
-    if (guessArea) guessArea.style.display = 'none';
-    if (resultArea) resultArea.style.display = 'none';
-    if (summaryArea) {
-      summaryArea.style.display = 'block';
-      summaryArea.innerHTML = '<div class="geo-summary-title">Other player left the game</div>';
-    }
-  },
+  // =========================================================================
+  //  MOBILE VIEW TOGGLE
+  // =========================================================================
 
-  // ─── Pause overlay (inside geo modal) ────────────────
-  renderPauseOverlay: function(player) {
-    this.removePauseOverlay();
-    var panel = document.querySelector('.geo-panel');
-    if (!panel) return;
-    var overlay = document.createElement('div');
-    overlay.className = 'geo-pause-overlay';
-    overlay.innerHTML =
-      '<div class="geo-pause-content">' +
-        '<div class="geo-pause-title">Game Paused</div>' +
-        '<div class="geo-pause-sub">' + player + ' disconnected</div>' +
-        '<div class="geo-pause-hint">Waiting for them to return\u2026</div>' +
-      '</div>';
-    panel.appendChild(overlay);
-  },
-
-  removePauseOverlay: function() {
-    var overlay = document.querySelector('.geo-pause-overlay');
-    if (overlay) overlay.remove();
-  },
-
-  // ─── Close / Forfeit ────────────────────────────────
-  closeGame: function() {
-    if (this.state.phase === 'guessing' || this.state.phase === 'waiting' || this.state.phase === 'result' || this.state.phase === 'paused') {
-      if (!confirm('Leave the game? This will forfeit.')) return;
-      WebSocketManager.ws.send(JSON.stringify({
-        action: 'game',
-        payload: {op: 'geo_forfeit', gameId: this.state.gameId}
-      }));
-    }
-    this.removePauseOverlay();
-    this.resetState();
-    UI.hideGeoModal();
-  },
-
-  resetState: function() {
-    this.stopTimer();
-    this.state.gameId = null;
-    this.state.phase = 'idle';
-    this.state.round = 0;
-    this.state.location = null;
-    this.state.myGuess = null;
-    this.state.otherPlayerGuessed = false;
-    this.state.roundResult = null;
-    this.state.scores = {E: 0, M: 0};
-    this.state.roundHistory = [];
-    if (this.guessMarker) { this.guessMarker.setMap(null); this.guessMarker = null; }
-    if (this._resultOverlays) {
-      this._resultOverlays.forEach(function(o) { o.setMap(null); });
-      this._resultOverlays = [];
-    }
-    // Force fresh panorama/maps on next game to avoid stale location display
-    this.panorama = null;
-    this.guessMap = null;
-    this.resultMap = null;
-  },
-
-  // ─── Timer management ─────────────────────────────
-  startTimer: function() {
-    this.stopTimer();
-    this.state.timerSeconds = 60;
-    var timerEl = document.getElementById('geoTimer');
-    if (timerEl) { timerEl.textContent = '1:00'; timerEl.classList.remove('warning'); }
-    var self = this;
-    this.state.timerInterval = setInterval(function() {
-      self.state.timerSeconds--;
-      var s = self.state.timerSeconds;
-      var timerEl = document.getElementById('geoTimer');
-      if (timerEl) {
-        var min = Math.floor(s / 60);
-        var sec = s % 60;
-        timerEl.textContent = min + ':' + (sec < 10 ? '0' : '') + sec;
-        if (s <= 10) timerEl.classList.add('warning');
-        else timerEl.classList.remove('warning');
-      }
-      if (s <= 0) {
-        self.stopTimer();
-        if (self.state.phase === 'guessing') {
-          if (!self.state.myGuess) {
-            // Auto-guess center of map
-            var center = self.guessMap ? self.guessMap.getCenter() : {lat: function(){return 20;}, lng: function(){return 0;}};
-            self.placeGuess(center.lat(), center.lng());
-          }
-          self.submitGuess();
-        }
-      }
-    }, 1000);
-  },
-
-  stopTimer: function() {
-    if (this.state.timerInterval) {
-      clearInterval(this.state.timerInterval);
-      this.state.timerInterval = null;
-    }
-  },
-
-  // ─── Mobile view toggle ────────────────────────────
-  toggleMobileView: function() {
+  toggleMobileView() {
     var area = document.getElementById('geoGuessArea');
     var btn = document.getElementById('geoViewToggle');
     if (!area || !btn) return;
@@ -682,20 +595,19 @@ var GeoGame = {
       btn.textContent = 'Back to Street View';
       if (this.guessMap) google.maps.event.trigger(this.guessMap, 'resize');
     }
-  },
+  }
 
-  // ─── Scoreboard ─────────────────────────────────────
-  showScoreboard: function() {
-    var dropId = App.dropId;
-    fetch('/api/geo/scores/' + encodeURIComponent(dropId), {credentials: 'include'})
-      .then(function(r) { return r.json(); })
-      .then(function(data) { GeoGame.renderScoreboard(data); })
-      .catch(function(e) { console.error('[GeoGame] Failed to load scores:', e); });
-  },
+  // =========================================================================
+  //  SCOREBOARD  (override base class)
+  // =========================================================================
 
-  renderScoreboard: function(data) {
+  showScoreboard() {
+    super.showScoreboard();
+  }
+
+  renderScoreboard(data) {
     // Show scoreboard in geo modal
-    UI.showGeoModal();
+    this.showModal();
     var guessArea = document.getElementById('geoGuessArea');
     var resultArea = document.getElementById('geoResultArea');
     var summaryArea = document.getElementById('geoSummaryArea');
@@ -735,4 +647,15 @@ var GeoGame = {
 
     scoreboardArea.innerHTML = html;
   }
-};
+
+})({
+  prefix:        'geo',
+  icon:          '\uD83C\uDF0D',
+  title:         'GeoGuessr',
+  subtitle:      '5 rounds',
+  modalId:       'geoModal',
+  panelClass:    'geo-panel',
+  showModal:     function() { UI.showGeoModal(); },
+  hideModal:     function() { UI.hideGeoModal(); },
+  scoreboardUrl: '/api/geo/scores/'
+});

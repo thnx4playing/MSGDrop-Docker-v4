@@ -47,6 +47,9 @@ var UI = {
       presenceE: document.getElementById('presenceE'),
       presenceM: document.getElementById('presenceM'),
       geoModal: document.getElementById('geoModal'),
+      wordleModal: document.getElementById('wordleModal'),
+      triviaModal: document.getElementById('triviaModal'),
+      drawModal: document.getElementById('drawModal'),
       qaModal: document.getElementById('qaModal')
     };
   },
@@ -163,6 +166,42 @@ var UI = {
   hideGeoModal: function(){
     if(!this.els.geoModal) return;
     this.els.geoModal.classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  },
+
+  showWordleModal: function(){
+    if(!this.els.wordleModal) return;
+    this.els.wordleModal.classList.add('show');
+    document.body.classList.add('no-scroll');
+  },
+
+  hideWordleModal: function(){
+    if(!this.els.wordleModal) return;
+    this.els.wordleModal.classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  },
+
+  showTriviaModal: function(){
+    if(!this.els.triviaModal) return;
+    this.els.triviaModal.classList.add('show');
+    document.body.classList.add('no-scroll');
+  },
+
+  hideTriviaModal: function(){
+    if(!this.els.triviaModal) return;
+    this.els.triviaModal.classList.remove('show');
+    document.body.classList.remove('no-scroll');
+  },
+
+  showDrawModal: function(){
+    if(!this.els.drawModal) return;
+    this.els.drawModal.classList.add('show');
+    document.body.classList.add('no-scroll');
+  },
+
+  hideDrawModal: function(){
+    if(!this.els.drawModal) return;
+    this.els.drawModal.classList.remove('show');
     document.body.classList.remove('no-scroll');
   },
 

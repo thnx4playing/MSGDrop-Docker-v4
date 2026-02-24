@@ -178,9 +178,18 @@ var WebSocketManager = {
     }
     var callCard = document.getElementById('call-sys-' + VideoChat._callMsgId);
     if(callCard) callCard.remove();
-    // Stop geo timer so it doesn't auto-submit while session is expired
+    // Stop game timers so they don't auto-submit while session is expired
     if(typeof GeoGame !== 'undefined' && GeoGame.state.gameId) {
       GeoGame.stopTimer();
+    }
+    if(typeof WordleGame !== 'undefined' && WordleGame.state && WordleGame.state.gameId) {
+      WordleGame.stopTimer();
+    }
+    if(typeof TriviaGame !== 'undefined' && TriviaGame.state && TriviaGame.state.gameId) {
+      TriviaGame.stopTimer();
+    }
+    if(typeof DrawingGame !== 'undefined' && DrawingGame.state && DrawingGame.state.gameId) {
+      DrawingGame.stopTimer();
     }
   },
 

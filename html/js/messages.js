@@ -390,39 +390,38 @@ var Messages = {
   },
 
   // =========================================================================
-  // GEO INVITE MESSAGES
+  // GENERIC GAME INVITE / PAUSE CARDS
   // =========================================================================
 
-  injectGeoInvite: function(opts) {
+  injectGameInvite: function(opts) {
+    // opts: {id, role, status, game, icon, title, subtitle, onAccept, onDecline, onCancel}
     var container = UI.els.chatContainer;
     if (!container) return;
 
-    var existing = document.getElementById('geo-invite-' + opts.id);
+    var elId = opts.game + '-invite-' + opts.id;
+    var existing = document.getElementById(elId);
     if (existing) existing.remove();
 
     var el = document.createElement('div');
-    el.id = 'geo-invite-' + opts.id;
+    el.id = elId;
     el.className = 'call-system-message';
-    el.setAttribute('data-geo-invite-id', opts.id);
+    el.setAttribute('data-game-invite-id', opts.id);
 
     if (opts.status === 'incoming') {
       el.classList.add('call-incoming-card');
 
       var iconWrap = document.createElement('div');
       iconWrap.className = 'call-card-icon-wrap geo-invite-icon-wrap';
-      iconWrap.innerHTML = '<span style="font-size:28px;line-height:1">🌍</span>';
+      iconWrap.innerHTML = '<span style="font-size:28px;line-height:1">' + (opts.icon || '🎮') + '</span>';
 
       var label = document.createElement('div');
       label.className = 'call-card-label';
-
       var nameEl = document.createElement('div');
       nameEl.className = 'call-card-name';
-      nameEl.textContent = (opts.role || '?') + ' wants to play GeoGuessr';
-
+      nameEl.textContent = opts.title || ((opts.role || '?') + ' wants to play');
       var subEl = document.createElement('div');
       subEl.className = 'call-card-sub';
-      subEl.textContent = '5 rounds \u00b7 60 seconds each';
-
+      subEl.textContent = opts.subtitle || '';
       label.appendChild(nameEl);
       label.appendChild(subEl);
 
@@ -438,26 +437,19 @@ var Messages = {
           '</svg>' +
         '</span>' +
         '<span class="call-card-btn-label">Decline</span>';
-      declineBtn.onclick = function(e) {
-        e.stopPropagation();
-        if (typeof GeoGame !== 'undefined') GeoGame.declineInvite();
-      };
+      declineBtn.onclick = function(e) { e.stopPropagation(); if (opts.onDecline) opts.onDecline(); };
 
       var acceptBtn = document.createElement('button');
       acceptBtn.className = 'call-card-btn call-card-answer';
       acceptBtn.innerHTML =
         '<span class="call-card-btn-icon">' +
-          '<span style="font-size:18px;line-height:1">🌍</span>' +
+          '<span style="font-size:18px;line-height:1">' + (opts.icon || '🎮') + '</span>' +
         '</span>' +
         '<span class="call-card-btn-label">Accept</span>';
-      acceptBtn.onclick = function(e) {
-        e.stopPropagation();
-        if (typeof GeoGame !== 'undefined') GeoGame.acceptInvite();
-      };
+      acceptBtn.onclick = function(e) { e.stopPropagation(); if (opts.onAccept) opts.onAccept(); };
 
       actions.appendChild(declineBtn);
       actions.appendChild(acceptBtn);
-
       el.appendChild(iconWrap);
       el.appendChild(label);
       el.appendChild(actions);
@@ -465,30 +457,27 @@ var Messages = {
     else if (opts.status === 'waiting') {
       el.classList.add('call-outgoing-card');
 
-      var iconWrap = document.createElement('div');
-      iconWrap.className = 'call-outgoing-icon geo-icon-bg';
-      iconWrap.innerHTML = '<span style="font-size:20px;line-height:1">🌍</span>';
+      var iconWrap2 = document.createElement('div');
+      iconWrap2.className = 'call-outgoing-icon geo-icon-bg';
+      iconWrap2.innerHTML = '<span style="font-size:20px;line-height:1">' + (opts.icon || '🎮') + '</span>';
 
       var info = document.createElement('div');
       info.className = 'call-outgoing-info';
-      var title = document.createElement('div');
-      title.className = 'call-outgoing-title';
-      title.textContent = 'GeoGuessr Invite Sent';
-      var sub = document.createElement('div');
-      sub.className = 'call-outgoing-sub';
-      sub.textContent = 'Waiting for response...';
-      info.appendChild(title);
-      info.appendChild(sub);
+      var titleEl = document.createElement('div');
+      titleEl.className = 'call-outgoing-title';
+      titleEl.textContent = opts.title || 'Game Invite Sent';
+      var sub2 = document.createElement('div');
+      sub2.className = 'call-outgoing-sub';
+      sub2.textContent = 'Waiting for response...';
+      info.appendChild(titleEl);
+      info.appendChild(sub2);
 
       var cancelBtn = document.createElement('button');
       cancelBtn.className = 'geo-cancel-invite-btn';
       cancelBtn.textContent = 'Cancel';
-      cancelBtn.onclick = function(e) {
-        e.stopPropagation();
-        if (typeof GeoGame !== 'undefined') GeoGame.cancelInvite();
-      };
+      cancelBtn.onclick = function(e) { e.stopPropagation(); if (opts.onCancel) opts.onCancel(); };
 
-      el.appendChild(iconWrap);
+      el.appendChild(iconWrap2);
       el.appendChild(info);
       el.appendChild(cancelBtn);
     }
@@ -501,87 +490,57 @@ var Messages = {
     container.scrollTop = container.scrollHeight;
   },
 
-  updateGeoInvite: function(id, status) {
-    var el = document.getElementById('geo-invite-' + id);
+  updateGameInvite: function(game, id, status, icon) {
+    var el = document.getElementById(game + '-invite-' + id);
     if (!el) return;
 
+    var statusText = {
+      'starting': 'Game starting...',
+      'declined': (game.charAt(0).toUpperCase() + game.slice(1)) + ' declined',
+      'cancelled': (game.charAt(0).toUpperCase() + game.slice(1)) + ' invite cancelled'
+    };
+
+    el.classList.remove('call-incoming-card', 'call-outgoing-card');
+    el.innerHTML = '';
+    var iconEl = document.createElement('span');
+    iconEl.className = 'call-sys-icon';
+    iconEl.textContent = icon || '🎮';
+    var textEl = document.createElement('span');
+    textEl.className = 'call-sys-text';
+    textEl.textContent = statusText[status] || status;
+    el.appendChild(iconEl);
+    el.appendChild(textEl);
+    el.setAttribute('data-state', 'done');
     if (status === 'starting') {
-      // Remove the card — game is starting
-      el.classList.remove('call-incoming-card');
-      el.classList.remove('call-outgoing-card');
-      el.innerHTML = '';
-      var iconEl = document.createElement('span');
-      iconEl.className = 'call-sys-icon';
-      iconEl.textContent = '🌍';
-      var textEl = document.createElement('span');
-      textEl.className = 'call-sys-text';
-      textEl.textContent = 'Game starting...';
-      el.appendChild(iconEl);
-      el.appendChild(textEl);
-      el.setAttribute('data-state', 'done');
       setTimeout(function() { if (el.parentNode) el.remove(); }, 2000);
-    }
-    else if (status === 'declined') {
-      el.classList.remove('call-incoming-card');
-      el.classList.remove('call-outgoing-card');
-      el.innerHTML = '';
-      var iconEl2 = document.createElement('span');
-      iconEl2.className = 'call-sys-icon';
-      iconEl2.textContent = '🌍';
-      var textEl2 = document.createElement('span');
-      textEl2.className = 'call-sys-text';
-      textEl2.textContent = 'GeoGuessr declined';
-      el.appendChild(iconEl2);
-      el.appendChild(textEl2);
-      el.setAttribute('data-state', 'done');
-    }
-    else if (status === 'cancelled') {
-      el.classList.remove('call-incoming-card');
-      el.classList.remove('call-outgoing-card');
-      el.innerHTML = '';
-      var iconEl3 = document.createElement('span');
-      iconEl3.className = 'call-sys-icon';
-      iconEl3.textContent = '🌍';
-      var textEl3 = document.createElement('span');
-      textEl3.className = 'call-sys-text';
-      textEl3.textContent = 'GeoGuessr invite cancelled';
-      el.appendChild(iconEl3);
-      el.appendChild(textEl3);
-      el.setAttribute('data-state', 'done');
     }
   },
 
-  // =========================================================================
-  // GEO PAUSE CARD (player disconnected during game)
-  // =========================================================================
-
-  injectGeoPauseCard: function(opts) {
+  injectGamePauseCard: function(opts) {
+    // opts: {gameId, player, game, icon, title, onEndGame}
     var container = UI.els.chatContainer;
     if (!container) return;
 
-    var existing = document.getElementById('geo-pause-' + opts.gameId);
+    var elId = opts.game + '-pause-' + opts.gameId;
+    var existing = document.getElementById(elId);
     if (existing) existing.remove();
 
     var el = document.createElement('div');
-    el.id = 'geo-pause-' + opts.gameId;
+    el.id = elId;
     el.className = 'call-system-message call-incoming-card';
-    el.setAttribute('data-geo-pause-id', opts.gameId);
 
     var iconWrap = document.createElement('div');
     iconWrap.className = 'call-card-icon-wrap geo-pause-icon-wrap';
-    iconWrap.innerHTML = '<span style="font-size:28px;line-height:1">🌍</span>';
+    iconWrap.innerHTML = '<span style="font-size:28px;line-height:1">' + (opts.icon || '🎮') + '</span>';
 
     var label = document.createElement('div');
     label.className = 'call-card-label';
-
     var nameEl = document.createElement('div');
     nameEl.className = 'call-card-name';
     nameEl.textContent = (opts.player || '?') + ' disconnected';
-
     var subEl = document.createElement('div');
     subEl.className = 'call-card-sub';
-    subEl.textContent = 'GeoGuessr game paused';
-
+    subEl.textContent = (opts.title || 'Game') + ' paused';
     label.appendChild(nameEl);
     label.appendChild(subEl);
 
@@ -599,15 +558,7 @@ var Messages = {
       '<span class="call-card-btn-label">End Game</span>';
     endBtn.onclick = function(e) {
       e.stopPropagation();
-      if (typeof GeoGame !== 'undefined' && GeoGame.state.gameId) {
-        WebSocketManager.ws.send(JSON.stringify({
-          action: 'game',
-          payload: {op: 'geo_forfeit', gameId: GeoGame.state.gameId}
-        }));
-        GeoGame.resetState();
-        GeoGame.removePauseOverlay();
-        UI.hideGeoModal();
-      }
+      if (opts.onEndGame) opts.onEndGame();
       if (el.parentNode) el.remove();
     };
 
@@ -620,14 +571,10 @@ var Messages = {
         '</svg>' +
       '</span>' +
       '<span class="call-card-btn-label">Wait</span>';
-    waitBtn.onclick = function(e) {
-      e.stopPropagation();
-      if (el.parentNode) el.remove();
-    };
+    waitBtn.onclick = function(e) { e.stopPropagation(); if (el.parentNode) el.remove(); };
 
     actions.appendChild(endBtn);
     actions.appendChild(waitBtn);
-
     el.appendChild(iconWrap);
     el.appendChild(label);
     el.appendChild(actions);
@@ -640,14 +587,14 @@ var Messages = {
     container.scrollTop = container.scrollHeight;
   },
 
-  removeGeoPauseCard: function(gameId) {
-    var el = document.getElementById('geo-pause-' + gameId);
+  removeGamePauseCard: function(game, gameId, icon) {
+    var el = document.getElementById(game + '-pause-' + gameId);
     if (!el) return;
     el.classList.remove('call-incoming-card');
     el.innerHTML = '';
     var iconEl = document.createElement('span');
     iconEl.className = 'call-sys-icon';
-    iconEl.textContent = '🌍';
+    iconEl.textContent = icon || '🎮';
     var textEl = document.createElement('span');
     textEl.className = 'call-sys-text';
     textEl.textContent = 'Player reconnected \u2014 game resumed';

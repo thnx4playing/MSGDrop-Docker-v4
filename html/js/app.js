@@ -74,7 +74,13 @@ var App = {
       WebSocketManager.onTypingCallback = function(data){ Messages.handleTyping(data); };
       WebSocketManager.onGameCallback = function(data){
         if(data && data.op && data.op.indexOf('geo_') === 0){
-          if(typeof GeoGame !== 'undefined') GeoGame.applyGame(data);
+          if(typeof GeoGame !== 'undefined') GeoGame.applyOp(data.op, data);
+        } else if(data && data.op && data.op.indexOf('wordle_') === 0){
+          if(typeof WordleGame !== 'undefined') WordleGame.applyOp(data.op, data);
+        } else if(data && data.op && data.op.indexOf('trivia_') === 0){
+          if(typeof TriviaGame !== 'undefined') TriviaGame.applyOp(data.op, data);
+        } else if(data && data.op && data.op.indexOf('draw_') === 0){
+          if(typeof DrawingGame !== 'undefined') DrawingGame.applyOp(data.op, data);
         } else {
           Game.applyGame(data);
         }
@@ -246,6 +252,58 @@ var App = {
     var geoViewToggle = document.getElementById('geoViewToggle');
     if(geoViewToggle){ geoViewToggle.addEventListener('click', function(){ if(typeof GeoGame !== 'undefined') GeoGame.toggleMobileView(); }); }
 
+    // Wordle Battle — launcher menu + popover
+    var wordleBtn = document.getElementById('wordleBtn');
+    if(wordleBtn && typeof WordleGame !== 'undefined'){
+      wordleBtn.addEventListener('click', function(){ WordleGame.startNewGame(); });
+    }
+    var wordleBtn2 = document.getElementById('wordleBtn2');
+    if(wordleBtn2 && typeof WordleGame !== 'undefined'){
+      wordleBtn2.addEventListener('click', function(){ WordleGame.startNewGame(); });
+    }
+    var wordleCloseBtn = document.getElementById('wordleCloseBtn');
+    if(wordleCloseBtn){ wordleCloseBtn.addEventListener('click', function(){ if(typeof WordleGame !== 'undefined') WordleGame.closeGame(); }); }
+    var wordleCloseGameBtn = document.getElementById('wordleCloseGameBtn');
+    if(wordleCloseGameBtn){ wordleCloseGameBtn.addEventListener('click', function(){ if(typeof WordleGame !== 'undefined') WordleGame.closeGame(); }); }
+    var wordleScoreboardBtn = document.getElementById('wordleScoreboardBtn');
+    if(wordleScoreboardBtn){ wordleScoreboardBtn.addEventListener('click', function(){ if(typeof WordleGame !== 'undefined') WordleGame.showScoreboard(); }); }
+
+    // Trivia Duel — launcher menu + popover
+    var triviaBtn = document.getElementById('triviaBtn');
+    if(triviaBtn && typeof TriviaGame !== 'undefined'){
+      triviaBtn.addEventListener('click', function(){ TriviaGame.startNewGame(); });
+    }
+    var triviaBtn2 = document.getElementById('triviaBtn2');
+    if(triviaBtn2 && typeof TriviaGame !== 'undefined'){
+      triviaBtn2.addEventListener('click', function(){ TriviaGame.startNewGame(); });
+    }
+    var triviaCloseBtn = document.getElementById('triviaCloseBtn');
+    if(triviaCloseBtn){ triviaCloseBtn.addEventListener('click', function(){ if(typeof TriviaGame !== 'undefined') TriviaGame.closeGame(); }); }
+    var triviaCloseGameBtn = document.getElementById('triviaCloseGameBtn');
+    if(triviaCloseGameBtn){ triviaCloseGameBtn.addEventListener('click', function(){ if(typeof TriviaGame !== 'undefined') TriviaGame.closeGame(); }); }
+    var triviaScoreboardBtn = document.getElementById('triviaScoreboardBtn');
+    if(triviaScoreboardBtn){ triviaScoreboardBtn.addEventListener('click', function(){ if(typeof TriviaGame !== 'undefined') TriviaGame.showScoreboard(); }); }
+
+    // Drawing Guess — launcher menu + popover
+    var drawBtn = document.getElementById('drawBtn');
+    if(drawBtn && typeof DrawingGame !== 'undefined'){
+      drawBtn.addEventListener('click', function(){ DrawingGame.startNewGame(); });
+    }
+    var drawBtn2 = document.getElementById('drawBtn2');
+    if(drawBtn2 && typeof DrawingGame !== 'undefined'){
+      drawBtn2.addEventListener('click', function(){ DrawingGame.startNewGame(); });
+    }
+    var drawCloseBtn = document.getElementById('drawCloseBtn');
+    if(drawCloseBtn){ drawCloseBtn.addEventListener('click', function(){ if(typeof DrawingGame !== 'undefined') DrawingGame.closeGame(); }); }
+    var drawCloseGameBtn = document.getElementById('drawCloseGameBtn');
+    if(drawCloseGameBtn){ drawCloseGameBtn.addEventListener('click', function(){ if(typeof DrawingGame !== 'undefined') DrawingGame.closeGame(); }); }
+    var drawScoreboardBtn = document.getElementById('drawScoreboardBtn');
+    if(drawScoreboardBtn){ drawScoreboardBtn.addEventListener('click', function(){ if(typeof DrawingGame !== 'undefined') DrawingGame.showScoreboard(); }); }
+    var drawClearBtn = document.getElementById('drawClearBtn');
+    if(drawClearBtn){ drawClearBtn.addEventListener('click', function(){ if(typeof DrawingGame !== 'undefined') DrawingGame.clearCanvas(); }); }
+    var drawGuessBtn = document.getElementById('drawGuessBtn');
+    if(drawGuessBtn){ drawGuessBtn.addEventListener('click', function(){ if(typeof DrawingGame !== 'undefined') DrawingGame.submitGuess(); }); }
+
     // Q&A
     var qaBtn = document.getElementById('qaBtn');
     if(qaBtn){ qaBtn.addEventListener('click', function(){ if(typeof QA !== 'undefined') QA.openModal(); }); }
@@ -276,6 +334,9 @@ var App = {
         if(self.giphyPicker && self.giphyPicker.modal && self.giphyPicker.modal.style.display === 'flex') self.giphyPicker.hide();
         if(typeof Camera !== 'undefined' && Camera.isOpen) Camera.hide();
         UI.hideQAModal();
+        UI.hideWordleModal();
+        UI.hideTriviaModal();
+        UI.hideDrawModal();
         // Don't close active video call with Escape
       }
     });

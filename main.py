@@ -5,6 +5,7 @@ import tempfile
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
+from word_lists import WORDLE_SOLUTIONS, WORDLE_VALID, DRAW_WORDS
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request, HTTPException, Response
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -185,6 +186,45 @@ def init_db():
             e_guess_lat real, e_guess_lng real, e_distance_km real, e_score integer, e_guessed_at integer,
             m_guess_lat real, m_guess_lng real, m_distance_km real, m_score integer, m_guessed_at integer,
             revealed_at integer
+        );
+        """)
+        conn.exec_driver_sql("""
+        create table if not exists wordle_games(
+            id text primary key,
+            drop_id text not null,
+            started_by text not null,
+            started_at integer not null,
+            ended_at integer,
+            status text not null default 'active',
+            e_total_score integer default 0,
+            m_total_score integer default 0,
+            winner text
+        );
+        """)
+        conn.exec_driver_sql("""
+        create table if not exists trivia_games(
+            id text primary key,
+            drop_id text not null,
+            started_by text not null,
+            started_at integer not null,
+            ended_at integer,
+            status text not null default 'active',
+            e_total_score integer default 0,
+            m_total_score integer default 0,
+            winner text
+        );
+        """)
+        conn.exec_driver_sql("""
+        create table if not exists draw_games(
+            id text primary key,
+            drop_id text not null,
+            started_by text not null,
+            started_at integer not null,
+            ended_at integer,
+            status text not null default 'active',
+            e_total_score integer default 0,
+            m_total_score integer default 0,
+            winner text
         );
         """)
 
@@ -380,28 +420,34 @@ def _get_pending_call(drop_id: str) -> Optional[Dict[str, Any]]:
     return call
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PENDING GEO INVITE STATE
-# Same pattern as pending calls. Stored when player sends geo_invite,
-# replayed to late joiners, cleared on accept/decline or 5-minute TTL.
+# PENDING GAME INVITE STATE
+# Generic manager for all game invites (geo, wordle, trivia, draw).
+# Stored when a player sends an invite, replayed to late joiners,
+# cleared on accept/decline or after TTL expiry.
 # ─────────────────────────────────────────────────────────────────────────────
-_pending_geo_invites: Dict[str, Dict[str, Any]] = {}
-_PENDING_GEO_INVITE_TTL_S = 300
+class PendingInviteManager:
+    def __init__(self, ttl_seconds: int = 300):
+        self._invites: Dict[str, Dict[str, Dict[str, Any]]] = {}  # {game: {drop_id: payload}}
+        self._ttl = ttl_seconds
 
-def _store_pending_geo_invite(drop_id: str, payload: Dict[str, Any]):
-    _pending_geo_invites[drop_id] = {**payload, "ts": time.time()}
-    logger.info(f"[PendingGeoInvite] Stored invite for drop={drop_id} from={payload.get('from')}")
+    def store(self, game: str, drop_id: str, payload: Dict[str, Any]):
+        self._invites.setdefault(game, {})[drop_id] = {**payload, "ts": time.time()}
+        logger.info(f"[PendingInvite:{game}] Stored invite for drop={drop_id} from={payload.get('from')}")
 
-def _clear_pending_geo_invite(drop_id: str):
-    if drop_id in _pending_geo_invites:
-        del _pending_geo_invites[drop_id]
-        logger.info(f"[PendingGeoInvite] Cleared invite for drop={drop_id}")
+    def clear(self, game: str, drop_id: str):
+        bucket = self._invites.get(game, {})
+        if drop_id in bucket:
+            del bucket[drop_id]
+            logger.info(f"[PendingInvite:{game}] Cleared invite for drop={drop_id}")
 
-def _get_pending_geo_invite(drop_id: str) -> Optional[Dict[str, Any]]:
-    invite = _pending_geo_invites.get(drop_id)
-    if invite and time.time() - invite.get("ts", 0) > _PENDING_GEO_INVITE_TTL_S:
-        _clear_pending_geo_invite(drop_id)
-        return None
-    return invite
+    def get(self, game: str, drop_id: str) -> Optional[Dict[str, Any]]:
+        invite = self._invites.get(game, {}).get(drop_id)
+        if invite and time.time() - invite.get("ts", 0) > self._ttl:
+            self.clear(game, drop_id)
+            return None
+        return invite
+
+pending_invites = PendingInviteManager(ttl_seconds=300)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ACTIVE Q&A STATE
@@ -1138,14 +1184,15 @@ class Hub:
             u == user_label for u in self.rooms.get(drop_id, {}).values()
         )
         if not still_connected:
-            active_geo = geo_game_manager.find_active_game_for_drop(drop_id)
-            if active_geo and active_geo["status"] == "active":
-                geo_game_manager.pause_game(active_geo["gameId"], user_label)
-                await self.broadcast(drop_id, {"type": "game", "payload": {
-                    "op": "geo_player_disconnected",
-                    "gameId": active_geo["gameId"],
-                    "player": user_label,
-                }})
+            for prefix, mgr in _game_managers.items():
+                active = mgr.find_active_game_for_drop(drop_id)
+                if active and active["status"] == "active":
+                    mgr.pause_game(active["gameId"], user_label)
+                    await self.broadcast(drop_id, {"type": "game", "payload": {
+                        "op": f"{prefix}_player_disconnected",
+                        "gameId": active["gameId"],
+                        "player": user_label,
+                    }})
 
     def _online(self, drop_id: str) -> int:
         return len(self.rooms.get(drop_id, {}))
@@ -1205,11 +1252,46 @@ class GameManager:
 
 game_manager = GameManager()
 
-# --- GeoGuessr Game State Management ---
-class GeoGameManager:
+# --- Base Game Manager (shared pause/resume/find/cleanup for all games) ---
+class BaseGameManager:
     def __init__(self):
         self.games: Dict[str, Dict[str, Any]] = {}
 
+    def get_game(self, gid: str) -> Optional[Dict[str, Any]]:
+        return self.games.get(gid)
+
+    def end_game(self, gid: str):
+        if gid in self.games:
+            self.games[gid]["status"] = "ended"
+
+    def find_active_game_for_drop(self, drop_id: str) -> Optional[Dict[str, Any]]:
+        for g in self.games.values():
+            if g.get("dropId") == drop_id and g.get("status") in ("active", "paused"):
+                return g
+        return None
+
+    def pause_game(self, gid: str, disconnected_player: str):
+        game = self.games.get(gid)
+        if game and game["status"] == "active":
+            game["status"] = "paused"
+            game["pausedAt"] = int(time.time() * 1000)
+            game["disconnectedPlayer"] = disconnected_player
+
+    def resume_game(self, gid: str):
+        game = self.games.get(gid)
+        if game and game["status"] == "paused":
+            game["status"] = "active"
+            game.pop("pausedAt", None)
+            game.pop("disconnectedPlayer", None)
+
+    def cleanup_stale_paused_games(self):
+        now = int(time.time() * 1000)
+        for g in list(self.games.values()):
+            if g.get("status") == "paused" and now - g.get("pausedAt", 0) > 300000:
+                g["status"] = "ended"
+
+# --- GeoGuessr Game State Management ---
+class GeoGameManager(BaseGameManager):
     def create_game(self, game_id: str, drop_id: str, starter: str, locations: list):
         self.games[game_id] = {
             "gameId": game_id, "dropId": drop_id, "starter": starter,
@@ -1218,9 +1300,6 @@ class GeoGameManager:
             "guesses": {}, "roundResults": {},
             "createdAt": int(time.time() * 1000),
         }
-
-    def get_game(self, game_id: str) -> Optional[Dict[str, Any]]:
-        return self.games.get(game_id)
 
     def record_guess(self, game_id: str, player: str, lat: float, lng: float) -> bool:
         game = self.games.get(game_id)
@@ -1258,30 +1337,6 @@ class GeoGameManager:
         game["currentRound"] += 1
         return game["currentRound"]
 
-    def end_game(self, game_id: str):
-        if game_id in self.games:
-            self.games[game_id]["status"] = "ended"
-
-    def find_active_game_for_drop(self, drop_id):
-        for gid, game in self.games.items():
-            if game.get("dropId") == drop_id and game.get("status") in ("active", "paused"):
-                return game
-        return None
-
-    def pause_game(self, game_id, disconnected_player):
-        game = self.games.get(game_id)
-        if game and game["status"] == "active":
-            game["status"] = "paused"
-            game["pausedAt"] = int(time.time() * 1000)
-            game["disconnectedPlayer"] = disconnected_player
-
-    def resume_game(self, game_id):
-        game = self.games.get(game_id)
-        if game and game["status"] == "paused":
-            game["status"] = "active"
-            game.pop("pausedAt", None)
-            game.pop("disconnectedPlayer", None)
-
     def get_game_state_snapshot(self, game_id, for_player):
         game = self.games.get(game_id)
         if not game:
@@ -1305,14 +1360,399 @@ class GeoGameManager:
             ],
         }
 
-    def cleanup_stale_paused_games(self):
-        now = int(time.time() * 1000)
-        stale = [gid for gid, g in self.games.items()
-                 if g.get("status") == "paused" and now - g.get("pausedAt", 0) > 300000]
-        for gid in stale:
-            self.games[gid]["status"] = "ended"
-
 geo_game_manager = GeoGameManager()
+
+# --- Wordle Game State Management ---
+class WordleGameManager(BaseGameManager):
+    SCORE_MAP = {1: 1000, 2: 800, 3: 600, 4: 400, 5: 200, 6: 100}
+
+    def create_game(self, game_id, drop_id, starter, words):
+        self.games[game_id] = {
+            "gameId": game_id, "dropId": drop_id, "starter": starter,
+            "status": "active", "currentRound": 1, "totalRounds": 5,
+            "words": words, "scores": {"E": 0, "M": 0},
+            "guesses": {}, "playerDone": {}, "roundResults": {},
+            "playerGrids": {}, "playerKeyStates": {},
+            "createdAt": int(time.time() * 1000),
+        }
+
+    def submit_guess(self, gid, player, word):
+        game = self.games.get(gid)
+        if not game: return None
+        rnd = game["currentRound"]
+        target = game["words"][rnd - 1].lower()
+        feedback = self._calculate_feedback(target, word.lower())
+        is_correct = word.lower() == target
+        game["guesses"].setdefault(rnd, {}).setdefault(player, [])
+        game["guesses"][rnd][player].append({"word": word, "feedback": feedback})
+        row = len(game["guesses"][rnd][player]) - 1
+        # Store grid state for resume
+        game["playerGrids"].setdefault(rnd, {}).setdefault(player, [])
+        game["playerGrids"][rnd][player].append(feedback)
+        # Update key states
+        game["playerKeyStates"].setdefault(rnd, {}).setdefault(player, {})
+        ks = game["playerKeyStates"][rnd][player]
+        for fb in feedback:
+            letter = fb["letter"].upper()
+            cur = ks.get(letter)
+            new = fb["state"]
+            if not cur or new == "correct" or (new == "present" and cur != "correct"):
+                ks[letter] = new
+        return {"feedback": feedback, "isCorrect": is_correct, "row": row}
+
+    def _calculate_feedback(self, target, guess):
+        result = [{"letter": g, "state": "absent"} for g in guess]
+        target_chars = list(target)
+        # First pass: correct positions
+        for i in range(len(guess)):
+            if guess[i] == target_chars[i]:
+                result[i]["state"] = "correct"
+                target_chars[i] = None
+        # Second pass: present but wrong position
+        for i in range(len(guess)):
+            if result[i]["state"] == "correct":
+                continue
+            if guess[i] in target_chars:
+                result[i]["state"] = "present"
+                target_chars[target_chars.index(guess[i])] = None
+        return result
+
+    def mark_player_done(self, gid, player, solved, attempts):
+        game = self.games.get(gid)
+        if not game: return False
+        rnd = game["currentRound"]
+        game["playerDone"].setdefault(rnd, {})
+        game["playerDone"][rnd][player] = {"solved": solved, "attempts": attempts}
+        return len(game["playerDone"][rnd]) == 2
+
+    def calculate_round_result(self, gid):
+        game = self.games[gid]
+        rnd = game["currentRound"]
+        word = game["words"][rnd - 1]
+        done = game["playerDone"].get(rnd, {})
+        result = {}
+        for p in ["E", "M"]:
+            d = done.get(p, {"solved": False, "attempts": 6})
+            score = self.SCORE_MAP.get(d["attempts"], 0) if d["solved"] else 0
+            grid = game["playerGrids"].get(rnd, {}).get(p, [])
+            result[p] = {"solved": d["solved"], "attempts": d["attempts"], "score": score,
+                         "grid": [row for row in grid]}
+            game["scores"][p] += score
+        game["roundResults"][rnd] = {"word": word, "results": result}
+        return {"word": word, "results": result, "totalScores": dict(game["scores"])}
+
+    def advance_round(self, gid):
+        game = self.games.get(gid)
+        if not game or game["currentRound"] >= game["totalRounds"]:
+            return 0
+        game["currentRound"] += 1
+        return game["currentRound"]
+
+    def get_game_state_snapshot(self, gid, for_player):
+        game = self.games.get(gid)
+        if not game: return None
+        rnd = game["currentRound"]
+        other = "M" if for_player == "E" else "E"
+        has_result = rnd in game.get("roundResults", {})
+        done_info = game.get("playerDone", {}).get(rnd, {})
+        guesses = game.get("guesses", {}).get(rnd, {})
+        my_guesses = guesses.get(for_player, [])
+        my_grid = game.get("playerGrids", {}).get(rnd, {}).get(for_player, [])
+        my_key_states = game.get("playerKeyStates", {}).get(rnd, {}).get(for_player, {})
+        my_done = done_info.get(for_player)
+        return {
+            "gameId": game["gameId"], "round": rnd, "totalRounds": game["totalRounds"],
+            "wordLength": 5, "scores": game["scores"],
+            "phase": "result" if has_result else "playing",
+            "myGrid": my_grid, "myKeyStates": my_key_states,
+            "myAttempts": len(my_guesses),
+            "mySolved": my_done["solved"] if my_done else False,
+            "otherPlayerDone": other in done_info,
+            "roundResult": game["roundResults"].get(rnd),
+            "roundHistory": [game["roundResults"][r] for r in sorted(game["roundResults"]) if r < rnd],
+        }
+
+wordle_game_manager = WordleGameManager()
+
+# --- Trivia Game State Management ---
+_TRIVIA_FALLBACK_QUESTIONS = [
+    {"question": "What planet is known as the Red Planet?", "category": "Science", "correct_idx": 0,
+     "options": ["Mars", "Jupiter", "Venus", "Saturn"]},
+    {"question": "What is the largest ocean on Earth?", "category": "Geography", "correct_idx": 0,
+     "options": ["Pacific Ocean", "Atlantic Ocean", "Indian Ocean", "Arctic Ocean"]},
+    {"question": "Who painted the Mona Lisa?", "category": "Art", "correct_idx": 0,
+     "options": ["Leonardo da Vinci", "Michelangelo", "Raphael", "Donatello"]},
+    {"question": "What year did the Titanic sink?", "category": "History", "correct_idx": 0,
+     "options": ["1912", "1905", "1920", "1898"]},
+    {"question": "What is the chemical symbol for gold?", "category": "Science", "correct_idx": 0,
+     "options": ["Au", "Ag", "Fe", "Cu"]},
+    {"question": "Which country has the most natural lakes?", "category": "Geography", "correct_idx": 0,
+     "options": ["Canada", "Brazil", "Russia", "USA"]},
+    {"question": "What is the smallest country in the world?", "category": "Geography", "correct_idx": 0,
+     "options": ["Vatican City", "Monaco", "San Marino", "Liechtenstein"]},
+    {"question": "How many bones are in the adult human body?", "category": "Science", "correct_idx": 0,
+     "options": ["206", "195", "212", "220"]},
+    {"question": "What is the hardest natural substance on Earth?", "category": "Science", "correct_idx": 0,
+     "options": ["Diamond", "Titanium", "Quartz", "Topaz"]},
+    {"question": "Which language has the most native speakers?", "category": "General Knowledge", "correct_idx": 0,
+     "options": ["Mandarin Chinese", "English", "Spanish", "Hindi"]},
+    {"question": "What is the largest desert in the world?", "category": "Geography", "correct_idx": 0,
+     "options": ["Antarctic Desert", "Sahara", "Arctic Desert", "Gobi"]},
+    {"question": "Who wrote Romeo and Juliet?", "category": "Literature", "correct_idx": 0,
+     "options": ["William Shakespeare", "Charles Dickens", "Jane Austen", "Mark Twain"]},
+    {"question": "What is the speed of light in km/s?", "category": "Science", "correct_idx": 0,
+     "options": ["299,792", "150,000", "350,000", "199,792"]},
+    {"question": "Which element has the atomic number 1?", "category": "Science", "correct_idx": 0,
+     "options": ["Hydrogen", "Helium", "Oxygen", "Carbon"]},
+    {"question": "What is the capital of Australia?", "category": "Geography", "correct_idx": 0,
+     "options": ["Canberra", "Sydney", "Melbourne", "Brisbane"]},
+    {"question": "How many hearts does an octopus have?", "category": "Nature", "correct_idx": 0,
+     "options": ["3", "2", "4", "1"]},
+    {"question": "What year was the first iPhone released?", "category": "Technology", "correct_idx": 0,
+     "options": ["2007", "2005", "2008", "2010"]},
+    {"question": "Which planet has the most moons?", "category": "Science", "correct_idx": 0,
+     "options": ["Saturn", "Jupiter", "Uranus", "Neptune"]},
+    {"question": "What is the longest river in the world?", "category": "Geography", "correct_idx": 0,
+     "options": ["Nile", "Amazon", "Mississippi", "Yangtze"]},
+    {"question": "Who discovered penicillin?", "category": "Science", "correct_idx": 0,
+     "options": ["Alexander Fleming", "Louis Pasteur", "Marie Curie", "Joseph Lister"]},
+]
+
+async def _fetch_trivia_questions(count=10):
+    """Fetch questions from Open Trivia DB, fall back to embedded set."""
+    import html as html_mod
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(f"https://opentdb.com/api.php?amount={count}&type=multiple&encode=url3986")
+            data = resp.json()
+            if data.get("response_code") != 0:
+                raise ValueError("API error")
+            questions = []
+            for item in data["results"]:
+                from urllib.parse import unquote
+                q_text = unquote(item["question"])
+                category = unquote(item["category"])
+                correct = unquote(item["correct_answer"])
+                incorrects = [unquote(a) for a in item["incorrect_answers"]]
+                options = incorrects + [correct]
+                random.shuffle(options)
+                correct_idx = options.index(correct)
+                questions.append({
+                    "question": q_text, "category": category,
+                    "correct_idx": correct_idx, "options": options,
+                })
+            return questions
+    except Exception as e:
+        logger.warning(f"[Trivia] API fetch failed: {e}, using fallback")
+        pool = list(_TRIVIA_FALLBACK_QUESTIONS)
+        random.shuffle(pool)
+        selected = pool[:min(count, len(pool))]
+        result = []
+        for q in selected:
+            opts = list(q["options"])
+            correct_answer = opts[q["correct_idx"]]
+            random.shuffle(opts)
+            result.append({
+                "question": q["question"], "category": q["category"],
+                "correct_idx": opts.index(correct_answer), "options": opts,
+            })
+        return result
+
+class TriviaGameManager(BaseGameManager):
+    def create_game(self, gid, drop_id, starter, questions):
+        self.games[gid] = {
+            "gameId": gid, "dropId": drop_id, "starter": starter,
+            "status": "active", "currentQuestion": 1, "totalQuestions": len(questions),
+            "questions": questions, "scores": {"E": 0, "M": 0},
+            "answers": {}, "questionResults": {},
+            "createdAt": int(time.time() * 1000),
+        }
+
+    def submit_answer(self, gid, player, answer_idx, time_ms):
+        game = self.games.get(gid)
+        if not game: return False
+        qnum = game["currentQuestion"]
+        game["answers"].setdefault(qnum, {})
+        game["answers"][qnum][player] = {"answerIdx": answer_idx, "timeMs": time_ms}
+        return len(game["answers"][qnum]) == 2
+
+    def mark_timeout(self, gid, player):
+        game = self.games.get(gid)
+        if not game: return False
+        qnum = game["currentQuestion"]
+        game["answers"].setdefault(qnum, {})
+        if player not in game["answers"][qnum]:
+            game["answers"][qnum][player] = {"answerIdx": -1, "timeMs": 15000}
+        return len(game["answers"][qnum]) == 2
+
+    def calculate_question_result(self, gid):
+        game = self.games[gid]
+        qnum = game["currentQuestion"]
+        q = game["questions"][qnum - 1]
+        correct_idx = q["correct_idx"]
+        answers = game["answers"].get(qnum, {})
+        result = {}
+        for p in ["E", "M"]:
+            a = answers.get(p, {"answerIdx": -1, "timeMs": 15000})
+            is_correct = a["answerIdx"] == correct_idx
+            score = max(100, round(1000 - a["timeMs"] / 15)) if is_correct else 0
+            result[p] = {"answerIdx": a["answerIdx"], "correct": is_correct,
+                         "score": score, "timeMs": a["timeMs"]}
+            game["scores"][p] += score
+        game["questionResults"][qnum] = {"correctIdx": correct_idx, "results": result}
+        return {"correctIdx": correct_idx, "results": result, "totalScores": dict(game["scores"])}
+
+    def advance_question(self, gid):
+        game = self.games.get(gid)
+        if not game or game["currentQuestion"] >= game["totalQuestions"]:
+            return 0
+        game["currentQuestion"] += 1
+        return game["currentQuestion"]
+
+    def get_game_state_snapshot(self, gid, for_player):
+        game = self.games.get(gid)
+        if not game: return None
+        qnum = game["currentQuestion"]
+        other = "M" if for_player == "E" else "E"
+        has_result = qnum in game.get("questionResults", {})
+        answers = game.get("answers", {}).get(qnum, {})
+        q = game["questions"][qnum - 1]
+        safe_q = {"question": q["question"], "category": q["category"], "options": q["options"]}
+        return {
+            "gameId": game["gameId"], "questionNum": qnum,
+            "totalQuestions": game["totalQuestions"],
+            "question": safe_q, "scores": game["scores"],
+            "phase": "questionResult" if has_result else "answering",
+            "myAnswerSubmitted": for_player in answers,
+            "myAnswerIdx": answers.get(for_player, {}).get("answerIdx"),
+            "otherPlayerAnswered": other in answers,
+            "lastResult": game["questionResults"].get(qnum),
+            "questionHistory": [game["questionResults"][r] for r in sorted(game["questionResults"]) if r < qnum],
+        }
+
+trivia_game_manager = TriviaGameManager()
+
+# --- Drawing Game State Management ---
+class DrawingGameManager(BaseGameManager):
+    def create_game(self, gid, drop_id, starter, words):
+        other = "M" if starter == "E" else "E"
+        drawers = [starter if i % 2 == 0 else other for i in range(len(words))]
+        self.games[gid] = {
+            "gameId": gid, "dropId": drop_id, "starter": starter,
+            "status": "active", "currentRound": 1, "totalRounds": len(words),
+            "words": words, "drawers": drawers,
+            "scores": {"E": 0, "M": 0},
+            "strokes": {}, "wrongGuesses": {}, "roundResults": {},
+            "roundStartTime": {},
+            "createdAt": int(time.time() * 1000),
+        }
+
+    def get_current_drawer(self, gid):
+        game = self.games.get(gid)
+        if not game: return None
+        rnd = game["currentRound"]
+        return game["drawers"][rnd - 1]
+
+    def get_current_word(self, gid):
+        game = self.games.get(gid)
+        if not game: return None
+        rnd = game["currentRound"]
+        return game["words"][rnd - 1]
+
+    def record_stroke(self, gid, stroke_data):
+        game = self.games.get(gid)
+        if not game: return
+        rnd = game["currentRound"]
+        game["strokes"].setdefault(rnd, [])
+        if len(game["strokes"][rnd]) < 500:
+            game["strokes"][rnd].extend(stroke_data)
+
+    def clear_strokes(self, gid):
+        game = self.games.get(gid)
+        if not game: return
+        rnd = game["currentRound"]
+        game["strokes"][rnd] = []
+
+    def check_guess(self, gid, player, guess_text):
+        game = self.games.get(gid)
+        if not game: return None
+        rnd = game["currentRound"]
+        word = game["words"][rnd - 1].lower()
+        guess = guess_text.strip().lower()
+        if guess == word:
+            elapsed_ms = int(time.time() * 1000) - game["roundStartTime"].get(rnd, int(time.time() * 1000))
+            guesser_score = max(100, round(1000 - elapsed_ms / 60))
+            drawer_score = guesser_score // 2
+            drawer = game["drawers"][rnd - 1]
+            guesser = player
+            game["scores"][guesser] += guesser_score
+            game["scores"][drawer] += drawer_score
+            game["roundResults"][rnd] = {
+                "word": word, "guessed": True, "guesser": guesser,
+                "drawer": drawer, "guesserScore": guesser_score,
+                "drawerScore": drawer_score, "timeMs": elapsed_ms,
+            }
+            return {"correct": True, "word": word, "guesserScore": guesser_score,
+                    "drawerScore": drawer_score, "guesser": guesser, "drawer": drawer,
+                    "totalScores": dict(game["scores"])}
+        else:
+            game["wrongGuesses"].setdefault(rnd, [])
+            game["wrongGuesses"][rnd].append(guess)
+            return {"correct": False, "guess": guess}
+
+    def timeout_round(self, gid):
+        game = self.games.get(gid)
+        if not game: return None
+        rnd = game["currentRound"]
+        word = game["words"][rnd - 1]
+        if rnd not in game["roundResults"]:
+            game["roundResults"][rnd] = {"word": word, "guessed": False}
+        return {"word": word, "guessed": False, "totalScores": dict(game["scores"])}
+
+    def start_round_timer(self, gid):
+        game = self.games.get(gid)
+        if not game: return
+        rnd = game["currentRound"]
+        game["roundStartTime"][rnd] = int(time.time() * 1000)
+
+    def advance_round(self, gid):
+        game = self.games.get(gid)
+        if not game or game["currentRound"] >= game["totalRounds"]:
+            return 0
+        game["currentRound"] += 1
+        return game["currentRound"]
+
+    def get_game_state_snapshot(self, gid, for_player):
+        game = self.games.get(gid)
+        if not game: return None
+        rnd = game["currentRound"]
+        drawer = game["drawers"][rnd - 1]
+        is_drawer = for_player == drawer
+        word = game["words"][rnd - 1]
+        has_result = rnd in game.get("roundResults", {})
+        return {
+            "gameId": game["gameId"], "round": rnd, "totalRounds": game["totalRounds"],
+            "drawer": drawer, "scores": game["scores"],
+            "word": word if is_drawer else None,
+            "wordLength": len(word),
+            "wrongGuesses": game.get("wrongGuesses", {}).get(rnd, []),
+            "strokes": game.get("strokes", {}).get(rnd, []),
+            "phase": "roundResult" if has_result else "playing",
+            "lastResult": game["roundResults"].get(rnd),
+            "roundHistory": [game["roundResults"][r] for r in sorted(game["roundResults"]) if r < rnd],
+        }
+
+draw_game_manager = DrawingGameManager()
+
+# Registry of all game managers keyed by prefix (used for loops in disconnect/reconnect/scoreboard)
+_game_managers: Dict[str, BaseGameManager] = {
+    "geo": geo_game_manager,
+    "wordle": wordle_game_manager,
+    "trivia": trivia_game_manager,
+    "draw": draw_game_manager,
+}
+# DB table names for each game prefix
+_game_db_tables = {"geo": "geo_games", "wordle": "wordle_games", "trivia": "trivia_games", "draw": "draw_games"}
 
 def _build_full_drop(drop: str) -> dict:
     with engine.begin() as conn:
@@ -1393,41 +1833,38 @@ async def ws_endpoint(ws: WebSocket):
         except Exception as e:
             logger.warning(f"[PendingCall] Failed to replay call to {user}: {e}")
 
-    # ── Replay pending geo invite for late joiners ────────────────────────
-    pending_geo = _get_pending_geo_invite(drop)
-    if pending_geo and pending_geo.get("from") != user:
-        try:
-            await ws.send_json({
-                "type": "game",
-                "payload": {
-                    "op": "geo_invite",
-                    "from": pending_geo.get("from"),
-                    "inviteId": pending_geo.get("inviteId"),
-                }
-            })
-            logger.info(f"[PendingGeoInvite] Replayed invite to late joiner {user} in drop={drop}")
-        except Exception as e:
-            logger.warning(f"[PendingGeoInvite] Failed to replay invite to {user}: {e}")
-
-    # ── Replay active/paused geo game for reconnecting player ──────────
-    geo_game_manager.cleanup_stale_paused_games()
-    active_geo = geo_game_manager.find_active_game_for_drop(drop)
-    if active_geo:
-        snapshot = geo_game_manager.get_game_state_snapshot(active_geo["gameId"], user)
-        if snapshot:
+    # ── Replay pending game invites + active/paused games for reconnecting player ──
+    for prefix, mgr in _game_managers.items():
+        # Replay pending invite
+        inv = pending_invites.get(prefix, drop)
+        if inv and inv.get("from") != user:
             try:
-                await ws.send_json({"type": "game", "payload": {"op": "geo_resume", **snapshot}})
-                logger.info(f"[GeoResume] Replayed geo game state to {user} in drop={drop}")
-            except Exception as e:
-                logger.warning(f"[GeoResume] Failed to replay geo state to {user}: {e}")
-            # If this player caused the pause, resume the game and notify other player
-            if active_geo.get("status") == "paused" and active_geo.get("disconnectedPlayer") == user:
-                geo_game_manager.resume_game(active_geo["gameId"])
-                await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
-                    "op": "geo_player_reconnected",
-                    "gameId": active_geo["gameId"],
-                    "player": user,
+                await ws.send_json({"type": "game", "payload": {
+                    "op": f"{prefix}_invite", "from": inv.get("from"),
+                    "inviteId": inv.get("inviteId"),
                 }})
+                logger.info(f"[PendingInvite:{prefix}] Replayed invite to late joiner {user} in drop={drop}")
+            except Exception as e:
+                logger.warning(f"[PendingInvite:{prefix}] Failed to replay invite to {user}: {e}")
+
+        # Replay active/paused game state
+        mgr.cleanup_stale_paused_games()
+        active = mgr.find_active_game_for_drop(drop)
+        if active:
+            snapshot = mgr.get_game_state_snapshot(active["gameId"], user)
+            if snapshot:
+                try:
+                    await ws.send_json({"type": "game", "payload": {"op": f"{prefix}_resume", **snapshot}})
+                    logger.info(f"[GameResume:{prefix}] Replayed game state to {user} in drop={drop}")
+                except Exception as e:
+                    logger.warning(f"[GameResume:{prefix}] Failed to replay state to {user}: {e}")
+                if active.get("status") == "paused" and active.get("disconnectedPlayer") == user:
+                    mgr.resume_game(active["gameId"])
+                    await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
+                        "op": f"{prefix}_player_reconnected",
+                        "gameId": active["gameId"],
+                        "player": user,
+                    }})
 
     # ── Replay active Q&A for late joiners ────────────────────────────────
     active_qa = _get_active_qa(drop)
@@ -1635,7 +2072,7 @@ async def ws_endpoint(ws: WebSocket):
                 # --- GeoGuessr ops ---
                 elif op == "geo_invite":
                     invite_id = f"geoinv_{secrets.token_hex(8)}"
-                    _store_pending_geo_invite(drop, {
+                    pending_invites.store("geo", drop, {
                         "from": user,
                         "inviteId": invite_id,
                     })
@@ -1646,7 +2083,7 @@ async def ws_endpoint(ws: WebSocket):
                         notify("E wants to play GeoGuessr! Open MSGDrop to accept.")
 
                 elif op == "geo_invite_accepted":
-                    _clear_pending_geo_invite(drop)
+                    pending_invites.clear("geo", drop)
                     locs = random.sample(GEO_LOCATIONS, min(5, len(GEO_LOCATIONS)))
                     gid = f"geo_{secrets.token_hex(8)}"
                     geo_game_manager.create_game(gid, drop, user, locs)
@@ -1670,13 +2107,13 @@ async def ws_endpoint(ws: WebSocket):
                     }})
 
                 elif op == "geo_invite_declined":
-                    _clear_pending_geo_invite(drop)
+                    pending_invites.clear("geo", drop)
                     await hub.broadcast(drop, {"type": "game", "payload": {
                         "op": "geo_invite_declined", "from": user
                     }})
 
                 elif op == "geo_invite_cancelled":
-                    _clear_pending_geo_invite(drop)
+                    pending_invites.clear("geo", drop)
                     await hub.broadcast(drop, {"type": "game", "payload": {
                         "op": "geo_invite_cancelled", "from": user
                     }})
@@ -1769,6 +2206,494 @@ async def ws_endpoint(ws: WebSocket):
                 elif op in ["geo_player_opened", "geo_player_closed"]:
                     await hub.broadcast(drop, {"type": "game", "payload": payload})
 
+                # --- Wordle Battle ops ---
+                elif op == "wordle_invite":
+                    invite_id = f"wordinv_{secrets.token_hex(8)}"
+                    pending_invites.store("wordle", drop, {"from": user, "inviteId": invite_id})
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "wordle_invite", "from": user, "inviteId": invite_id
+                    }})
+                    if (user or "").upper() == "E" and _should_notify("wordle_invite", drop, 120):
+                        notify("E wants to play Wordle Battle! Open MSGDrop to accept.")
+
+                elif op == "wordle_invite_accepted":
+                    pending_invites.clear("wordle", drop)
+                    words = random.sample(WORDLE_SOLUTIONS, 5)
+                    gid = f"wordle_{secrets.token_hex(8)}"
+                    wordle_game_manager.create_game(gid, drop, user, words)
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            insert into wordle_games(id,drop_id,started_by,started_at,status)
+                            values(:id,:d,:s,:t,'active')
+                        """), {"id": gid, "d": drop, "s": user, "t": int(time.time()*1000)})
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "wordle_started", "gameId": gid, "gameType": "wordle",
+                        "round": 1, "totalRounds": 5, "wordLength": 5
+                    }})
+
+                elif op == "wordle_invite_declined":
+                    pending_invites.clear("wordle", drop)
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "wordle_invite_declined", "from": user
+                    }})
+
+                elif op == "wordle_invite_cancelled":
+                    pending_invites.clear("wordle", drop)
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "wordle_invite_cancelled", "from": user
+                    }})
+
+                elif op == "wordle_guess":
+                    gid = payload.get("gameId")
+                    guess_word = (payload.get("word") or "").lower().strip()
+                    game = wordle_game_manager.get_game(gid)
+                    if not game or game.get("status") not in ("active", "paused"):
+                        continue
+                    if len(guess_word) != 5 or guess_word not in WORDLE_VALID:
+                        await ws.send_json({"type": "game", "payload": {
+                            "op": "wordle_invalid_word", "gameId": gid, "word": guess_word
+                        }})
+                        continue
+                    rnd = game["currentRound"]
+                    done_info = game.get("playerDone", {}).get(rnd, {})
+                    if user in done_info:
+                        continue
+                    guess_result = wordle_game_manager.submit_guess(gid, user, guess_word)
+                    feedback = guess_result["feedback"]
+                    is_correct = guess_result["isCorrect"]
+                    attempt_num = guess_result["row"] + 1  # 0-indexed row → 1-indexed attempt
+                    await ws.send_json({"type": "game", "payload": {
+                        "op": "wordle_guess_result", "gameId": gid, "round": rnd,
+                        "player": user, "word": guess_word, "feedback": feedback,
+                        "isCorrect": is_correct, "attempt": attempt_num
+                    }})
+                    await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
+                        "op": "wordle_opponent_progress", "gameId": gid, "round": rnd,
+                        "player": user, "attempt": attempt_num
+                    }})
+                    if is_correct or attempt_num >= 6:
+                        both_done = wordle_game_manager.mark_player_done(gid, user, is_correct, attempt_num)
+                        if both_done:
+                            result = wordle_game_manager.calculate_round_result(gid)
+                            await hub.broadcast(drop, {"type": "game", "payload": {
+                                "op": "wordle_round_result", "gameId": gid, "round": rnd,
+                                **result
+                            }})
+                            if rnd >= game["totalRounds"]:
+                                winner = "E" if game["scores"]["E"] > game["scores"]["M"] else (
+                                    "M" if game["scores"]["M"] > game["scores"]["E"] else "tie")
+                                with engine.begin() as conn:
+                                    conn.execute(text("""
+                                        update wordle_games set status='ended',ended_at=:ts,
+                                            e_total_score=:es,m_total_score=:ms,winner=:w
+                                        where id=:gid
+                                    """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
+                                           "ms": game["scores"]["M"], "w": winner, "gid": gid})
+                                all_rounds = [{"round": r, "result": game["roundResults"].get(r, {})}
+                                              for r in range(1, 6)]
+                                await hub.broadcast(drop, {"type": "game", "payload": {
+                                    "op": "wordle_game_end", "gameId": gid,
+                                    "totalScores": game["scores"], "winner": winner,
+                                    "roundResults": all_rounds
+                                }})
+                                wordle_game_manager.end_game(gid)
+
+                elif op == "wordle_next":
+                    gid = payload.get("gameId")
+                    game = wordle_game_manager.get_game(gid)
+                    if not game:
+                        continue
+                    new_round = wordle_game_manager.advance_round(gid)
+                    if new_round > 0:
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "wordle_next_round", "gameId": gid,
+                            "round": new_round, "totalRounds": 5, "wordLength": 5
+                        }})
+
+                elif op == "wordle_timeout":
+                    gid = payload.get("gameId")
+                    game = wordle_game_manager.get_game(gid)
+                    if not game or game.get("status") not in ("active", "paused"):
+                        continue
+                    rnd = game["currentRound"]
+                    done_info = game.get("playerDone", {}).get(rnd, {})
+                    if user not in done_info:
+                        wordle_game_manager.mark_player_done(gid, user, False, 6)
+                    if len(game.get("playerDone", {}).get(rnd, {})) == 2:
+                        result = wordle_game_manager.calculate_round_result(gid)
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "wordle_round_result", "gameId": gid, "round": rnd,
+                            **result
+                        }})
+                        if rnd >= game["totalRounds"]:
+                            winner = "E" if game["scores"]["E"] > game["scores"]["M"] else (
+                                "M" if game["scores"]["M"] > game["scores"]["E"] else "tie")
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    update wordle_games set status='ended',ended_at=:ts,
+                                        e_total_score=:es,m_total_score=:ms,winner=:w
+                                    where id=:gid
+                                """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
+                                       "ms": game["scores"]["M"], "w": winner, "gid": gid})
+                            all_rounds = [{"round": r, "result": game["roundResults"].get(r, {})}
+                                          for r in range(1, 6)]
+                            await hub.broadcast(drop, {"type": "game", "payload": {
+                                "op": "wordle_game_end", "gameId": gid,
+                                "totalScores": game["scores"], "winner": winner,
+                                "roundResults": all_rounds
+                            }})
+                            wordle_game_manager.end_game(gid)
+
+                elif op == "wordle_forfeit":
+                    gid = payload.get("gameId")
+                    wordle_game_manager.end_game(gid)
+                    with engine.begin() as conn:
+                        conn.execute(text("update wordle_games set status='forfeit',ended_at=:ts where id=:gid"),
+                                     {"ts": int(time.time()*1000), "gid": gid})
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "wordle_forfeit", "gameId": gid, "player": user
+                    }})
+
+                # --- Trivia Duel ops ---
+                elif op == "trivia_invite":
+                    invite_id = f"trivinv_{secrets.token_hex(8)}"
+                    pending_invites.store("trivia", drop, {"from": user, "inviteId": invite_id})
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "trivia_invite", "from": user, "inviteId": invite_id
+                    }})
+                    if (user or "").upper() == "E" and _should_notify("trivia_invite", drop, 120):
+                        notify("E wants to play Trivia Duel! Open MSGDrop to accept.")
+
+                elif op == "trivia_invite_accepted":
+                    pending_invites.clear("trivia", drop)
+                    questions = await _fetch_trivia_questions(10)
+                    gid = f"trivia_{secrets.token_hex(8)}"
+                    trivia_game_manager.create_game(gid, drop, user, questions)
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            insert into trivia_games(id,drop_id,started_by,started_at,status)
+                            values(:id,:d,:s,:t,'active')
+                        """), {"id": gid, "d": drop, "s": user, "t": int(time.time()*1000)})
+                    q = questions[0]
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "trivia_started", "gameId": gid, "gameType": "trivia",
+                        "question": 1, "totalQuestions": len(questions),
+                        "questionText": q["question"], "category": q["category"],
+                        "options": q["options"]
+                    }})
+
+                elif op == "trivia_invite_declined":
+                    pending_invites.clear("trivia", drop)
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "trivia_invite_declined", "from": user
+                    }})
+
+                elif op == "trivia_invite_cancelled":
+                    pending_invites.clear("trivia", drop)
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "trivia_invite_cancelled", "from": user
+                    }})
+
+                elif op == "trivia_answer":
+                    gid = payload.get("gameId")
+                    answer_idx = payload.get("answerIdx")
+                    time_ms = payload.get("timeMs", 15000)
+                    game = trivia_game_manager.get_game(gid)
+                    if not game or game.get("status") not in ("active", "paused"):
+                        continue
+                    q_num = game["currentQuestion"]
+                    answers = game.get("answers", {}).get(q_num, {})
+                    if user in answers:
+                        continue
+                    both_answered = trivia_game_manager.submit_answer(gid, user, answer_idx, time_ms)
+                    await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
+                        "op": "trivia_opponent_answered", "gameId": gid,
+                        "question": q_num, "player": user
+                    }})
+                    if both_answered:
+                        result = trivia_game_manager.calculate_question_result(gid)
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "trivia_question_result", "gameId": gid,
+                            "question": q_num, **result
+                        }})
+                        if q_num >= game["totalQuestions"]:
+                            winner = "E" if game["scores"]["E"] > game["scores"]["M"] else (
+                                "M" if game["scores"]["M"] > game["scores"]["E"] else "tie")
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    update trivia_games set status='ended',ended_at=:ts,
+                                        e_total_score=:es,m_total_score=:ms,winner=:w
+                                    where id=:gid
+                                """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
+                                       "ms": game["scores"]["M"], "w": winner, "gid": gid})
+                            all_results = [{"question": i, "result": game["questionResults"].get(i, {})}
+                                           for i in range(1, game["totalQuestions"]+1)]
+                            await hub.broadcast(drop, {"type": "game", "payload": {
+                                "op": "trivia_game_end", "gameId": gid,
+                                "totalScores": game["scores"], "winner": winner,
+                                "questionResults": all_results
+                            }})
+                            trivia_game_manager.end_game(gid)
+
+                elif op == "trivia_timeout":
+                    gid = payload.get("gameId")
+                    game = trivia_game_manager.get_game(gid)
+                    if not game or game.get("status") not in ("active", "paused"):
+                        continue
+                    q_num = game["currentQuestion"]
+                    trivia_game_manager.mark_timeout(gid, user)
+                    answers = game.get("answers", {}).get(q_num, {})
+                    if len(answers) == 2:
+                        result = trivia_game_manager.calculate_question_result(gid)
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "trivia_question_result", "gameId": gid,
+                            "question": q_num, **result
+                        }})
+                        if q_num >= game["totalQuestions"]:
+                            winner = "E" if game["scores"]["E"] > game["scores"]["M"] else (
+                                "M" if game["scores"]["M"] > game["scores"]["E"] else "tie")
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    update trivia_games set status='ended',ended_at=:ts,
+                                        e_total_score=:es,m_total_score=:ms,winner=:w
+                                    where id=:gid
+                                """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
+                                       "ms": game["scores"]["M"], "w": winner, "gid": gid})
+                            all_results = [{"question": i, "result": game["questionResults"].get(i, {})}
+                                           for i in range(1, game["totalQuestions"]+1)]
+                            await hub.broadcast(drop, {"type": "game", "payload": {
+                                "op": "trivia_game_end", "gameId": gid,
+                                "totalScores": game["scores"], "winner": winner,
+                                "questionResults": all_results
+                            }})
+                            trivia_game_manager.end_game(gid)
+
+                elif op == "trivia_next":
+                    gid = payload.get("gameId")
+                    game = trivia_game_manager.get_game(gid)
+                    if not game:
+                        continue
+                    new_q = trivia_game_manager.advance_question(gid)
+                    if new_q > 0:
+                        q = game["questions"][new_q - 1]
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "trivia_next_question", "gameId": gid,
+                            "question": new_q, "totalQuestions": game["totalQuestions"],
+                            "questionText": q["question"], "category": q["category"],
+                            "options": q["options"]
+                        }})
+
+                elif op == "trivia_forfeit":
+                    gid = payload.get("gameId")
+                    trivia_game_manager.end_game(gid)
+                    with engine.begin() as conn:
+                        conn.execute(text("update trivia_games set status='forfeit',ended_at=:ts where id=:gid"),
+                                     {"ts": int(time.time()*1000), "gid": gid})
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "trivia_forfeit", "gameId": gid, "player": user
+                    }})
+
+                # --- Drawing Guess ops ---
+                elif op == "draw_invite":
+                    invite_id = f"drawinv_{secrets.token_hex(8)}"
+                    pending_invites.store("draw", drop, {"from": user, "inviteId": invite_id})
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "draw_invite", "from": user, "inviteId": invite_id
+                    }})
+                    if (user or "").upper() == "E" and _should_notify("draw_invite", drop, 120):
+                        notify("E wants to play Drawing Guess! Open MSGDrop to accept.")
+
+                elif op == "draw_invite_accepted":
+                    pending_invites.clear("draw", drop)
+                    words = random.sample(DRAW_WORDS, 6)
+                    gid = f"draw_{secrets.token_hex(8)}"
+                    draw_game_manager.create_game(gid, drop, user, words)
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            insert into draw_games(id,drop_id,started_by,started_at,status)
+                            values(:id,:d,:s,:t,'active')
+                        """), {"id": gid, "d": drop, "s": user, "t": int(time.time()*1000)})
+                    game = draw_game_manager.get_game(gid)
+                    drawer = draw_game_manager.get_current_drawer(gid)
+                    word = draw_game_manager.get_current_word(gid)
+                    guesser = "M" if drawer == "E" else "E"
+                    # Send different payloads: drawer gets word, guesser gets wordLength
+                    conns = list(hub.rooms.get(drop, {}).items())
+                    for conn_ws, conn_user in conns:
+                        try:
+                            if conn_user == drawer:
+                                await conn_ws.send_json({"type": "game", "payload": {
+                                    "op": "draw_started", "gameId": gid, "gameType": "draw",
+                                    "round": 1, "totalRounds": 6, "role": "drawer",
+                                    "word": word, "wordLength": len(word), "drawer": drawer
+                                }})
+                            else:
+                                await conn_ws.send_json({"type": "game", "payload": {
+                                    "op": "draw_started", "gameId": gid, "gameType": "draw",
+                                    "round": 1, "totalRounds": 6, "role": "guesser",
+                                    "word": None, "wordLength": len(word), "drawer": drawer
+                                }})
+                        except Exception:
+                            pass
+
+                elif op == "draw_invite_declined":
+                    pending_invites.clear("draw", drop)
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "draw_invite_declined", "from": user
+                    }})
+
+                elif op == "draw_invite_cancelled":
+                    pending_invites.clear("draw", drop)
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "draw_invite_cancelled", "from": user
+                    }})
+
+                elif op == "draw_stroke":
+                    gid = payload.get("gameId")
+                    stroke_data = payload.get("strokeData")
+                    game = draw_game_manager.get_game(gid)
+                    if not game or game.get("status") not in ("active", "paused"):
+                        continue
+                    if user != draw_game_manager.get_current_drawer(gid):
+                        continue
+                    draw_game_manager.record_stroke(gid, stroke_data)
+                    await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
+                        "op": "draw_stroke", "gameId": gid, "strokeData": stroke_data
+                    }})
+
+                elif op == "draw_clear":
+                    gid = payload.get("gameId")
+                    game = draw_game_manager.get_game(gid)
+                    if not game or user != draw_game_manager.get_current_drawer(gid):
+                        continue
+                    draw_game_manager.clear_strokes(gid)
+                    await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
+                        "op": "draw_clear", "gameId": gid
+                    }})
+
+                elif op == "draw_guess":
+                    gid = payload.get("gameId")
+                    guess_text = (payload.get("guess") or "").strip()
+                    time_ms = payload.get("timeMs", 60000)
+                    game = draw_game_manager.get_game(gid)
+                    if not game or game.get("status") not in ("active", "paused"):
+                        continue
+                    if user == draw_game_manager.get_current_drawer(gid):
+                        continue
+                    guess_result = draw_game_manager.check_guess(gid, user, guess_text)
+                    if not guess_result:
+                        continue
+                    if guess_result.get("correct"):
+                        rnd = game["currentRound"]
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "draw_round_result", "gameId": gid, "round": rnd,
+                            "correct": True, "word": guess_result["word"],
+                            "guesser": guess_result["guesser"], "drawer": guess_result["drawer"],
+                            "guesserScore": guess_result["guesserScore"],
+                            "drawerScore": guess_result["drawerScore"],
+                            "totalScores": guess_result["totalScores"]
+                        }})
+                        if rnd >= game["totalRounds"]:
+                            winner = "E" if game["scores"]["E"] > game["scores"]["M"] else (
+                                "M" if game["scores"]["M"] > game["scores"]["E"] else "tie")
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    update draw_games set status='ended',ended_at=:ts,
+                                        e_total_score=:es,m_total_score=:ms,winner=:w
+                                    where id=:gid
+                                """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
+                                       "ms": game["scores"]["M"], "w": winner, "gid": gid})
+                            all_rounds = [{"round": r, "result": game["roundResults"].get(r, {})}
+                                          for r in range(1, 7)]
+                            await hub.broadcast(drop, {"type": "game", "payload": {
+                                "op": "draw_game_end", "gameId": gid,
+                                "totalScores": game["scores"], "winner": winner,
+                                "roundResults": all_rounds
+                            }})
+                            draw_game_manager.end_game(gid)
+                    else:
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "draw_wrong_guess", "gameId": gid,
+                            "player": user, "guess": guess_text
+                        }})
+
+                elif op == "draw_timeout":
+                    gid = payload.get("gameId")
+                    game = draw_game_manager.get_game(gid)
+                    if not game or game.get("status") not in ("active", "paused"):
+                        continue
+                    rnd = game["currentRound"]
+                    word = draw_game_manager.get_current_word(gid)
+                    drawer = draw_game_manager.get_current_drawer(gid)
+                    result = {
+                        "word": word, "guesser": None, "drawer": drawer,
+                        "guesserScore": 0, "drawerScore": 0,
+                        "totalScores": dict(game["scores"])
+                    }
+                    game["roundResults"][rnd] = result
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "draw_round_result", "gameId": gid, "round": rnd,
+                        "correct": False, **result
+                    }})
+                    if rnd >= game["totalRounds"]:
+                        winner = "E" if game["scores"]["E"] > game["scores"]["M"] else (
+                            "M" if game["scores"]["M"] > game["scores"]["E"] else "tie")
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                update draw_games set status='ended',ended_at=:ts,
+                                    e_total_score=:es,m_total_score=:ms,winner=:w
+                                where id=:gid
+                            """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
+                                   "ms": game["scores"]["M"], "w": winner, "gid": gid})
+                        all_rounds = [{"round": r, "result": game["roundResults"].get(r, {})}
+                                      for r in range(1, 7)]
+                        await hub.broadcast(drop, {"type": "game", "payload": {
+                            "op": "draw_game_end", "gameId": gid,
+                            "totalScores": game["scores"], "winner": winner,
+                            "roundResults": all_rounds
+                        }})
+                        draw_game_manager.end_game(gid)
+
+                elif op == "draw_next":
+                    gid = payload.get("gameId")
+                    game = draw_game_manager.get_game(gid)
+                    if not game:
+                        continue
+                    new_round = draw_game_manager.advance_round(gid)
+                    if new_round > 0:
+                        drawer = draw_game_manager.get_current_drawer(gid)
+                        word = draw_game_manager.get_current_word(gid)
+                        draw_game_manager.start_round_timer(gid)
+                        conns = list(hub.rooms.get(drop, {}).items())
+                        for conn_ws, conn_user in conns:
+                            try:
+                                if conn_user == drawer:
+                                    await conn_ws.send_json({"type": "game", "payload": {
+                                        "op": "draw_next_round", "gameId": gid,
+                                        "round": new_round, "totalRounds": 6,
+                                        "role": "drawer", "word": word,
+                                        "wordLength": len(word), "drawer": drawer
+                                    }})
+                                else:
+                                    await conn_ws.send_json({"type": "game", "payload": {
+                                        "op": "draw_next_round", "gameId": gid,
+                                        "round": new_round, "totalRounds": 6,
+                                        "role": "guesser", "word": None,
+                                        "wordLength": len(word), "drawer": drawer
+                                    }})
+                            except Exception:
+                                pass
+
+                elif op == "draw_forfeit":
+                    gid = payload.get("gameId")
+                    draw_game_manager.end_game(gid)
+                    with engine.begin() as conn:
+                        conn.execute(text("update draw_games set status='forfeit',ended_at=:ts where id=:gid"),
+                                     {"ts": int(time.time()*1000), "gid": gid})
+                    await hub.broadcast(drop, {"type": "game", "payload": {
+                        "op": "draw_forfeit", "gameId": gid, "player": user
+                    }})
+
                 else:
                     await hub.broadcast(drop, {"type": "game", "payload": payload})
 
@@ -1825,13 +2750,11 @@ def geo_config(req: Request):
     require_session(req)
     return {"mapsApiKey": GOOGLE_MAPS_API_KEY}
 
-@app.get("/api/geo/scores/{drop_id}")
-def get_geo_scores(drop_id: str, limit: int = 20, req: Request = None):
-    require_session(req)
+def _get_game_scores(table: str, drop_id: str, limit: int):
     with engine.begin() as conn:
-        rows = conn.execute(text("""
+        rows = conn.execute(text(f"""
             select id,started_by,started_at,ended_at,e_total_score,m_total_score,winner
-            from geo_games where drop_id=:d and status in ('ended','forfeit')
+            from {table} where drop_id=:d and status in ('ended','forfeit')
             order by started_at desc limit :n
         """), {"d": drop_id, "n": limit}).mappings().all()
     games = [dict(r) for r in rows]
@@ -1839,6 +2762,26 @@ def get_geo_scores(drop_id: str, limit: int = 20, req: Request = None):
     m_wins = sum(1 for g in games if g["winner"] == "M")
     ties = sum(1 for g in games if g["winner"] == "tie")
     return {"games": games, "stats": {"eWins": e_wins, "mWins": m_wins, "ties": ties, "total": len(games)}}
+
+@app.get("/api/geo/scores/{drop_id}")
+def get_geo_scores(drop_id: str, limit: int = 20, req: Request = None):
+    require_session(req)
+    return _get_game_scores("geo_games", drop_id, limit)
+
+@app.get("/api/wordle/scores/{drop_id}")
+def get_wordle_scores(drop_id: str, limit: int = 20, req: Request = None):
+    require_session(req)
+    return _get_game_scores("wordle_games", drop_id, limit)
+
+@app.get("/api/trivia/scores/{drop_id}")
+def get_trivia_scores(drop_id: str, limit: int = 20, req: Request = None):
+    require_session(req)
+    return _get_game_scores("trivia_games", drop_id, limit)
+
+@app.get("/api/draw/scores/{drop_id}")
+def get_draw_scores(drop_id: str, limit: int = 20, req: Request = None):
+    require_session(req)
+    return _get_game_scores("draw_games", drop_id, limit)
 
 # --- Static UI ---
 app.mount("/msgdrop", StaticFiles(directory="html", html=True), name="msgdrop")

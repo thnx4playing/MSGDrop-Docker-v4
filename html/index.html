@@ -24,7 +24,11 @@
 <link rel="stylesheet" href="/msgdrop/css/rich-links.css?v=20260220">
 <link rel="stylesheet" href="/msgdrop/css/call-system-messages.css?v=20260220">
 <link rel="stylesheet" href="/msgdrop/css/styles-v4-additions.css?v=20260222">
+<link rel="stylesheet" href="/msgdrop/css/games-shared.css?v=20260224">
 <link rel="stylesheet" href="/msgdrop/css/geogame.css?v=20260221">
+<link rel="stylesheet" href="/msgdrop/css/wordle.css?v=20260224">
+<link rel="stylesheet" href="/msgdrop/css/trivia.css?v=20260224">
+<link rel="stylesheet" href="/msgdrop/css/drawing.css?v=20260224">
 <link rel="stylesheet" href="/msgdrop/css/qa.css?v=20260222">
 </head>
 <body>
@@ -150,6 +154,18 @@
                 <span class="lm-icon"><img alt="" src="/msgdrop/images/geoguessr.png?v=1"></span>
                 <span class="lm-label">GeoGuessr</span>
               </button>
+              <button id="wordleBtn" class="launcher-menu-btn" type="button" aria-label="Wordle Battle" title="Wordle Battle">
+                <span class="lm-icon lm-emoji-icon">📝</span>
+                <span class="lm-label">Wordle</span>
+              </button>
+              <button id="triviaBtn" class="launcher-menu-btn" type="button" aria-label="Trivia Duel" title="Trivia Duel">
+                <span class="lm-icon lm-emoji-icon">🧠</span>
+                <span class="lm-label">Trivia</span>
+              </button>
+              <button id="drawBtn" class="launcher-menu-btn" type="button" aria-label="Drawing Guess" title="Drawing Guess">
+                <span class="lm-icon lm-emoji-icon">🎨</span>
+                <span class="lm-label">Draw</span>
+              </button>
             </div>
             <!-- Apps section -->
             <div class="launcher-section-label">Apps</div>
@@ -243,10 +259,10 @@
     </div>
 
     <!-- GeoGuessr Game Modal -->
-    <div id="geoModal" class="geo-modal">
-      <div class="geo-panel">
+    <div id="geoModal" class="game-modal geo-modal">
+      <div class="game-panel geo-panel">
         <button id="geoCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
-        <div class="geo-header">
+        <div class="game-header geo-header">
           <span id="geoRoundLabel" class="geo-round-label">Round 1 of 5</span>
           <span id="geoTimer" class="geo-timer">1:00</span>
           <span id="geoScoreDisplay" class="geo-score-display">E: 0 — M: 0</span>
@@ -269,9 +285,91 @@
         </div>
         <div id="geoSummaryArea" class="geo-summary-area" style="display:none;"></div>
         <div id="geoScoreboardArea" class="geo-scoreboard-area" style="display:none;"></div>
-        <div class="geo-actions">
+        <div class="game-actions geo-actions">
           <button id="geoScoreboardBtn" class="game-btn secondary" type="button">History</button>
           <button id="geoCloseGameBtn" class="game-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wordle Battle Modal -->
+    <div id="wordleModal" class="game-modal wordle-modal">
+      <div class="game-panel wordle-panel">
+        <button id="wordleCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
+        <div class="game-header wordle-header">
+          <span id="wordleRoundLabel" class="wordle-round-label">Round 1 of 5</span>
+          <span id="wordleTimer" class="wordle-timer">2:00</span>
+          <span id="wordleScoreDisplay" class="wordle-score-display">E: 0 — M: 0</span>
+        </div>
+        <div id="wordleGuessArea" class="wordle-guess-area" style="display:flex;">
+          <div id="wordleGrid" class="wordle-grid"></div>
+          <div id="wordleKeyboard" class="wordle-keyboard"></div>
+        </div>
+        <div id="wordleResultArea" class="wordle-result-area" style="display:none;"></div>
+        <div id="wordleSummaryArea" class="wordle-summary-area" style="display:none;"></div>
+        <div id="wordleScoreboardArea" class="wordle-scoreboard-area" style="display:none;"></div>
+        <div class="game-actions wordle-actions">
+          <button id="wordleScoreboardBtn" class="game-btn secondary" type="button">History</button>
+          <button id="wordleCloseGameBtn" class="game-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trivia Duel Modal -->
+    <div id="triviaModal" class="game-modal trivia-modal">
+      <div class="game-panel trivia-panel">
+        <button id="triviaCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
+        <div class="game-header trivia-header">
+          <span id="triviaQuestionLabel" class="trivia-question-label">Question 1 of 10</span>
+          <span id="triviaTimer" class="trivia-timer">15</span>
+          <span id="triviaScoreDisplay" class="trivia-score-display">E: 0 — M: 0</span>
+        </div>
+        <div id="triviaTimerBar" class="trivia-timer-bar"><div class="trivia-timer-fill"></div></div>
+        <div id="triviaQuestionArea" class="trivia-question-area" style="display:flex;">
+          <span id="triviaCategory" class="trivia-category"></span>
+          <div id="triviaQuestionText" class="trivia-question-text"></div>
+          <div id="triviaOptions" class="trivia-options"></div>
+        </div>
+        <div id="triviaResultArea" class="trivia-result-area" style="display:none;"></div>
+        <div id="triviaSummaryArea" class="trivia-summary-area" style="display:none;"></div>
+        <div id="triviaScoreboardArea" class="trivia-scoreboard-area" style="display:none;"></div>
+        <div class="game-actions trivia-actions">
+          <button id="triviaScoreboardBtn" class="game-btn secondary" type="button">History</button>
+          <button id="triviaCloseGameBtn" class="game-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawing Guess Modal -->
+    <div id="drawModal" class="game-modal draw-modal">
+      <div class="game-panel draw-panel">
+        <button id="drawCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
+        <div class="game-header draw-header">
+          <span id="drawRoundLabel" class="draw-round-label">Round 1 of 6</span>
+          <span id="drawTimer" class="draw-timer">1:00</span>
+          <span id="drawScoreDisplay" class="draw-score-display">E: 0 — M: 0</span>
+        </div>
+        <div id="drawPlayArea" class="draw-play-area" style="display:flex;">
+          <div id="drawWordDisplay" class="draw-word-display"></div>
+          <canvas id="drawCanvas" class="draw-canvas" width="500" height="400"></canvas>
+          <div id="drawToolbar" class="draw-toolbar">
+            <div id="drawColors" class="draw-colors"></div>
+            <div id="drawSizes" class="draw-sizes"></div>
+            <button id="drawClearBtn" class="draw-clear-btn" type="button">Clear</button>
+          </div>
+          <div id="drawGuessArea" class="draw-guess-input-area">
+            <div id="drawWordHint" class="draw-word-hint"></div>
+            <input id="drawGuessInput" class="draw-guess-input" type="text" placeholder="Type your guess..." autocomplete="off">
+            <button id="drawGuessBtn" class="draw-guess-btn" type="button">Guess</button>
+            <div id="drawWrongGuesses" class="draw-wrong-guesses"></div>
+          </div>
+        </div>
+        <div id="drawResultArea" class="draw-result-area" style="display:none;"></div>
+        <div id="drawSummaryArea" class="draw-summary-area" style="display:none;"></div>
+        <div id="drawScoreboardArea" class="draw-scoreboard-area" style="display:none;"></div>
+        <div class="game-actions draw-actions">
+          <button id="drawScoreboardBtn" class="game-btn secondary" type="button">History</button>
+          <button id="drawCloseGameBtn" class="game-btn" type="button">Close</button>
         </div>
       </div>
     </div>
@@ -335,6 +433,18 @@
     <button type="button" class="game-item" id="geoGuessrBtn">
       <span class="game-item-icon">🌍</span>
       <span class="game-item-name">GeoGuessr</span>
+    </button>
+    <button type="button" class="game-item" id="wordleBtn2">
+      <span class="game-item-icon">📝</span>
+      <span class="game-item-name">Wordle Battle</span>
+    </button>
+    <button type="button" class="game-item" id="triviaBtn2">
+      <span class="game-item-icon">🧠</span>
+      <span class="game-item-name">Trivia Duel</span>
+    </button>
+    <button type="button" class="game-item" id="drawBtn2">
+      <span class="game-item-icon">🎨</span>
+      <span class="game-item-name">Drawing Guess</span>
     </button>
   </div>
   <h3 class="games-section-title" id="activeGamesTitle" style="display:none;">Active Games</h3>
@@ -520,7 +630,11 @@
 <script src="/msgdrop/js/images.js?v=20260220"></script>
 <script src="/msgdrop/js/streak.js?v=20260220"></script>
 <script src="/msgdrop/js/game.js?v=20260220"></script>
-<script src="/msgdrop/js/geogame.js?v=20260221"></script>
+<script src="/msgdrop/js/game-engine.js?v=20260224"></script>
+<script src="/msgdrop/js/geogame.js?v=20260224"></script>
+<script src="/msgdrop/js/wordle.js?v=20260224"></script>
+<script src="/msgdrop/js/trivia.js?v=20260224"></script>
+<script src="/msgdrop/js/drawing.js?v=20260224"></script>
 <script src="/msgdrop/js/qa.js?v=20260222"></script>
 <script src="/msgdrop/js/giphy.js?v=20260220"></script>
 <script src="/msgdrop/js/camera.js?v=20260220"></script>

@@ -1,55 +1,5 @@
 /* ================== GEOGUESSR GAME ================== */
-.geo-modal {
-  position: fixed !important;
-  inset: 0 !important;
-  background: rgba(0,0,0,0.88);
-  z-index: 5000;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(8px);
-}
-.geo-modal.show {
-  display: flex !important;
-}
-
-.geo-panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  width: min(720px, 96vw);
-  height: min(88vh, 720px);
-  position: relative;
-  z-index: 5001;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Header */
-.geo-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 52px 14px 20px;  /* right padding for close btn */
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.geo-round-label {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
-.geo-score-display {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.geo-score-e { color: #ef4444; }
-.geo-score-m { color: #3b82f6; }
-.geo-score-sep { color: var(--muted); }
+/* Modal/panel/header/timer/actions/pause use shared classes from games-shared.css */
 
 /* Guessing area - vertical split */
 .geo-guess-area {
@@ -251,49 +201,6 @@
 .geo-sg-e { color: #ef4444; font-weight: 600; min-width: 48px; text-align: right; }
 .geo-sg-m { color: #3b82f6; font-weight: 600; min-width: 48px; text-align: right; }
 .geo-sg-winner { color: var(--muted); font-style: italic; margin-left: auto; }
-
-/* Bottom actions */
-.geo-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  padding: 12px 20px;
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-/* Timer */
-.geo-timer {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-.geo-timer.warning { color: #ef4444; }
-
-/* Pause overlay */
-.geo-pause-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.75);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 5002;
-  border-radius: 20px;
-}
-.geo-pause-content {
-  text-align: center;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.geo-pause-title { font-size: 22px; font-weight: 800; }
-.geo-pause-sub { font-size: 15px; color: rgba(255,255,255,0.7); }
-.geo-pause-hint { font-size: 13px; color: rgba(255,255,255,0.45); }
 
 /* Mobile view toggle */
 .geo-view-toggle {
