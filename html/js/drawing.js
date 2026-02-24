@@ -294,8 +294,9 @@ window.DrawingGame = new (class extends GameEngine {
     if (gameArea) gameArea.style.display   = 'none';
     if (resultArea) resultArea.style.display = 'flex';
 
+    var guessed = data.correct || data.guessed;
     var html = '<div class="draw-result-word">The word was: <strong>' + (data.word || '?').toUpperCase() + '</strong></div>';
-    if (data.guessed) {
+    if (guessed) {
       html += '<div class="draw-result-info">' + (data.guesser || '?') + ' guessed correctly!</div>';
       html += '<div class="draw-result-scores">Guesser +' + (data.guesserScore || 0) + ' \u00B7 Drawer +' + (data.drawerScore || 0) + '</div>';
     } else {

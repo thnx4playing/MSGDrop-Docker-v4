@@ -54,8 +54,8 @@ window.GameEngine = class GameEngine {
 
     // Phases where closing the modal should trigger a forfeit confirmation.
     // Subclasses may override via config or by setting this after construction.
-    this.activePhases = config.activePhases || ['guessing', 'waiting', 'result', 'paused',
-      'playing', 'answering', 'questionResult', 'drawing'];
+    this.activePhases = config.activePhases || ['guessing', 'waiting', 'result', 'roundResult',
+      'paused', 'playing', 'answering', 'questionResult', 'drawing'];
 
     // ── Core state (shared across all games) ──
     this.state = {
