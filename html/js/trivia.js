@@ -359,30 +359,14 @@ window.TriviaGame = new (class extends GameEngine {
     this.stopTimer();
     // data: {correctIdx, results: {E: {answerIdx, correct, score, timeMs}, M: {...}}, totalScores}
     var me = Messages.myRole;
-    var them = me === 'E' ? 'M' : 'E';
     var buttons = document.querySelectorAll('.trivia-option');
     buttons.forEach(function(btn, i) {
       btn.disabled = true;
       if (i === data.correctIdx) btn.classList.add('correct');
-      // Tag wrong guesses with whose guess it was
-      ['E', 'M'].forEach(function(p) {
-        if (data.results[p] && data.results[p].answerIdx === i && !data.results[p].correct) {
-          if (p === me) {
-            btn.classList.add('wrong-mine');
-          } else {
-            btn.classList.add('wrong-theirs');
-          }
-        }
-      });
-      // Add "You" / player tag to guessed options
-      var tags = [];
-      if (data.results[me] && data.results[me].answerIdx === i) tags.push('You');
-      if (data.results[them] && data.results[them].answerIdx === i) tags.push(them);
-      if (tags.length > 0) {
-        var tag = document.createElement('span');
-        tag.className = 'trivia-option-tag';
-        tag.textContent = tags.join(' & ');
-        btn.appendChild(tag);
+      // Only highlight your own wrong guess
+      var myResult = data.results[me];
+      if (myResult && myResult.answerIdx === i && !myResult.correct) {
+        btn.classList.add('wrong-mine');
       }
     });
 

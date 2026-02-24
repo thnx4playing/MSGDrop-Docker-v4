@@ -87,28 +87,8 @@
   background: rgba(239,68,68,0.12);
   color: #ef4444;
 }
-.trivia-option.wrong-theirs {
-  border-color: var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  opacity: 0.55;
-}
 .trivia-option:disabled {
   cursor: not-allowed;
-}
-/* Tag showing who picked this answer */
-.trivia-option-tag {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  background: rgba(255,255,255,0.12);
-  padding: 2px 8px;
-  border-radius: 8px;
-  margin-left: 10px;
-  vertical-align: middle;
-  color: inherit;
 }
 
 /* Timer bar */
