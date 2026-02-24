@@ -1,7 +1,15 @@
 /* ================== WORDLE BATTLE ================== */
 /* Modal/panel/header/timer/actions/pause use shared classes from games-shared.css */
 
-/* Guess area - grid on top, keyboard pinned to bottom */
+/* Force full-screen panel (mobile-first app) */
+.wordle-panel {
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  border-radius: 0 !important;
+}
+
+/* ── Guess area: grid centered + keyboard pinned to bottom ── */
 .wordle-guess-area {
   flex: 1;
   display: flex;
@@ -11,35 +19,39 @@
   overflow: hidden;
 }
 
-/* Grid wrapper - takes remaining space, centers grid vertically */
+/* Grid wrapper — flexes to fill space between header and keyboard */
 .wordle-grid-wrap {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: 8px;
+  padding: 4px;
 }
 
-/* Letter grid */
+/* Grid — sized relative to viewport so it always fits */
 .wordle-grid {
   display: grid;
-  grid-template-columns: repeat(5, 56px);
-  grid-template-rows: repeat(6, 56px);
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(6, 1fr);
   gap: 4px;
+  /* Width: 70% of screen but max 320px */
+  width: min(70vw, 320px);
+  /* Height: auto from aspect-ratio, but capped to available space */
+  aspect-ratio: 5 / 6;
+  max-height: 100%;
 }
 .wordle-cell {
-  width: 56px;
-  height: 56px;
   border: 2px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: clamp(16px, 5vw, 26px);
   font-weight: 700;
   text-transform: uppercase;
   transition: all 0.3s;
   color: var(--text);
+  border-radius: 2px;
 }
 .wordle-cell.correct {
   background: #22c55e;
@@ -80,13 +92,23 @@
   20%, 40%, 60%, 80%      { transform: translateX(4px); }
 }
 
-/* On-screen keyboard - pinned to bottom */
+/* Message */
+.wordle-message {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 600;
+  min-height: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  padding: 2px 0;
+}
+
+/* ── On-screen keyboard — pinned to bottom, always visible ── */
 .wordle-keyboard {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  max-width: 500px;
+  gap: 5px;
+  padding: 6px 4px;
   width: 100%;
   flex-shrink: 0;
 }
@@ -98,23 +120,23 @@
 .wordle-key {
   appearance: none;
   border: none;
-  min-width: 32px;
-  height: 48px;
+  height: 44px;
   border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 13px;
+  background: #525562;
+  color: #fff;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   flex: 1;
-  max-width: 44px;
+  max-width: 40px;
+  min-width: 0;
   text-transform: uppercase;
   transition: background 0.2s;
 }
 .wordle-key.wide {
-  min-width: 56px;
-  max-width: 64px;
-  font-size: 12px;
+  max-width: 60px;
+  font-size: 11px;
+  letter-spacing: 0.3px;
 }
 .wordle-key.correct {
   background: #22c55e;
@@ -129,16 +151,7 @@
   color: #666;
 }
 
-/* Message */
-.wordle-message {
-  font-size: 14px;
-  color: var(--text);
-  font-weight: 600;
-  min-height: 24px;
-  text-align: center;
-}
-
-/* Result area (round result) */
+/* ── Result area (round result) ── */
 .wordle-result-area {
   flex: 1;
   overflow-y: auto;
@@ -162,7 +175,7 @@
   font-size: 0;
 }
 
-/* Summary area */
+/* ── Summary area ── */
 .wordle-summary-area {
   flex: 1;
   overflow-y: auto;
@@ -207,7 +220,7 @@
 .wordle-sr-e { color: #ef4444; font-weight: 600; min-width: 40px; text-align: right; }
 .wordle-sr-m { color: #3b82f6; font-weight: 600; min-width: 40px; text-align: right; }
 
-/* Scoreboard area */
+/* ── Scoreboard area ── */
 .wordle-scoreboard-area {
   flex: 1;
   overflow-y: auto;
@@ -236,41 +249,3 @@
 .wordle-sg-e { color: #ef4444; font-weight: 600; min-width: 48px; text-align: right; }
 .wordle-sg-m { color: #3b82f6; font-weight: 600; min-width: 48px; text-align: right; }
 .wordle-sg-winner { color: var(--muted); font-style: italic; margin-left: auto; }
-
-/* Mobile responsive */
-@media (max-width: 640px) {
-  .wordle-panel {
-    width: 100vw;
-    height: 100vh;
-    height: 100dvh;
-    border-radius: 0;
-  }
-  .wordle-grid {
-    grid-template-columns: repeat(5, clamp(38px, 12vw, 50px));
-    grid-template-rows: repeat(6, clamp(38px, 12vw, 50px));
-    gap: 3px;
-  }
-  .wordle-cell {
-    width: auto;
-    height: auto;
-    font-size: clamp(16px, 5vw, 22px);
-  }
-  .wordle-keyboard {
-    padding: 6px 4px;
-    gap: 4px;
-  }
-  .wordle-key {
-    height: 40px;
-    font-size: 12px;
-    min-width: 26px;
-    border-radius: 5px;
-  }
-  .wordle-key.wide {
-    min-width: 44px;
-    max-width: 56px;
-    font-size: 11px;
-  }
-  .wordle-kb-row {
-    gap: 3px;
-  }
-}
