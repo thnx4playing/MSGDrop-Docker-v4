@@ -283,6 +283,8 @@ var App = {
     if(triviaCloseGameBtn){ triviaCloseGameBtn.addEventListener('click', function(){ if(typeof TriviaGame !== 'undefined') TriviaGame.closeGame(); }); }
     var triviaScoreboardBtn = document.getElementById('triviaScoreboardBtn');
     if(triviaScoreboardBtn){ triviaScoreboardBtn.addEventListener('click', function(){ if(typeof TriviaGame !== 'undefined') TriviaGame.showScoreboard(); }); }
+    var triviaNextBtn = document.getElementById('triviaNextBtn');
+    if(triviaNextBtn){ triviaNextBtn.addEventListener('click', function(){ if(typeof TriviaGame !== 'undefined') TriviaGame.nextQuestion(); }); }
 
     // Drawing Guess — launcher menu + popover
     var drawBtn = document.getElementById('drawBtn');

@@ -323,17 +323,19 @@
       <div class="game-panel trivia-panel">
         <button id="triviaCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
         <div class="game-header trivia-header">
-          <span id="triviaQuestionLabel" class="trivia-question-label">Question 1 of 10</span>
-          <span id="triviaTimer" class="trivia-timer">15</span>
+          <span id="triviaRoundLabel" class="trivia-round-label">Question 1 of 10</span>
+          <span id="triviaTimer" class="game-timer trivia-timer">15</span>
           <span id="triviaScoreDisplay" class="trivia-score-display">E: 0 — M: 0</span>
         </div>
-        <div id="triviaTimerBar" class="trivia-timer-bar"><div class="trivia-timer-fill"></div></div>
-        <div id="triviaQuestionArea" class="trivia-question-area" style="display:flex;">
+        <div id="triviaTimerBar" class="trivia-timer-bar"><div id="triviaTimerFill" class="trivia-timer-fill"></div></div>
+        <div id="triviaGameArea" class="trivia-game-area" style="display:flex;">
           <span id="triviaCategory" class="trivia-category"></span>
-          <div id="triviaQuestionText" class="trivia-question-text"></div>
+          <div id="triviaQuestion" class="trivia-question"></div>
           <div id="triviaOptions" class="trivia-options"></div>
+          <div id="triviaResultText" class="trivia-result-text"></div>
+          <div id="triviaWaiting" class="trivia-waiting"></div>
+          <button id="triviaNextBtn" class="game-btn" style="display:none;margin-top:8px;" type="button">Next Question</button>
         </div>
-        <div id="triviaResultArea" class="trivia-result-area" style="display:none;"></div>
         <div id="triviaSummaryArea" class="trivia-summary-area" style="display:none;"></div>
         <div id="triviaScoreboardArea" class="trivia-scoreboard-area" style="display:none;"></div>
         <div class="game-actions trivia-actions">

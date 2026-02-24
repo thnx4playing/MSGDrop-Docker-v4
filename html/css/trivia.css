@@ -14,15 +14,15 @@
   box-shadow: none !important;
 }
 
-/* Game area */
+/* ── Game area: vertical centered stack ── */
 .trivia-game-area {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  gap: 16px;
+  padding: 20px;
+  gap: 14px;
   overflow-y: auto;
 }
 
@@ -33,12 +33,12 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--accent);
-  background: rgba(var(--accent-rgb, 99,102,241), 0.12);
-  padding: 4px 12px;
+  background: rgba(99,102,241,0.12);
+  padding: 4px 14px;
   border-radius: 20px;
 }
 
-/* Question */
+/* Question text */
 .trivia-question {
   font-size: 18px;
   font-weight: 700;
@@ -69,7 +69,7 @@
   text-align: left;
   transition: all 0.2s;
 }
-.trivia-option:hover {
+.trivia-option:hover:not(:disabled) {
   border-color: var(--text);
   transform: scale(1.01);
 }
@@ -96,10 +96,9 @@
 .trivia-timer-bar {
   width: 100%;
   height: 6px;
-  border-radius: 3px;
   background: var(--border);
   overflow: hidden;
-  max-width: 480px;
+  flex-shrink: 0;
 }
 .trivia-timer-fill {
   height: 100%;
@@ -114,7 +113,7 @@
   font-weight: 600;
   color: var(--text);
   text-align: center;
-  min-height: 24px;
+  min-height: 20px;
 }
 .trivia-waiting {
   font-size: 14px;
@@ -122,7 +121,7 @@
   text-align: center;
 }
 
-/* Summary area */
+/* ── Summary area ── */
 .trivia-summary-area {
   flex: 1;
   overflow-y: auto;
@@ -150,34 +149,12 @@
   color: #22c55e;
   font-weight: 800;
 }
-.trivia-summary-rounds {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
-.trivia-summary-round {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  font-size: 13px;
-  border-bottom: 1px solid var(--border);
-}
-.trivia-sr-num { font-weight: 700; color: var(--muted); min-width: 28px; }
-.trivia-sr-question { flex: 1; color: var(--text); }
-.trivia-sr-e { color: #ef4444; font-weight: 600; min-width: 40px; text-align: right; }
-.trivia-sr-m { color: #3b82f6; font-weight: 600; min-width: 40px; text-align: right; }
 
-/* Scoreboard area */
+/* ── Scoreboard area ── */
 .trivia-scoreboard-area {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-}
-.trivia-scoreboard-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 8px;
 }
 .trivia-scoreboard-stats {
   font-size: 13px;
@@ -192,12 +169,8 @@
   font-size: 13px;
   border-bottom: 1px solid var(--border);
 }
-.trivia-sg-date { color: var(--muted); min-width: 80px; }
-.trivia-sg-e { color: #ef4444; font-weight: 600; min-width: 48px; text-align: right; }
-.trivia-sg-m { color: #3b82f6; font-weight: 600; min-width: 48px; text-align: right; }
-.trivia-sg-winner { color: var(--muted); font-style: italic; margin-left: auto; }
 
-/* Mobile responsive */
+/* ── Mobile responsive ── */
 @media (max-width: 640px) {
   .trivia-question {
     font-size: 16px;
