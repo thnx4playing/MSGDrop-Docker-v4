@@ -349,21 +349,21 @@
         <button id="drawCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
         <div class="game-header draw-header">
           <span id="drawRoundLabel" class="draw-round-label">Round 1 of 6</span>
-          <span id="drawTimer" class="draw-timer">1:00</span>
+          <span id="drawTimer" class="game-timer draw-timer">1:00</span>
           <span id="drawScoreDisplay" class="draw-score-display">E: 0 — M: 0</span>
         </div>
-        <div id="drawPlayArea" class="draw-play-area" style="display:flex;">
+        <div id="drawGameArea" class="draw-game-area" style="display:flex;">
+          <div id="drawRoleLabel" class="draw-role-label"></div>
           <div id="drawWordDisplay" class="draw-word-display"></div>
-          <canvas id="drawCanvas" class="draw-canvas" width="500" height="400"></canvas>
-          <div id="drawToolbar" class="draw-toolbar">
-            <div id="drawColors" class="draw-colors"></div>
-            <div id="drawSizes" class="draw-sizes"></div>
-            <button id="drawClearBtn" class="draw-clear-btn" type="button">Clear</button>
+          <div class="draw-canvas-wrap">
+            <canvas id="drawCanvas" class="draw-canvas"></canvas>
           </div>
-          <div id="drawGuessArea" class="draw-guess-input-area">
-            <div id="drawWordHint" class="draw-word-hint"></div>
-            <input id="drawGuessInput" class="draw-guess-input" type="text" placeholder="Type your guess..." autocomplete="off">
-            <button id="drawGuessBtn" class="draw-guess-btn" type="button">Guess</button>
+          <div id="drawToolbar" class="draw-toolbar"></div>
+          <div id="drawGuessArea" class="draw-guess-area">
+            <div class="draw-guess-row">
+              <input id="drawGuessInput" class="draw-guess-input" type="text" placeholder="Type your guess..." autocomplete="off">
+              <button id="drawGuessBtn" class="draw-guess-btn" type="button">Guess</button>
+            </div>
             <div id="drawWrongGuesses" class="draw-wrong-guesses"></div>
           </div>
         </div>

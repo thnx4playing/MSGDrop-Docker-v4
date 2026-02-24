@@ -186,8 +186,10 @@ window.DrawingGame = new (class extends GameEngine {
    */
   renderForfeitMessage() {
     var gameArea    = document.getElementById('drawGameArea');
+    var resultArea  = document.getElementById('drawResultArea');
     var summaryArea = document.getElementById('drawSummaryArea');
     if (gameArea) gameArea.style.display = 'none';
+    if (resultArea) resultArea.style.display = 'none';
     if (summaryArea) {
       summaryArea.style.display = 'block';
       summaryArea.innerHTML = '<div class="draw-summary-title">Other player left the game</div>';
@@ -299,11 +301,17 @@ window.DrawingGame = new (class extends GameEngine {
     } else {
       html += '<div class="draw-result-info">Nobody guessed the word!</div>';
     }
+    if (this.state.round < this.state.totalRounds) {
+      html += '<button id="drawNextBtn" class="game-btn" style="margin-top:16px" type="button">Next Round</button>';
+    }
     resultArea.innerHTML = html;
     this.updateScoreDisplay();
 
+    var self = this;
     var nextBtn = document.getElementById('drawNextBtn');
-    if (nextBtn) nextBtn.style.display = this.state.round >= this.state.totalRounds ? 'none' : '';
+    if (nextBtn) {
+      nextBtn.addEventListener('click', function() { self.nextRound(); });
+    }
   }
 
   renderGameSummary(data) {
@@ -353,8 +361,9 @@ window.DrawingGame = new (class extends GameEngine {
     this.ctx = this.canvas.getContext('2d');
     var wrap = this.canvas.parentElement;
     if (wrap) {
-      this.canvas.width  = wrap.clientWidth;
-      this.canvas.height = wrap.clientHeight;
+      // Use the wrapper's actual rendered size (CSS: position absolute, inset 0)
+      this.canvas.width  = wrap.offsetWidth;
+      this.canvas.height = wrap.offsetHeight;
     }
     this.ctx.fillStyle = '#ffffff';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -548,20 +557,23 @@ window.DrawingGame = new (class extends GameEngine {
 
   setupGuessInput() {
     var input = document.getElementById('drawGuessInput');
+    var btn   = document.getElementById('drawGuessBtn');
     if (!input) return;
     input.value = '';
     input.disabled = false;
     input.focus();
     var self = this;
+
     input.onkeydown = function(e) {
       if (e.key === 'Enter') {
-        var guess = input.value.trim().toLowerCase();
-        if (!guess) return;
-        input.value = '';
-        if (self.state.phase !== 'guessing') return;
-        self._sendOp('draw_guess', {gameId: self.state.gameId, guess: guess});
+        e.preventDefault();
+        self.submitGuess();
       }
     };
+
+    if (btn) {
+      btn.onclick = function() { self.submitGuess(); };
+    }
   }
 
   submitGuess() {
@@ -571,9 +583,8 @@ window.DrawingGame = new (class extends GameEngine {
     if (!guess) return;
     input.value = '';
     if (this.state.phase !== 'guessing') return;
-    if (!this._wsReady()) return;
-    var elapsed = Date.now() - (this.state.roundStartTime || Date.now());
-    this._sendOp('draw_guess', {gameId: this.state.gameId, guess: guess, timeMs: elapsed});
+    this._sendOp('draw_guess', {gameId: this.state.gameId, guess: guess});
+    input.focus();
   }
 
   // =========================================================================
