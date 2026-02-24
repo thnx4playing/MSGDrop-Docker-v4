@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir yt-dlp
 
 # App code
-COPY main.py /app/main.py
+COPY main.py word_lists.py /app/
 # Static UI (serve your provided html/ under /msgdrop)
 COPY html/ /app/html/
 
