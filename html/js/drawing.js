@@ -357,19 +357,27 @@ window.DrawingGame = new (class extends GameEngine {
   // =========================================================================
 
   initCanvas() {
+    var self = this;
     this.canvas = document.getElementById('drawCanvas');
     if (!this.canvas) return;
     this.ctx = this.canvas.getContext('2d');
-    var wrap = this.canvas.parentElement;
-    if (wrap) {
-      // Use the wrapper's actual rendered size (CSS: position absolute, inset 0)
-      this.canvas.width  = wrap.offsetWidth;
-      this.canvas.height = wrap.offsetHeight;
-    }
-    this.ctx.fillStyle = '#ffffff';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.lineCap  = 'round';
-    this.ctx.lineJoin = 'round';
+    // Defer sizing to next frame so flex layout has fully settled
+    requestAnimationFrame(function() {
+      if (!self.canvas) return;
+      var rect = self.canvas.getBoundingClientRect();
+      self.canvas.width  = rect.width;
+      self.canvas.height = rect.height;
+      self.ctx.fillStyle = '#ffffff';
+      self.ctx.fillRect(0, 0, self.canvas.width, self.canvas.height);
+      self.ctx.lineCap  = 'round';
+      self.ctx.lineJoin = 'round';
+      // Re-replay strokes if guesser (canvas clear wiped them)
+      if (!self.state.isDrawer && self.state.allStrokes.length > 0) {
+        var strokes = self.state.allStrokes.slice();
+        self.state.allStrokes = [];
+        self.replayStrokes(strokes);
+      }
+    });
   }
 
   clearCanvas() {
@@ -395,7 +403,9 @@ window.DrawingGame = new (class extends GameEngine {
         x = e.clientX - rect.left;
         y = e.clientY - rect.top;
       }
-      return {x: x / self.canvas.width, y: y / self.canvas.height};
+      // Normalize by DISPLAY size (rect), not internal canvas resolution,
+      // so coordinates are correct even if canvas size was measured early
+      return {x: x / rect.width, y: y / rect.height};
     };
 
     var startDraw = function(e) {
