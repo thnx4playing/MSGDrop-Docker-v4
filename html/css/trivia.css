@@ -213,8 +213,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 3px;
   transition: all 0.15s;
+  aspect-ratio: 1;
 }
 .trivia-cat-btn:hover {
   border-color: var(--accent);
