@@ -755,7 +755,9 @@ var Messages = {
 
   render: function(){
     if(!UI.els.chatContainer) return;
-    var wasAtBottom = UI.els.chatContainer.scrollHeight - UI.els.chatContainer.scrollTop <= UI.els.chatContainer.clientHeight + 50;
+    var isFirstRender = !this._hasRendered;
+    this._hasRendered = true;
+    var wasAtBottom = isFirstRender || UI.els.chatContainer.scrollHeight - UI.els.chatContainer.scrollTop <= UI.els.chatContainer.clientHeight + 50;
 
     // Save call system messages – they live outside .message-group
     var callSysMessages = Array.from(UI.els.chatContainer.querySelectorAll('.call-system-message'));
@@ -969,6 +971,12 @@ var Messages = {
     });
 
     if(wasAtBottom) UI.els.chatContainer.scrollTop = UI.els.chatContainer.scrollHeight;
+    // On first load, re-scroll after images settle to handle late-loading content
+    if(isFirstRender){
+      var c = UI.els.chatContainer;
+      setTimeout(function(){ c.scrollTop = c.scrollHeight; }, 150);
+      setTimeout(function(){ c.scrollTop = c.scrollHeight; }, 500);
+    }
   },
 
   attachMessageClick: function(msgEl){
