@@ -3,6 +3,21 @@
 // TRIVIA.JS - Trivia Duel game, extends GameEngine base class
 // ============================================================================
 
+var TRIVIA_CATEGORIES = [
+  { id: null, name: 'Any Category',      icon: '\u{1F3B2}' },
+  { id: 9,    name: 'General Knowledge',  icon: '\u{1F9E0}' },
+  { id: 11,   name: 'Film',               icon: '\u{1F3AC}' },
+  { id: 12,   name: 'Music',              icon: '\u{1F3B5}' },
+  { id: 14,   name: 'Television',         icon: '\u{1F4FA}' },
+  { id: 15,   name: 'Video Games',        icon: '\u{1F3AE}' },
+  { id: 17,   name: 'Science & Nature',   icon: '\u{1F52C}' },
+  { id: 21,   name: 'Sports',             icon: '\u{26BD}' },
+  { id: 22,   name: 'Geography',          icon: '\u{1F30D}' },
+  { id: 23,   name: 'History',            icon: '\u{1F4DC}' },
+  { id: 27,   name: 'Animals',            icon: '\u{1F43E}' },
+  { id: 31,   name: 'Anime & Manga',      icon: '\u{1F365}' },
+];
+
 window.TriviaGame = new (class extends GameEngine {
 
   constructor(config) {
@@ -17,11 +32,104 @@ window.TriviaGame = new (class extends GameEngine {
     this.state.scores            = { E: 0, M: 0 };
     this.state.questionHistory   = [];
     this.state.otherPlayerAnswered = false;
+    this.state.categoryId        = null;
+    this.state.categoryName      = null;
   }
 
   // =========================================================================
   //  OVERRIDES: GameEngine abstract methods
   // =========================================================================
+
+  /**
+   * Show category picker instead of immediately sending invite.
+   */
+  startNewGame() {
+    if (!Messages.myRole) { alert('Please select your role first'); return; }
+    if (!WebSocketManager.ws || WebSocketManager.ws.readyState !== 1) { alert('Not connected to server'); return; }
+    this.showCategoryPicker();
+    UI.hideGamesMenu();
+  }
+
+  showCategoryPicker() {
+    this.removeCategoryPicker();
+    var self = this;
+    var overlay = document.createElement('div');
+    overlay.className = 'trivia-category-picker';
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) self.removeCategoryPicker();
+    });
+
+    var panel = document.createElement('div');
+    panel.className = 'trivia-cat-panel';
+
+    var title = document.createElement('div');
+    title.className = 'trivia-cat-title';
+    title.textContent = 'Pick a Category';
+    panel.appendChild(title);
+
+    var grid = document.createElement('div');
+    grid.className = 'trivia-cat-grid';
+
+    TRIVIA_CATEGORIES.forEach(function(cat) {
+      var btn = document.createElement('button');
+      btn.className = 'trivia-cat-btn';
+      btn.type = 'button';
+      btn.innerHTML = '<span class="trivia-cat-icon">' + cat.icon + '</span><span class="trivia-cat-name">' + cat.name + '</span>';
+      btn.addEventListener('click', function() {
+        self.state.categoryId   = cat.id;
+        self.state.categoryName = cat.id !== null ? cat.name : null;
+        self.removeCategoryPicker();
+        self._sendOp('trivia_invite', { categoryId: cat.id, categoryName: cat.id !== null ? cat.name : null });
+      });
+      grid.appendChild(btn);
+    });
+
+    panel.appendChild(grid);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    this._categoryPickerCleanup = function(e) {
+      if (e.key === 'Escape') self.removeCategoryPicker();
+    };
+    document.addEventListener('keydown', this._categoryPickerCleanup);
+  }
+
+  removeCategoryPicker() {
+    var overlay = document.querySelector('.trivia-category-picker');
+    if (overlay) overlay.remove();
+    if (this._categoryPickerCleanup) {
+      document.removeEventListener('keydown', this._categoryPickerCleanup);
+      this._categoryPickerCleanup = null;
+    }
+  }
+
+  /**
+   * Override to show category name in invite card subtitle.
+   */
+  handleInvite(data) {
+    var fromPlayer = data.from;
+    this.state.inviteId  = data.inviteId;
+    this.state.invitedBy = fromPlayer;
+
+    var self  = this;
+    var isMine = (fromPlayer === Messages.myRole);
+    var sub = data.categoryName ? '10 questions \u00B7 ' + data.categoryName : this.subtitle;
+
+    if (typeof Messages !== 'undefined' && Messages.injectGameInvite) {
+      Messages.injectGameInvite({
+        id:       data.inviteId,
+        role:     fromPlayer,
+        status:   isMine ? 'waiting' : 'incoming',
+        game:     this.prefix,
+        icon:     this.icon,
+        title:    this.title,
+        subtitle: sub,
+        onAccept:  function() { self.acceptInvite(); },
+        onDecline: function() { self.declineInvite(); },
+        onCancel:  function() { self.cancelInvite(); }
+      });
+    }
+  }
 
   /**
    * Handle trivia_resume — rebuild game state from server snapshot on reconnect.
@@ -135,6 +243,8 @@ window.TriviaGame = new (class extends GameEngine {
     this.state.scores              = { E: 0, M: 0 };
     this.state.questionHistory     = [];
     this.state.otherPlayerAnswered = false;
+    this.state.categoryId          = null;
+    this.state.categoryName        = null;
   }
 
   /**

@@ -1518,12 +1518,15 @@ _TRIVIA_FALLBACK_QUESTIONS = [
      "options": ["Alexander Fleming", "Louis Pasteur", "Marie Curie", "Joseph Lister"]},
 ]
 
-async def _fetch_trivia_questions(count=10):
+async def _fetch_trivia_questions(count=10, category_id=None):
     """Fetch questions from Open Trivia DB, fall back to embedded set."""
     import html as html_mod
     try:
+        url = f"https://opentdb.com/api.php?amount={count}&type=multiple&encode=url3986"
+        if category_id is not None:
+            url += f"&category={category_id}"
         async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.get(f"https://opentdb.com/api.php?amount={count}&type=multiple&encode=url3986")
+            resp = await client.get(url)
             data = resp.json()
             if data.get("response_code") != 0:
                 raise ValueError("API error")
@@ -2357,16 +2360,21 @@ async def ws_endpoint(ws: WebSocket):
                 # --- Trivia Duel ops ---
                 elif op == "trivia_invite":
                     invite_id = f"trivinv_{secrets.token_hex(8)}"
-                    pending_invites.store("trivia", drop, {"from": user, "inviteId": invite_id})
+                    cat_id = payload.get("categoryId")
+                    cat_name = payload.get("categoryName")
+                    pending_invites.store("trivia", drop, {"from": user, "inviteId": invite_id, "categoryId": cat_id, "categoryName": cat_name})
                     await hub.broadcast(drop, {"type": "game", "payload": {
-                        "op": "trivia_invite", "from": user, "inviteId": invite_id
+                        "op": "trivia_invite", "from": user, "inviteId": invite_id,
+                        "categoryId": cat_id, "categoryName": cat_name
                     }})
                     if (user or "").upper() == "E" and _should_notify("trivia_invite", drop, 120):
                         notify("E wants to play Trivia Duel! Open MSGDrop to accept.")
 
                 elif op == "trivia_invite_accepted":
+                    inv = pending_invites.get("trivia", drop) or {}
+                    cat_id = inv.get("categoryId")
                     pending_invites.clear("trivia", drop)
-                    questions = await _fetch_trivia_questions(10)
+                    questions = await _fetch_trivia_questions(10, category_id=cat_id)
                     gid = f"trivia_{secrets.token_hex(8)}"
                     trivia_game_manager.create_game(gid, drop, user, questions)
                     with engine.begin() as conn:
