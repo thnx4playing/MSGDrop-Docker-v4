@@ -301,8 +301,11 @@
           <span id="wordleTimer" class="wordle-timer">2:00</span>
           <span id="wordleScoreDisplay" class="wordle-score-display">E: 0 — M: 0</span>
         </div>
-        <div id="wordleGuessArea" class="wordle-guess-area" style="display:flex;">
-          <div id="wordleGrid" class="wordle-grid"></div>
+        <div id="wordleGameArea" class="wordle-guess-area" style="display:flex;">
+          <div class="wordle-grid-wrap">
+            <div id="wordleGrid" class="wordle-grid"></div>
+          </div>
+          <div id="wordleMessage" class="wordle-message"></div>
           <div id="wordleKeyboard" class="wordle-keyboard"></div>
         </div>
         <div id="wordleResultArea" class="wordle-result-area" style="display:none;"></div>

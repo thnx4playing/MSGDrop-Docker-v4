@@ -1,16 +1,24 @@
 /* ================== WORDLE BATTLE ================== */
 /* Modal/panel/header/timer/actions/pause use shared classes from games-shared.css */
 
-/* Game area */
-.wordle-game-area {
+/* Guess area - grid on top, keyboard pinned to bottom */
+.wordle-guess-area {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Grid wrapper - takes remaining space, centers grid vertically */
+.wordle-grid-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 20px;
-  gap: 8px;
-  overflow-y: auto;
+  min-height: 0;
+  padding: 8px;
 }
 
 /* Letter grid */
@@ -72,14 +80,15 @@
   20%, 40%, 60%, 80%      { transform: translateX(4px); }
 }
 
-/* On-screen keyboard */
+/* On-screen keyboard - pinned to bottom */
 .wordle-keyboard {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 0 8px;
+  padding: 8px;
   max-width: 500px;
   width: 100%;
+  flex-shrink: 0;
 }
 .wordle-kb-row {
   display: flex;
@@ -237,20 +246,31 @@
     border-radius: 0;
   }
   .wordle-grid {
-    grid-template-columns: repeat(5, 46px);
-    grid-template-rows: repeat(6, 46px);
+    grid-template-columns: repeat(5, clamp(38px, 12vw, 50px));
+    grid-template-rows: repeat(6, clamp(38px, 12vw, 50px));
+    gap: 3px;
   }
   .wordle-cell {
-    width: 46px;
-    height: 46px;
-    font-size: 20px;
+    width: auto;
+    height: auto;
+    font-size: clamp(16px, 5vw, 22px);
+  }
+  .wordle-keyboard {
+    padding: 6px 4px;
+    gap: 4px;
   }
   .wordle-key {
-    height: 42px;
+    height: 40px;
     font-size: 12px;
+    min-width: 26px;
+    border-radius: 5px;
   }
   .wordle-key.wide {
-    min-width: 48px;
+    min-width: 44px;
     max-width: 56px;
+    font-size: 11px;
+  }
+  .wordle-kb-row {
+    gap: 3px;
   }
 }
