@@ -15,7 +15,7 @@ var TRIVIA_CATEGORIES = [
   { id: 22,   name: 'Geography',          icon: '\u{1F30D}' },
   { id: 23,   name: 'History',            icon: '\u{1F4DC}' },
   { id: 27,   name: 'Animals',            icon: '\u{1F43E}' },
-  { id: 31,   name: 'Anime & Manga',      icon: '\u{1F365}' },
+  { id: 26,   name: 'Celebrities',          icon: '\u{2B50}' },
 ];
 
 window.TriviaGame = new (class extends GameEngine {
