@@ -209,7 +209,13 @@ var Streak = {
     var flame = document.createElement('div');
     flame.className = 'celebrate-flame';
     flame.innerHTML = '<div class="celebrate-flame-glow"></div>' +
-      '<span class="celebrate-flame-emoji">\uD83D\uDD25</span>' +
+      '<div class="css-fire">' +
+        '<div class="css-fire-flame f1"></div>' +
+        '<div class="css-fire-flame f2"></div>' +
+        '<div class="css-fire-flame f3"></div>' +
+        '<div class="css-fire-flame f4"></div>' +
+        '<div class="css-fire-flame f5"></div>' +
+      '</div>' +
       '<span class="celebrate-flame-count">' + streak + '</span>';
     overlay.appendChild(flame);
 
