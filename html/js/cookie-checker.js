@@ -55,19 +55,25 @@ var CookieChecker = {
   },
   
   checkAuth: function(){
-    // Check if the UI cookie exists
-    var hasUICookie = document.cookie.split(';').some(function(item){
-      return item.trim().indexOf('session-ok=') === 0;
+    // Check if the UI cookie exists and has a valid-looking value (not just 'true')
+    var cookieVal = null;
+    document.cookie.split(';').some(function(item){
+      var trimmed = item.trim();
+      if(trimmed.indexOf('session-ok=') === 0){
+        cookieVal = trimmed.substring('session-ok='.length);
+        return true;
+      }
+      return false;
     });
-    
+
     this.lastCheckTime = Date.now();
-    
-    if(!hasUICookie){
-      console.warn('[CookieChecker] Session expired, redirecting to /unlock');
+
+    if(!cookieVal || cookieVal.length < 10){
+      console.warn('[CookieChecker] Session expired or invalid, redirecting to /unlock');
       this.redirectToUnlock();
       return false;
     }
-    
+
     return true;
   },
   

@@ -130,12 +130,9 @@ var WebSocketManager = {
 
     // Auth failure → clean up call and redirect; do not reconnect
     if(event.code === 1008) {
-      var sessionToken = this.getCookie('session-ok');
-      if(!sessionToken || sessionToken === 'true'){
-        this._cleanupCallOnSessionExpiry();
-        this._redirectToUnlock();
-        return;
-      }
+      this._cleanupCallOnSessionExpiry();
+      this._redirectToUnlock();
+      return;
     }
 
     // Intentional close (e.g. user navigating away) → do not reconnect
@@ -283,11 +280,17 @@ var WebSocketManager = {
     var user = data.user, state = data.state, ts = data.ts || Date.now();
     if(!user) return;
     if(this.presenceTimeouts.has(user)){ clearTimeout(this.presenceTimeouts.get(user)); this.presenceTimeouts.delete(user); }
+    if(state === 'offline'){
+      this.presenceState.delete(user);
+      this.updatePresence(user, false);
+      return;
+    }
     this.presenceState.set(user, { state: state, ts: ts });
     this.updatePresence(user, state === 'active');
     if(state === 'active'){
       var timeout = setTimeout(function(){
         this.updatePresence(user, false);
+        this.presenceState.delete(user);
         this.presenceTimeouts.delete(user);
       }.bind(this), 60000);
       this.presenceTimeouts.set(user, timeout);
@@ -302,6 +305,10 @@ var WebSocketManager = {
     this._intentionalClose = true;
     if(this._reconnectTimer){ clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     if(this.heartbeatInterval){ clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
+    // Clear presence state & timers
+    this.presenceTimeouts.forEach(function(t){ clearTimeout(t); });
+    this.presenceTimeouts.clear();
+    this.presenceState.clear();
     if(this.ws){ try { this.ws.close(); } catch(e){} this.ws = null; }
   }
 };

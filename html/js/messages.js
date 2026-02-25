@@ -157,14 +157,20 @@ var Messages = {
     var reader = data.reader;
     var readAt = data.readAt;
     if(!upToSeq || !reader || !readAt) return;
-    var updated = false;
     this.history.forEach(function(msg){
       if(msg.seq <= upToSeq && msg.user && msg.user !== reader && !msg.readAt){
         msg.readAt = readAt;
-        updated = true;
+        // Update DOM directly instead of full re-render
+        var group = document.querySelector('.message-group[data-seq="' + msg.seq + '"]');
+        if(group){
+          var receipt = group.querySelector('.meta-receipt');
+          if(receipt){
+            receipt.className = 'meta-receipt receipt-read';
+            receipt.textContent = 'Read';
+          }
+        }
       }
     });
-    if(updated) this.render();
   },
 
   hasRichLinks: function(text){
@@ -763,7 +769,17 @@ var Messages = {
     var callSysMessages = Array.from(UI.els.chatContainer.querySelectorAll('.call-system-message'));
 
     var existingMessages = UI.els.chatContainer.querySelectorAll('.message-group');
-    existingMessages.forEach(function(el){ el.remove(); });
+    // Clean up hidden <audio> elements before removing message groups
+    existingMessages.forEach(function(el){
+      el.querySelectorAll('.audio-play-btn').forEach(function(btn){
+        if(btn._audioEl){
+          try { btn._audioEl.pause(); } catch(e){}
+          if(btn._audioEl.parentNode) btn._audioEl.parentNode.removeChild(btn._audioEl);
+          btn._audioEl = null;
+        }
+      });
+      el.remove();
+    });
 
     this.history.forEach(function(msg, index){
       if(!msg || !msg.message) return;

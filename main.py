@@ -96,7 +96,13 @@ async def add_cache_headers(request: Request, call_next):
         response.headers['Expires'] = '0'
     return response
 
-engine: Engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
+engine: Engine = create_engine(
+    f"sqlite:///{DB_PATH}",
+    future=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_pre_ping=True,
+)
 BLOB_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -447,7 +453,28 @@ class PendingInviteManager:
             return None
         return invite
 
+    def cleanup_stale(self):
+        """Purge all expired invites across every game bucket."""
+        now = time.time()
+        for game in list(self._invites.keys()):
+            bucket = self._invites[game]
+            stale = [d for d, inv in bucket.items() if now - inv.get("ts", 0) > self._ttl]
+            for d in stale:
+                del bucket[d]
+            if not bucket:
+                del self._invites[game]
+
 pending_invites = PendingInviteManager(ttl_seconds=300)
+
+async def _periodic_invite_cleanup():
+    """Purge stale pending invites every 60 seconds."""
+    while True:
+        await asyncio.sleep(60)
+        pending_invites.cleanup_stale()
+
+@app.on_event("startup")
+async def _start_cleanup_tasks():
+    asyncio.create_task(_periodic_invite_cleanup())
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ACTIVE Q&A STATE
@@ -1010,7 +1037,11 @@ def get_streak(drop_id: str) -> Dict[str, Any]:
         previous_streak = current_streak
         if last_completed and last_completed < yesterday and current_streak > 0:
             broke_streak = True
-        
+            # Reset streak in DB so it doesn't report broken on every subsequent read
+            conn.execute(text(
+                "UPDATE streaks SET current_streak = 0 WHERE drop_id = :d"
+            ), {"d": drop_id})
+
         return {
             "streak": 0 if broke_streak else current_streak,
             "bothPostedToday": (m_last == today and e_last == today),
@@ -1141,10 +1172,12 @@ async def resolve_tiktok(url: str, req: Request):
 class Hub:
     def __init__(self):
         self.rooms: Dict[str, Dict[WebSocket, str]] = {}
+        self._lock = asyncio.Lock()
 
     async def join(self, drop_id: str, ws: WebSocket, user: str = "anon"):
         await ws.accept()
-        self.rooms.setdefault(drop_id, {})[ws] = user
+        async with self._lock:
+            self.rooms.setdefault(drop_id, {})[ws] = user
         
         existing_users = {}
         for conn, u in self.rooms.get(drop_id, {}).items():
@@ -1165,13 +1198,14 @@ class Hub:
         })
 
     async def leave(self, drop_id: str, ws: WebSocket):
-        user_label = self.rooms.get(drop_id, {}).get(ws, "anon")
-        try:
-            del self.rooms.get(drop_id, {})[ws]
-            if not self.rooms.get(drop_id):
-                self.rooms.pop(drop_id, None)
-        except KeyError:
-            pass
+        async with self._lock:
+            user_label = self.rooms.get(drop_id, {}).get(ws, "anon")
+            try:
+                del self.rooms.get(drop_id, {})[ws]
+                if not self.rooms.get(drop_id):
+                    self.rooms.pop(drop_id, None)
+            except KeyError:
+                pass
         await self.broadcast(drop_id, {
             "type": "presence",
             "data": {"user": user_label, "state": "offline", "ts": int(time.time() * 1000)},
@@ -1202,7 +1236,9 @@ class Hub:
         dead = []
         for ws in conns:
             try: await ws.send_json(payload)
-            except Exception: dead.append(ws)
+            except Exception as e:
+                logger.warning(f"[Hub] broadcast send failed for drop={drop_id}: {e}")
+                dead.append(ws)
         for ws in dead: await self.leave(drop_id, ws)
 
     async def broadcast_to_others(self, drop_id: str, sender_ws: WebSocket, payload: Dict[str, Any]):
@@ -1211,7 +1247,9 @@ class Hub:
         for ws in conns:
             if ws == sender_ws: continue
             try: await ws.send_json(payload)
-            except Exception: dead.append(ws)
+            except Exception as e:
+                logger.warning(f"[Hub] broadcast_to_others send failed for drop={drop_id}: {e}")
+                dead.append(ws)
         for ws in dead: await self.leave(drop_id, ws)
 
 hub = Hub()
@@ -2541,8 +2579,8 @@ async def ws_endpoint(ws: WebSocket):
                                     "round": 1, "totalRounds": 6, "role": "guesser",
                                     "word": None, "wordLength": len(word), "drawer": drawer
                                 }})
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"[Draw] draw_started send failed: {e}")
 
                 elif op == "draw_invite_declined":
                     pending_invites.clear("draw", drop)
@@ -2689,8 +2727,8 @@ async def ws_endpoint(ws: WebSocket):
                                         "role": "guesser", "word": None,
                                         "wordLength": len(word), "drawer": drawer
                                     }})
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.warning(f"[Draw] draw_next_round send failed: {e}")
 
                 elif op == "draw_forfeit":
                     gid = payload.get("gameId")
