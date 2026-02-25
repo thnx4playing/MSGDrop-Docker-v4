@@ -40,9 +40,17 @@ var API = {
   },
 
   fetchImages: async function(dropId, force){
-    // Mono server returns images inline with /chat/{dropId}
-    var all = await this.fetchDrop(dropId);
-    return { images: (all && all.images) ? all.images : [] };
+    var url = this.bust(CONFIG.API_BASE_URL.replace(/\/$/,'') + '/chat/' + dropId + '/images');
+    var res = await fetch(url, { method:'GET', credentials:'include' });
+    if(!res.ok){
+      if(res.status === 403 || res.status === 401){
+        var nextUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = '/unlock/?next=' + nextUrl;
+        throw new Error('AUTH_REQUIRED');
+      }
+      throw new Error('HTTP '+res.status);
+    }
+    return await res.json();
   },
 
   postMessage: async function(dropId, text, prevVersion, user, clientId, replyToSeq){

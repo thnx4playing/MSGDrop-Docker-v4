@@ -167,6 +167,23 @@ def init_db():
         );
         """)
         conn.exec_driver_sql("""
+        create table if not exists image_library(
+            blob_id text primary key,
+            drop_id text not null,
+            user text,
+            mime text,
+            uploaded_at integer not null
+        );
+        """)
+        # Backfill image_library from existing image messages
+        conn.exec_driver_sql("""
+        insert or ignore into image_library(blob_id, drop_id, user, mime, uploaded_at)
+        select blob_id, drop_id, user, mime, ts
+        from messages
+        where blob_id is not null and message_type = 'image'
+        """)
+
+        conn.exec_driver_sql("""
         create table if not exists geo_games(
             id text primary key,
             drop_id text not null,
@@ -653,7 +670,6 @@ def list_messages(drop_id: str, limit: int = 200, before: Optional[int] = None, 
         max_seq = conn.execute(text("select coalesce(max(seq),0) as v from messages where drop_id=:d"), {"d": drop_id}).scalar()
     rows = list(reversed(rows))
     out = []
-    images = []
     for r in rows:
         o = dict(r)
         msg = {
@@ -680,15 +696,19 @@ def list_messages(drop_id: str, limit: int = 200, before: Optional[int] = None, 
             msg["img"] = f"/blob/{o['blob_id']}"
             if o.get("message_type") == "audio":
                 msg["audioUrl"] = f"/blob/{o['blob_id']}"
-            else:
-                images.append({
-                    "imageId": o["blob_id"],
-                    "mime": o.get("mime"),
-                    "originalUrl": msg["img"],
-                    "thumbUrl": msg["img"],
-                    "uploadedAt": o.get("ts"),
-                })
         out.append(msg)
+    # Pull images from image_library (persists across chat pruning)
+    with engine.begin() as conn:
+        img_rows = conn.execute(text(
+            "select blob_id, mime, uploaded_at from image_library where drop_id=:d order by uploaded_at desc"
+        ), {"d": drop_id}).mappings().all()
+    images = [{
+        "imageId": ir["blob_id"],
+        "mime": ir.get("mime"),
+        "originalUrl": f"/blob/{ir['blob_id']}",
+        "thumbUrl": f"/blob/{ir['blob_id']}",
+        "uploadedAt": ir["uploaded_at"],
+    } for ir in img_rows]
     return {"dropId": drop_id, "version": int(max_seq or 0), "messages": out, "images": images}
 
 @app.head("/api/chat/{drop_id}")
@@ -714,26 +734,11 @@ def cleanup_old_messages(drop_id: str, keep_count: int = 30):
         
         threshold_seq = threshold_row["seq"]
         
-        old_blobs = conn.execute(text("""
-            select blob_id from messages 
-            where drop_id = :d and seq < :threshold and blob_id is not null
-        """), {"d": drop_id, "threshold": threshold_seq}).fetchall()
-        
         result = conn.execute(text("""
-            delete from messages 
+            delete from messages
             where drop_id = :d and seq < :threshold
         """), {"d": drop_id, "threshold": threshold_seq})
-        
-        for row in old_blobs:
-            blob_id = row[0]
-            if blob_id:
-                blob_path = BLOB_DIR / blob_id
-                try:
-                    if blob_path.exists():
-                        blob_path.unlink()
-                except Exception:
-                    pass
-        
+
         return result.rowcount
 
 @app.post("/api/chat/{drop_id}")
@@ -811,6 +816,11 @@ async def post_message(drop_id: str,
                 "u": user, "cid": None, "mt": message_type, "tx": text_, "b": blob_id, "m": mime, "rx": "{}",
                 "gurl": gif_url, "gprev": gif_preview, "gw": gif_width, "gh": gif_height, "iurl": image_url, "ithumb": image_thumb,
                 "rts": reply_to_seq, "del": now_ms, "adur": audio_dur})
+        if blob_id and message_type == "image":
+            conn.execute(text("""
+              insert or ignore into image_library(blob_id, drop_id, user, mime, uploaded_at)
+              values(:b, :d, :u, :m, :ts)
+            """), {"b": blob_id, "d": drop_id, "u": user, "m": mime, "ts": ts})
 
     cleanup_old_messages(drop_id, keep_count=30)
 
@@ -922,11 +932,28 @@ async def mark_messages_read(drop_id: str, body: Dict[str, Any] = Body(...), req
         })
     return {"success": True, "updated": updated_count}
 
+@app.get("/api/chat/{drop_id}/images")
+def get_images(drop_id: str, req: Request = None):
+    require_session(req)
+    with engine.begin() as conn:
+        img_rows = conn.execute(text(
+            "select blob_id, mime, uploaded_at from image_library where drop_id=:d order by uploaded_at desc"
+        ), {"d": drop_id}).mappings().all()
+    images = [{
+        "imageId": ir["blob_id"],
+        "mime": ir.get("mime"),
+        "originalUrl": f"/blob/{ir['blob_id']}",
+        "thumbUrl": f"/blob/{ir['blob_id']}",
+        "uploadedAt": ir["uploaded_at"],
+    } for ir in img_rows]
+    return {"images": images}
+
 @app.delete("/api/chat/{drop_id}/images/{image_id}")
 async def delete_image(drop_id: str, image_id: str, req: Request = None):
     require_session(req)
     with engine.begin() as conn:
         conn.execute(text("delete from messages where drop_id=:d and blob_id=:b"), {"d": drop_id, "b": image_id})
+        conn.execute(text("delete from image_library where drop_id=:d and blob_id=:b"), {"d": drop_id, "b": image_id})
     file_path = BLOB_DIR / image_id
     try:
         if file_path.exists():

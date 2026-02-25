@@ -385,13 +385,21 @@
       </div>
     </div>
 
-    <!-- Thumbnails Section -->
+    <!-- Image Library (full-screen panel) -->
     <div id="thumbSection" class="thumb-section">
-      <button id="thumbCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
+      <div class="thumb-header">
+        <span class="thumb-title">Photos</span>
+        <button id="thumbCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
+      </div>
       <div id="thumbStrip" class="thumb-container" aria-label="Images">
         <div id="thumbEmpty" class="thumb-empty-state">
-          <span style="font-size:48px;opacity:0.3">📷</span>
-          <span>No images yet</span>
+          <svg viewBox="0 0 64 64" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.25">
+            <rect x="6" y="10" width="52" height="40" rx="4"/>
+            <circle cx="22" cy="26" r="5"/>
+            <polyline points="58,42 44,28 22,50"/>
+            <polyline points="38,38 30,46"/>
+          </svg>
+          <span>No photos yet</span>
         </div>
       </div>
     </div>
@@ -399,7 +407,7 @@
   </div>
 </div>
 
-<!-- Thumbnail overlay backdrop -->
+<!-- Thumbnail overlay backdrop (kept for escape-key/click dismiss) -->
 <div id="thumbOverlay" class="thumb-overlay"></div>
 
 <!-- User Role Selector Modal -->
