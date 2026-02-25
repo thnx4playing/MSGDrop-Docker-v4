@@ -1,7 +1,6 @@
 // Image handling
 var Images = {
   list: [],
-  _lastCelebratedCount: 0,
 
   fetch: async function(dropId, force){
     try{
@@ -15,9 +14,6 @@ var Images = {
           uploadedAt: im.uploadedAt
         };
       });
-      // Sync milestone tracker so existing photos don't re-trigger celebrations
-      var highestMilestone = Math.floor(this.list.length / 5) * 5;
-      if(highestMilestone > this._lastCelebratedCount) this._lastCelebratedCount = highestMilestone;
       this.render();
     }catch(e){
       console.error('fetchImages error:', e);
@@ -155,7 +151,6 @@ var Images = {
     this.showUploadStatus('Uploading image...');
     try{
       var dropId = encodeURIComponent(App.dropId);
-      var oldCount = this.list.length;
       var res = await API.uploadImage(dropId, file);
       if(res && res.messages){
         Messages.applyDrop(res);
@@ -165,7 +160,6 @@ var Images = {
           return { id: im.imageId, urls: { thumb: im.thumbUrl, original: im.originalUrl }, uploadedAt: im.uploadedAt };
         });
         Images.render();
-        this.checkMilestone(oldCount, this.list.length);
       }
       this.hideUploadStatus();
       setTimeout(function(){ if(UI.els.chatContainer){ UI.els.chatContainer.scrollTop = UI.els.chatContainer.scrollHeight; } }, 100);
@@ -194,89 +188,6 @@ var Images = {
     var toast = document.getElementById('uploadToast');
     if(toast){
       toast.classList.remove('show');
-    }
-  },
-
-  checkMilestone: function(oldCount, newCount){
-    // Find the first milestone crossed between oldCount and newCount
-    var milestone = 0;
-    for(var m = oldCount + 1; m <= newCount; m++){
-      if(m > 0 && m % 5 === 0){ milestone = m; break; }
-    }
-    if(!milestone || milestone <= this._lastCelebratedCount) return;
-    this._lastCelebratedCount = milestone;
-
-    // Open modal if not already visible
-    var modal = document.getElementById('thumbSection');
-    if(modal && !modal.classList.contains('show')){
-      UI.showThumbModal();
-    }
-
-    // Pick effect based on cycle: 5→confetti, 10→emoji, 15→shimmer, 20→sparkle
-    var cycle = (milestone % 20) / 5; // 1,2,3,0
-    if(cycle === 1) this._confetti(modal);
-    else if(cycle === 2) this._emojiRain(modal);
-    else if(cycle === 3) this._shimmer(modal);
-    else this._sparkle(modal);
-  },
-
-  _confetti: function(container){
-    if(!container) return;
-    var colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6ed4','#a855f7'];
-    var shapes = ['circle','square'];
-    for(var i = 0; i < 30; i++){
-      var el = document.createElement('span');
-      el.className = 'celebrate-particle';
-      el.style.left = (Math.random() * 100) + '%';
-      el.style.animationDelay = (Math.random() * 0.6) + 's';
-      el.style.background = colors[Math.floor(Math.random() * colors.length)];
-      if(shapes[Math.floor(Math.random() * 2)] === 'circle') el.style.borderRadius = '50%';
-      el.style.width = (6 + Math.random() * 6) + 'px';
-      el.style.height = el.style.width;
-      container.appendChild(el);
-      (function(e){ setTimeout(function(){ e.remove(); }, 2200); })(el);
-    }
-  },
-
-  _emojiRain: function(container){
-    if(!container) return;
-    var emojis = ['\uD83D\uDCF8','\uD83C\uDF1F','\uD83C\uDF89','\uD83D\uDC96','\uD83D\uDD25','\uD83C\uDF08','\u2728','\uD83C\uDF1E','\uD83C\uDFA8'];
-    for(var i = 0; i < 15; i++){
-      var el = document.createElement('span');
-      el.className = 'celebrate-emoji';
-      el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-      el.style.left = (Math.random() * 90 + 5) + '%';
-      el.style.animationDelay = (Math.random() * 0.8) + 's';
-      container.appendChild(el);
-      (function(e){ setTimeout(function(){ e.remove(); }, 2800); })(el);
-    }
-  },
-
-  _shimmer: function(modal){
-    if(!modal) return;
-    modal.classList.add('thumb-celebrate-shimmer');
-    setTimeout(function(){ modal.classList.remove('thumb-celebrate-shimmer'); }, 2000);
-  },
-
-  _sparkle: function(container){
-    if(!container) return;
-    var badge = container.querySelector('.thumb-count') || container.querySelector('.thumb-header');
-    var rect = badge ? badge.getBoundingClientRect() : null;
-    var cRect = container.getBoundingClientRect();
-    var cx = rect ? (rect.left + rect.width / 2 - cRect.left) : cRect.width / 2;
-    var cy = rect ? (rect.top + rect.height / 2 - cRect.top) : 40;
-    for(var i = 0; i < 20; i++){
-      var el = document.createElement('span');
-      el.className = 'celebrate-sparkle';
-      var angle = (Math.PI * 2 * i) / 20;
-      var dist = 40 + Math.random() * 50;
-      el.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
-      el.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
-      el.style.left = cx + 'px';
-      el.style.top = cy + 'px';
-      el.style.animationDelay = (Math.random() * 0.2) + 's';
-      container.appendChild(el);
-      (function(e){ setTimeout(function(){ e.remove(); }, 1600); })(el);
     }
   },
 
