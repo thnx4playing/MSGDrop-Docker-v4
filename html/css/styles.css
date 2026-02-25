@@ -1014,14 +1014,15 @@ body.no-scroll{
   color:#ffffff;
 }
 
-/* ================== IMAGE LIBRARY (centered modal) ================== */
+/* ================== IMAGE LIBRARY (iOS-style sheet) ================== */
 .thumb-section{
   display:none;
   padding:0;
   background:var(--panel);
-  border-radius:20px;
-  border:1px solid var(--border);
-  box-shadow:0 20px 60px rgba(0,0,0,.4);
+  border-radius:16px;
+  box-shadow:
+    0 25px 80px rgba(0,0,0,.35),
+    0 0 0 0.5px rgba(0,0,0,.08);
   position:fixed;
   z-index:3000;
   top:50%;
@@ -1032,32 +1033,76 @@ body.no-scroll{
   overflow:hidden;
   flex-direction:column;
 }
+:root[data-theme="dark"] .thumb-section{
+  box-shadow:
+    0 25px 80px rgba(0,0,0,.7),
+    0 0 0 0.5px rgba(255,255,255,.08);
+}
 .thumb-section.show{
   display:flex;
+}
+
+/* iOS-style grab indicator */
+.thumb-sheet-handle{
+  width:36px;
+  height:5px;
+  border-radius:3px;
+  background:var(--border-strong);
+  margin:8px auto 0;
+  flex-shrink:0;
+  opacity:0.5;
 }
 
 .thumb-header{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:14px 16px;
-  border-bottom:1px solid var(--border);
+  padding:10px 16px 12px;
   flex-shrink:0;
 }
+.thumb-header-text{
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+}
 .thumb-title{
-  font-size:16px;
+  font-size:17px;
   font-weight:700;
+  letter-spacing:-0.2px;
   color:var(--text);
 }
-.thumb-header .modal-close-badge{
-  position:static;
+.thumb-count{
+  font-size:12px;
+  font-weight:500;
+  color:var(--muted);
+}
+
+/* iOS-style "Done" button */
+.thumb-close-btn{
+  appearance:none;
+  background:none;
+  border:none;
+  color:var(--accent);
+  font-size:15px;
+  font-weight:600;
+  cursor:pointer;
+  padding:6px 10px;
+  border-radius:8px;
+  transition:background 0.15s;
+}
+.thumb-close-btn:hover{
+  background:rgba(90,162,255,0.1);
+}
+.thumb-close-btn:active{
+  opacity:0.6;
 }
 
 .thumb-overlay{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.5);
-  backdrop-filter:blur(4px);
+  background:rgba(0,0,0,0.4);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
   z-index:2999;
   display:none;
 }
@@ -1068,41 +1113,48 @@ body.no-scroll{
 .thumb-container{
   display:grid;
   grid-template-columns:repeat(4, 1fr);
-  gap:6px;
-  padding:12px;
+  gap:4px;
+  padding:4px 12px 16px;
   overflow-y:auto;
   overflow-x:hidden;
   -webkit-overflow-scrolling:touch;
-  scrollbar-width:thin;
-  scrollbar-color:var(--border) transparent;
+  scrollbar-width:none;
   flex:1;
 }
+.thumb-container::-webkit-scrollbar{
+  display:none;
+}
 
+/* Empty state */
 .thumb-empty-state{
   display:none;
   grid-column:1 / -1;
   text-align:center;
   color:var(--muted);
-  font-size:14px;
-  padding:40px 20px;
+  padding:48px 20px;
   flex-direction:column;
   align-items:center;
-  gap:12px;
+  gap:8px;
 }
 .thumb-empty-state.show{
   display:flex;
 }
-.thumb-container::-webkit-scrollbar{
-  width:6px;
+.thumb-empty-icon{
+  color:var(--border-strong);
+  margin-bottom:4px;
 }
-.thumb-container::-webkit-scrollbar-track{
-  background:transparent;
+.thumb-empty-title{
+  font-size:17px;
+  font-weight:600;
+  color:var(--text);
+  opacity:0.5;
 }
-.thumb-container::-webkit-scrollbar-thumb{
-  background:var(--border);
-  border-radius:3px;
+.thumb-empty-sub{
+  font-size:13px;
+  color:var(--muted);
 }
 
+/* Thumbnail tile */
 .thumb-item{
   aspect-ratio:1;
   border-radius:8px;
@@ -1113,14 +1165,14 @@ body.no-scroll{
   user-select:none;
   overflow:hidden;
   background:var(--surface);
-  transition:transform 0.15s;
+  transition:transform 0.15s ease;
 }
 .thumb-item:hover{
   transform:scale(1.04);
   z-index:1;
 }
 .thumb-item:active{
-  transform:scale(0.97);
+  transform:scale(0.96);
 }
 
 .thumb-item .thumb-img{
@@ -1128,9 +1180,9 @@ body.no-scroll{
   height:100%;
   object-fit:cover;
   display:block;
-  border-radius:8px;
 }
 
+/* Delete button — appears on hover */
 .thumb-item .thumb-delete{
   position:absolute;
   top:3px;
@@ -1139,7 +1191,9 @@ body.no-scroll{
   height:20px;
   border-radius:50%;
   border:none;
-  background:rgba(0,0,0,0.55);
+  background:rgba(0,0,0,0.5);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
   display:flex;
   align-items:center;
   justify-content:center;
@@ -1154,14 +1208,14 @@ body.no-scroll{
 .thumb-item:hover .thumb-delete{
   opacity:1;
 }
-/* Always show on touch devices */
 @media (hover: none){
   .thumb-item .thumb-delete{
     opacity:0.7;
   }
 }
 .thumb-item .thumb-delete:active{
-  transform:scale(0.9);
+  transform:scale(0.85);
+  background:rgba(239,68,68,0.8);
 }
 .thumb-item .thumb-delete svg{
   width:10px;

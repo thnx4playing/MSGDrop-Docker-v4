@@ -86,12 +86,14 @@ var Images = {
   },
 
   updateBadge: function(){
-    if(!UI.els.imageCountBadge) return;
     var count = this.list.length;
-    if(count > 0){
-      UI.els.imageCountBadge.textContent = count;
-    } else {
-      UI.els.imageCountBadge.textContent = '';
+    if(UI.els.imageCountBadge){
+      UI.els.imageCountBadge.textContent = count > 0 ? count : '';
+    }
+    // Update count in modal header
+    var thumbCount = document.getElementById('thumbCount');
+    if(thumbCount){
+      thumbCount.textContent = count > 0 ? count + (count === 1 ? ' Photo' : ' Photos') : '';
     }
   },
 

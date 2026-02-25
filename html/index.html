@@ -385,21 +385,27 @@
       </div>
     </div>
 
-    <!-- Image Library (full-screen panel) -->
+    <!-- Image Library Modal (iOS-style sheet) -->
     <div id="thumbSection" class="thumb-section">
+      <div class="thumb-sheet-handle"></div>
       <div class="thumb-header">
-        <span class="thumb-title">Photos</span>
-        <button id="thumbCloseBtn" class="modal-close-badge" type="button" aria-label="Close">&times;</button>
+        <div class="thumb-header-text">
+          <span class="thumb-title">Photos</span>
+          <span id="thumbCount" class="thumb-count"></span>
+        </div>
+        <button id="thumbCloseBtn" class="thumb-close-btn" type="button" aria-label="Close">Done</button>
       </div>
       <div id="thumbStrip" class="thumb-container" aria-label="Images">
         <div id="thumbEmpty" class="thumb-empty-state">
-          <svg viewBox="0 0 64 64" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.25">
-            <rect x="6" y="10" width="52" height="40" rx="4"/>
-            <circle cx="22" cy="26" r="5"/>
-            <polyline points="58,42 44,28 22,50"/>
-            <polyline points="38,38 30,46"/>
-          </svg>
-          <span>No photos yet</span>
+          <div class="thumb-empty-icon">
+            <svg viewBox="0 0 56 56" width="56" height="56" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="10" width="48" height="36" rx="6" stroke="currentColor" stroke-width="1.5"/>
+              <circle cx="18" cy="24" r="4.5" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M4 38l14-12 10 8 8-6 16 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <span class="thumb-empty-title">No Photos</span>
+          <span class="thumb-empty-sub">Photos you share will appear here</span>
         </div>
       </div>
     </div>
