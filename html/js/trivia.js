@@ -4,18 +4,18 @@
 // ============================================================================
 
 var TRIVIA_CATEGORIES = [
-  { id: null, name: 'Any',       icon: '\u{1F3B0}' },
-  { id: 9,    name: 'General',   icon: '\u{1F4A1}' },
-  { id: 11,   name: 'Film',      icon: '\u{1F3AC}' },
-  { id: 12,   name: 'Music',     icon: '\u{1F3B8}' },
-  { id: 14,   name: 'TV',        icon: '\u{1F4FA}' },
-  { id: 15,   name: 'Games',     icon: '\u{1F3AE}' },
-  { id: 17,   name: 'Science',   icon: '\u{1F9EA}' },
-  { id: 21,   name: 'Sports',    icon: '\u{1F3C6}' },
-  { id: 22,   name: 'Geography', icon: '\u{1F5FA}' },
-  { id: 23,   name: 'History',   icon: '\u{1F3DB}' },
-  { id: 27,   name: 'Animals',   icon: '\u{1F981}' },
-  { id: 26,   name: 'Celebs',    icon: '\u{1F31F}' },
+  { id: null, name: 'Any',       icon: '/msgdrop/images/trivia-any.png' },
+  { id: 9,    name: 'General',   icon: '/msgdrop/images/trivia-general.png' },
+  { id: 11,   name: 'Film',      icon: '/msgdrop/images/trivia-film.png' },
+  { id: 12,   name: 'Music',     icon: '/msgdrop/images/trivia-music.png' },
+  { id: 14,   name: 'TV',        icon: '/msgdrop/images/trivia-tv.png' },
+  { id: 15,   name: 'Games',     icon: '/msgdrop/images/trivia-games.png' },
+  { id: 17,   name: 'Science',   icon: '/msgdrop/images/trivia-science.png' },
+  { id: 21,   name: 'Sports',    icon: '/msgdrop/images/trivia-sports.png' },
+  { id: 22,   name: 'Geography', icon: '/msgdrop/images/trivia-geography.png' },
+  { id: 23,   name: 'History',   icon: '/msgdrop/images/trivia-history.png' },
+  { id: 27,   name: 'Animals',   icon: '/msgdrop/images/trivia-animals.png' },
+  { id: 26,   name: 'Celebs',    icon: '/msgdrop/images/trivia-celebs.png' },
 ];
 
 window.TriviaGame = new (class extends GameEngine {
@@ -74,7 +74,7 @@ window.TriviaGame = new (class extends GameEngine {
       var btn = document.createElement('button');
       btn.className = 'trivia-cat-btn';
       btn.type = 'button';
-      btn.innerHTML = '<span class="trivia-cat-icon">' + cat.icon + '</span><span class="trivia-cat-name">' + cat.name + '</span>';
+      btn.innerHTML = '<img class="trivia-cat-icon" src="' + cat.icon + '" alt="" /><span class="trivia-cat-name">' + cat.name + '</span>';
       btn.addEventListener('click', function() {
         self.state.categoryId   = cat.id;
         self.state.categoryName = cat.id !== null ? cat.name : null;

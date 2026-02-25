@@ -240,18 +240,17 @@
 }
 .trivia-cat-btn {
   appearance: none;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: none;
+  background: transparent;
   border-radius: 10px;
-  padding: 8px 4px;
+  padding: 6px 4px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 4px;
   transition: all 0.15s;
-  aspect-ratio: 1;
 }
 .trivia-cat-btn:hover {
   border-color: var(--accent);
@@ -262,8 +261,10 @@
   transform: scale(0.97);
 }
 .trivia-cat-icon {
-  font-size: 22px;
-  line-height: 1;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 8px;
 }
 .trivia-cat-name {
   font-size: 10px;
