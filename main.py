@@ -1327,7 +1327,12 @@ class BaseGameManager:
 
     def end_game(self, gid: str):
         if gid in self.games:
+            drop_id = self.games[gid].get("dropId")
             self.games[gid]["status"] = "ended"
+            # Clear any lingering pending invite for this game type + drop
+            if drop_id:
+                prefix = gid.split("_")[0]  # geo, wordle, trivia, draw
+                pending_invites.clear(prefix, drop_id)
 
     def find_active_game_for_drop(self, drop_id: str) -> Optional[Dict[str, Any]]:
         for g in self.games.values():

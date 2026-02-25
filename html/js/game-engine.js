@@ -420,6 +420,9 @@ window.GameEngine = class GameEngine {
    */
   resetState() {
     this.stopTimer();
+    if (typeof Messages !== 'undefined' && Messages.removeGameInviteCards) {
+      Messages.removeGameInviteCards(this.prefix);
+    }
     this.state.phase     = 'idle';
     this.state.gameId    = null;
     this.state.inviteId  = null;

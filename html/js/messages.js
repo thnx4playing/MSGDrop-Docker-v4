@@ -522,6 +522,13 @@ var Messages = {
     }
   },
 
+  removeGameInviteCards: function(game) {
+    var container = UI.els.chatContainer;
+    if (!container) return;
+    var cards = container.querySelectorAll('[id^="' + game + '-invite-"]');
+    cards.forEach(function(el) { el.remove(); });
+  },
+
   injectGamePauseCard: function(opts) {
     // opts: {gameId, player, game, icon, title, onEndGame}
     var container = UI.els.chatContainer;
