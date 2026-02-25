@@ -145,35 +145,35 @@
 .wordle-keyboard {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 6px 4px;
+  gap: 6px;
+  padding: 6px 6px;
   width: 100%;
   flex-shrink: 0;
 }
 .wordle-kb-row {
   display: flex;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
 }
 .wordle-key {
   appearance: none;
   border: none;
-  height: 44px;
+  height: 50px;
   border-radius: 6px;
   background: #525562;
   color: #fff;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   flex: 1;
-  max-width: 40px;
   min-width: 0;
   text-transform: uppercase;
   transition: background 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
 .wordle-key.wide {
-  max-width: 60px;
-  font-size: 11px;
+  flex: 1.5;
+  font-size: 12px;
   letter-spacing: 0.3px;
 }
 .wordle-key.correct {
