@@ -145,54 +145,33 @@ body.no-scroll{
 
 .presence-indicators{
   display:flex;
-  gap:8px;
+  gap:6px;
   align-items:center;
 }
 
-.presence-badge{
+.presence-pip{
+  width:28px;
+  height:28px;
+  border-radius:50%;
   display:flex;
   align-items:center;
-  gap:6px;
-  padding:4px 8px;
-  border-radius:12px;
+  justify-content:center;
+  font-size:11px;
+  font-weight:700;
+  color:var(--muted);
   background:var(--surface);
-  border:1px solid var(--border);
-  transition:all 0.3s ease;
-  font-size:12px;
-  font-weight:600;
-  min-width:48px;
-}
-
-.presence-badge.active{
-  background:rgba(34, 197, 94, 0.1);
-  border-color:rgba(34, 197, 94, 0.3);
-}
-
-.presence-dot{
-  width:8px;
-  height:8px;
-  border-radius:50%;
-  background:var(--muted);
+  border:2px solid var(--border);
   transition:all 0.3s ease;
   flex-shrink:0;
+  user-select:none;
 }
 
-.presence-badge.active .presence-dot{
+.presence-pip.active{
+  color:#fff;
   background:#10b981;
-  box-shadow:0 0 0 2px rgba(16, 185, 129, 0.2);
-  animation:presence-pulse 2s ease-in-out infinite;
-}
-
-.presence-label{
-  color:var(--muted);
-  font-size:11px;
-  font-weight:600;
-  letter-spacing:0.3px;
-  transition:color 0.3s ease;
-}
-
-.presence-badge.active .presence-label{
-  color:var(--text);
+  border-color:#10b981;
+  box-shadow:0 0 0 3px rgba(16, 185, 129, 0.25);
+  animation:pip-pulse 2s ease-in-out infinite;
 }
 
 .streak-display{
@@ -229,12 +208,12 @@ body.no-scroll{
   text-align:center;
 }
 
-@keyframes presence-pulse{
+@keyframes pip-pulse{
   0%, 100%{
-    box-shadow:0 0 0 2px rgba(16, 185, 129, 0.2);
+    box-shadow:0 0 0 3px rgba(16, 185, 129, 0.25);
   }
   50%{
-    box-shadow:0 0 0 4px rgba(16, 185, 129, 0.1);
+    box-shadow:0 0 0 5px rgba(16, 185, 129, 0.1);
   }
 }
 
@@ -407,9 +386,8 @@ body.no-scroll{
   animation: none;
 }
 
-[data-theme="dark"] .presence-badge.active{
-  background:rgba(34, 197, 94, 0.15);
-  border-color:rgba(34, 197, 94, 0.4);
+[data-theme="dark"] .presence-pip.active{
+  box-shadow:0 0 0 3px rgba(16, 185, 129, 0.35);
 }
 
 [data-theme="dark"] .streak-display{
