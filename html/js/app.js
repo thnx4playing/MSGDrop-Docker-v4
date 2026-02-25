@@ -398,11 +398,16 @@ var App = {
     try {
       var token = Storage.getCookie('session-ok');
       if(token){
-        // Token is base64url: {"exp":TIMESTAMP}.HMAC — decode the payload before the dot
-        var raw = atob(token.replace(/-/g, '+').replace(/_/g, '/') + '==');
-        var dot = raw.indexOf('.');
-        if(dot > 0){
-          var payload = JSON.parse(raw.substring(0, dot));
+        // Token is base64url: {"exp":TIMESTAMP}.HMAC — decode just the JSON prefix
+        var b64 = token.replace(/-/g, '+').replace(/_/g, '/');
+        // Add correct padding (0-2 chars based on length)
+        var pad = (4 - b64.length % 4) % 4;
+        for(var i = 0; i < pad; i++) b64 += '=';
+        var raw = atob(b64);
+        // Find the JSON object boundary in the decoded string
+        var brace = raw.indexOf('}');
+        if(brace > 0){
+          var payload = JSON.parse(raw.substring(0, brace + 1));
           if(payload.exp) expiry = payload.exp;
         }
       }
