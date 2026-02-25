@@ -1257,7 +1257,7 @@ class Hub:
         if not still_connected:
             for prefix, mgr in _game_managers.items():
                 active = mgr.find_active_game_for_drop(drop_id)
-                if active and active["status"] == "active":
+                if active and active["status"] in ("active", "paused"):
                     mgr.pause_game(active["gameId"], user_label)
                     await self.broadcast(drop_id, {"type": "game", "payload": {
                         "op": f"{prefix}_player_disconnected",
@@ -1352,17 +1352,27 @@ class BaseGameManager:
 
     def pause_game(self, gid: str, disconnected_player: str):
         game = self.games.get(gid)
-        if game and game["status"] == "active":
-            game["status"] = "paused"
-            game["pausedAt"] = int(time.time() * 1000)
-            game["disconnectedPlayer"] = disconnected_player
+        if not game or game["status"] not in ("active", "paused"):
+            return
+        game["status"] = "paused"
+        game.setdefault("pausedAt", int(time.time() * 1000))
+        dc = game.get("disconnectedPlayers")
+        if not isinstance(dc, set):
+            dc = set()
+        dc.add(disconnected_player)
+        game["disconnectedPlayers"] = dc
 
-    def resume_game(self, gid: str):
+    def resume_game(self, gid: str, reconnected_player: str = None):
         game = self.games.get(gid)
-        if game and game["status"] == "paused":
+        if not game or game["status"] != "paused":
+            return
+        dc = game.get("disconnectedPlayers")
+        if isinstance(dc, set) and reconnected_player:
+            dc.discard(reconnected_player)
+        if not dc:
             game["status"] = "active"
             game.pop("pausedAt", None)
-            game.pop("disconnectedPlayer", None)
+            game.pop("disconnectedPlayers", None)
 
     def cleanup_stale_paused_games(self):
         now = int(time.time() * 1000)
@@ -1943,8 +1953,9 @@ async def ws_endpoint(ws: WebSocket):
                     logger.info(f"[GameResume:{prefix}] Replayed game state to {user} in drop={drop}")
                 except Exception as e:
                     logger.warning(f"[GameResume:{prefix}] Failed to replay state to {user}: {e}")
-                if active.get("status") == "paused" and active.get("disconnectedPlayer") == user:
-                    mgr.resume_game(active["gameId"])
+                dc = active.get("disconnectedPlayers")
+                if active.get("status") == "paused" and isinstance(dc, set) and user in dc:
+                    mgr.resume_game(active["gameId"], user)
                     await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
                         "op": f"{prefix}_player_reconnected",
                         "gameId": active["gameId"],
@@ -2639,9 +2650,9 @@ async def ws_endpoint(ws: WebSocket):
                         "op": "draw_invite_cancelled", "from": user
                     }})
 
-                elif op == "draw_stroke":
+                elif op == "draw_strokes":
                     gid = payload.get("gameId")
-                    stroke_data = payload.get("strokeData")
+                    stroke_data = payload.get("strokes")
                     game = draw_game_manager.get_game(gid)
                     if not game or game.get("status") not in ("active", "paused"):
                         continue
@@ -2649,7 +2660,7 @@ async def ws_endpoint(ws: WebSocket):
                         continue
                     draw_game_manager.record_stroke(gid, stroke_data)
                     await hub.broadcast_to_others(drop, ws, {"type": "game", "payload": {
-                        "op": "draw_stroke", "gameId": gid, "strokeData": stroke_data
+                        "op": "draw_strokes", "gameId": gid, "strokes": stroke_data
                     }})
 
                 elif op == "draw_clear":
