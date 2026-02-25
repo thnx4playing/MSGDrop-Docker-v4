@@ -2686,3 +2686,55 @@ html{overscroll-behavior-y:contain}
   0%{filter:drop-shadow(0 0 6px rgba(255,100,0,0.7)) drop-shadow(0 2px 4px rgba(0,0,0,0.5));}
   100%{filter:drop-shadow(0 0 16px rgba(255,160,0,1)) drop-shadow(0 2px 4px rgba(0,0,0,0.5));}
 }
+
+/* ---- Fireworks effect ---- */
+.fx-firework-dot{
+  position:absolute;
+  border-radius:50%;
+  z-index:10;
+  pointer-events:none;
+  opacity:0;
+  animation:firework-burst 1.2s ease-out forwards;
+}
+@keyframes firework-burst{
+  0%{transform:translate(0,0) scale(1); opacity:0;}
+  15%{opacity:1;}
+  100%{transform:translate(var(--tx), var(--ty)) scale(0.2); opacity:0;}
+}
+
+/* ---- Laser beams effect ---- */
+.fx-laser-beam{
+  position:absolute;
+  width:3px;
+  height:0;
+  z-index:10;
+  pointer-events:none;
+  transform-origin:top center;
+  transform:rotate(var(--angle));
+  border-radius:2px;
+  opacity:0;
+  box-shadow:0 0 8px currentColor, 0 0 16px currentColor;
+  animation:laser-shoot 1.4s ease-out forwards;
+}
+@keyframes laser-shoot{
+  0%{height:0; opacity:0;}
+  10%{opacity:1;}
+  40%{height:300px; opacity:0.9;}
+  100%{height:300px; opacity:0;}
+}
+
+/* ---- Sparks effect ---- */
+.fx-spark{
+  position:absolute;
+  border-radius:50%;
+  z-index:10;
+  pointer-events:none;
+  opacity:0;
+  animation:spark-fly 1.6s ease-out forwards;
+}
+@keyframes spark-fly{
+  0%{transform:translate(0,0) scale(1); opacity:0;}
+  10%{opacity:1;}
+  60%{opacity:0.8;}
+  100%{transform:translate(var(--tx), var(--ty)) scale(0.3); opacity:0;}
+}

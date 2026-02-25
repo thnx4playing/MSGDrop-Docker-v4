@@ -176,10 +176,15 @@ var Streak = {
     }
   },
 
+  _bgEffects: ['confetti', 'fireworks', 'lasers', 'sparks'],
+
   _playMilestone: function(streak){
     var chat = document.getElementById('chatContainer');
     if(!chat) return;
-    console.log('[Streak] Milestone ' + streak + '! Confetti + fire');
+
+    // Pick random background effect
+    var effect = this._bgEffects[Math.floor(Math.random() * this._bgEffects.length)];
+    console.log('[Streak] Milestone ' + streak + '! Effect: ' + effect);
 
     // Create a fixed overlay matching the chat area
     var rect = chat.getBoundingClientRect();
@@ -191,21 +196,13 @@ var Streak = {
     overlay.style.height = rect.height + 'px';
     document.body.appendChild(overlay);
 
-    // Confetti
-    var colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6ed4','#a855f7'];
-    for(var i = 0; i < 30; i++){
-      var el = document.createElement('span');
-      el.className = 'celebrate-particle';
-      el.style.left = (Math.random() * 100) + '%';
-      el.style.animationDelay = (Math.random() * 0.6) + 's';
-      el.style.background = colors[Math.floor(Math.random() * colors.length)];
-      if(Math.random() > 0.5) el.style.borderRadius = '50%';
-      el.style.width = (6 + Math.random() * 6) + 'px';
-      el.style.height = el.style.width;
-      overlay.appendChild(el);
-    }
+    // Background effect
+    if(effect === 'confetti') this._fxConfetti(overlay);
+    else if(effect === 'fireworks') this._fxFireworks(overlay);
+    else if(effect === 'lasers') this._fxLasers(overlay);
+    else if(effect === 'sparks') this._fxSparks(overlay);
 
-    // Fire sprite + streak count
+    // Fire sprite + streak count (always the same)
     var flame = document.createElement('div');
     flame.className = 'celebrate-flame';
 
@@ -225,6 +222,92 @@ var Streak = {
     overlay.appendChild(flame);
 
     setTimeout(function(){ overlay.remove(); }, 2600);
+  },
+
+  _fxConfetti: function(overlay){
+    var colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6ed4','#a855f7'];
+    for(var i = 0; i < 35; i++){
+      var el = document.createElement('span');
+      el.className = 'celebrate-particle';
+      el.style.left = (Math.random() * 100) + '%';
+      el.style.animationDelay = (Math.random() * 0.6) + 's';
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+      if(Math.random() > 0.5) el.style.borderRadius = '50%';
+      el.style.width = (6 + Math.random() * 6) + 'px';
+      el.style.height = el.style.width;
+      overlay.appendChild(el);
+    }
+  },
+
+  _fxFireworks: function(overlay){
+    var ow = overlay.offsetWidth || 300;
+    var oh = overlay.offsetHeight || 500;
+    // 3 bursts at different positions
+    var bursts = [
+      {x: ow * 0.25, y: oh * 0.3},
+      {x: ow * 0.7, y: oh * 0.25},
+      {x: ow * 0.5, y: oh * 0.6}
+    ];
+    var colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6ed4','#a855f7','#fff','#ff8c00'];
+    for(var b = 0; b < bursts.length; b++){
+      var burst = bursts[b];
+      var delay = b * 0.4;
+      for(var i = 0; i < 20; i++){
+        var el = document.createElement('span');
+        el.className = 'fx-firework-dot';
+        var angle = (Math.PI * 2 * i) / 20;
+        var dist = 50 + Math.random() * 80;
+        el.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+        el.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+        el.style.left = burst.x + 'px';
+        el.style.top = burst.y + 'px';
+        el.style.background = colors[Math.floor(Math.random() * colors.length)];
+        el.style.animationDelay = delay + 's';
+        el.style.width = (3 + Math.random() * 4) + 'px';
+        el.style.height = el.style.width;
+        overlay.appendChild(el);
+      }
+    }
+  },
+
+  _fxLasers: function(overlay){
+    var ow = overlay.offsetWidth || 300;
+    var oh = overlay.offsetHeight || 500;
+    var cx = ow / 2;
+    var cy = oh * 0.45;
+    var colors = ['#ff4444','#44ff44','#4488ff','#ff44ff','#ffaa00','#00ffff'];
+    for(var i = 0; i < 12; i++){
+      var el = document.createElement('div');
+      el.className = 'fx-laser-beam';
+      var angle = (360 / 12) * i;
+      el.style.left = cx + 'px';
+      el.style.top = cy + 'px';
+      el.style.setProperty('--angle', angle + 'deg');
+      el.style.background = colors[i % colors.length];
+      el.style.animationDelay = (Math.random() * 0.3) + 's';
+      overlay.appendChild(el);
+    }
+  },
+
+  _fxSparks: function(overlay){
+    var colors = ['#ffd93d','#ff8c00','#fff','#ffaa00','#ff6b6b'];
+    for(var i = 0; i < 30; i++){
+      var el = document.createElement('span');
+      el.className = 'fx-spark';
+      // Start from top-right area
+      el.style.top = (Math.random() * 15) + '%';
+      el.style.right = (Math.random() * 15) + '%';
+      // Shoot toward bottom-left with randomness
+      var angle = Math.PI * 0.5 + (Math.random() - 0.5) * 1.2;
+      var dist = 150 + Math.random() * 250;
+      el.style.setProperty('--tx', -Math.cos(angle) * dist + 'px');
+      el.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+      el.style.background = colors[Math.floor(Math.random() * colors.length)];
+      el.style.animationDelay = (Math.random() * 0.8) + 's';
+      el.style.width = (2 + Math.random() * 4) + 'px';
+      el.style.height = el.style.width;
+      overlay.appendChild(el);
+    }
   },
 
   showBroken: function(lostStreak){
