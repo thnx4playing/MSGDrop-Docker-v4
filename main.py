@@ -601,12 +601,8 @@ def _verify_token(token: str) -> bool:
 
 def require_session(req: Request):
     c = req.cookies.get(SESSION_COOKIE)
-    client_ip = req.client.host if getattr(req, "client", None) else "unknown"
-    if not c:
-        _conn_log.info(f"HTTP_NO_SESS ip={client_ip}  path={req.url.path}")
-        raise HTTPException(401, "no session")
+    if not c: raise HTTPException(401, "no session")
     if not _verify_token(c):
-        _conn_log.info(f"HTTP_BAD_SESS ip={client_ip}  path={req.url.path}")
         raise HTTPException(401, "bad session")
 
 # --- Health ---
@@ -662,7 +658,6 @@ def unlock(body: UnlockBody, req: Request, response: Response):
     unlock_attempts.pop(client_ip, None)
     token = _generate_token()
     _set_session_cookies(response, token)
-    _conn_log.info(f"UNLOCK_OK    ip={client_ip}")
     return {"success": True}
 
 @app.post("/api/logout")
@@ -1898,12 +1893,10 @@ async def ws_endpoint(ws: WebSocket):
     drop = params.get("drop") or params.get("dropId") or "default"
     edge = params.get("edge")
     if EDGE_AUTH_TOKEN and edge != EDGE_AUTH_TOKEN:
-        _conn_log.info(f"WS_EDGE_FAIL ip={client_ip}  drop={drop}")
         await ws.close(code=4401)
         return
 
     user = params.get("user") or params.get("role") or "anon"
-    _conn_log.info(f"WS_CONNECT   ip={client_ip}  user={user}  drop={drop}")
     await hub.join(drop, ws, user)
 
     # ── Replay pending call for late joiners ──────────────────────────────
