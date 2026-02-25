@@ -242,28 +242,29 @@ var Streak = {
   _fxFireworks: function(overlay){
     var ow = overlay.offsetWidth || 300;
     var oh = overlay.offsetHeight || 500;
-    // 3 bursts at different positions
     var bursts = [
-      {x: ow * 0.25, y: oh * 0.3},
-      {x: ow * 0.7, y: oh * 0.25},
-      {x: ow * 0.5, y: oh * 0.6}
+      {x: ow * 0.2, y: oh * 0.2},
+      {x: ow * 0.75, y: oh * 0.15},
+      {x: ow * 0.5, y: oh * 0.55},
+      {x: ow * 0.15, y: oh * 0.65},
+      {x: ow * 0.8, y: oh * 0.5}
     ];
     var colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6ed4','#a855f7','#fff','#ff8c00'];
     for(var b = 0; b < bursts.length; b++){
       var burst = bursts[b];
-      var delay = b * 0.4;
-      for(var i = 0; i < 20; i++){
+      var delay = b * 0.3;
+      for(var i = 0; i < 30; i++){
         var el = document.createElement('span');
         el.className = 'fx-firework-dot';
-        var angle = (Math.PI * 2 * i) / 20;
-        var dist = 50 + Math.random() * 80;
+        var angle = (Math.PI * 2 * i) / 30;
+        var dist = 80 + Math.random() * 140;
         el.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
         el.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
         el.style.left = burst.x + 'px';
         el.style.top = burst.y + 'px';
         el.style.background = colors[Math.floor(Math.random() * colors.length)];
         el.style.animationDelay = delay + 's';
-        el.style.width = (3 + Math.random() * 4) + 'px';
+        el.style.width = (5 + Math.random() * 6) + 'px';
         el.style.height = el.style.width;
         overlay.appendChild(el);
       }
@@ -290,22 +291,23 @@ var Streak = {
   },
 
   _fxSparks: function(overlay){
-    var colors = ['#ffd93d','#ff8c00','#fff','#ffaa00','#ff6b6b'];
-    for(var i = 0; i < 30; i++){
+    var colors = ['#ffd93d','#ff8c00','#fff','#ffaa00','#ff6b6b','#ffe066'];
+    for(var i = 0; i < 50; i++){
       var el = document.createElement('span');
       el.className = 'fx-spark';
-      // Start from top-right area
-      el.style.top = (Math.random() * 15) + '%';
-      el.style.right = (Math.random() * 15) + '%';
-      // Shoot toward bottom-left with randomness
-      var angle = Math.PI * 0.5 + (Math.random() - 0.5) * 1.2;
-      var dist = 150 + Math.random() * 250;
+      // Start from top-right corner
+      el.style.top = (Math.random() * 10) + '%';
+      el.style.right = (Math.random() * 10) + '%';
+      // Fan out across the full screen — wide angle spread
+      var angle = Math.PI * 0.25 + Math.random() * Math.PI * 0.6;
+      var dist = 300 + Math.random() * 400;
       el.style.setProperty('--tx', -Math.cos(angle) * dist + 'px');
       el.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
       el.style.background = colors[Math.floor(Math.random() * colors.length)];
-      el.style.animationDelay = (Math.random() * 0.8) + 's';
-      el.style.width = (2 + Math.random() * 4) + 'px';
-      el.style.height = el.style.width;
+      el.style.animationDelay = (Math.random() * 0.6) + 's';
+      var size = (2 + Math.random() * 5);
+      el.style.width = size + 'px';
+      el.style.height = size + 'px';
       overlay.appendChild(el);
     }
   },

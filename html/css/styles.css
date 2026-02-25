@@ -2730,11 +2730,12 @@ html{overscroll-behavior-y:contain}
   z-index:10;
   pointer-events:none;
   opacity:0;
-  animation:spark-fly 1.6s ease-out forwards;
+  box-shadow:0 0 4px currentColor;
+  animation:spark-fly 1.4s ease-out forwards;
 }
 @keyframes spark-fly{
   0%{transform:translate(0,0) scale(1); opacity:0;}
-  10%{opacity:1;}
-  60%{opacity:0.8;}
-  100%{transform:translate(var(--tx), var(--ty)) scale(0.3); opacity:0;}
+  8%{opacity:1;}
+  40%{opacity:0.9;}
+  100%{transform:translate(var(--tx), var(--ty)) scale(0.1); opacity:0;}
 }
