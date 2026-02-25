@@ -269,11 +269,13 @@ window.DrawingGame = new (class extends GameEngine {
       roleLabel.textContent = this.state.isDrawer ? 'You are drawing!' : 'Guess the drawing!';
     }
 
-    // Show/hide toolbar vs guess area
+    // Show/hide toolbar vs guess input (guess area always visible for wrong guesses)
     var toolbar   = document.getElementById('drawToolbar');
     var guessArea = document.getElementById('drawGuessArea');
+    var guessRow  = guessArea ? guessArea.querySelector('.draw-guess-row') : null;
     if (toolbar) toolbar.style.display   = this.state.isDrawer ? 'flex' : 'none';
-    if (guessArea) guessArea.style.display = this.state.isDrawer ? 'none' : 'flex';
+    if (guessArea) guessArea.style.display = 'flex';
+    if (guessRow) guessRow.style.display  = this.state.isDrawer ? 'none' : 'flex';
 
     this.initCanvas();
     if (this.state.isDrawer) {

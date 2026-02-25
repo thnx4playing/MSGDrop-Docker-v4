@@ -1749,8 +1749,8 @@ class DrawingGameManager(BaseGameManager):
         guess = guess_text.strip().lower()
         if guess == word:
             elapsed_ms = int(time.time() * 1000) - game["roundStartTime"].get(rnd, int(time.time() * 1000))
-            guesser_score = max(100, round(1000 - elapsed_ms / 60))
-            drawer_score = guesser_score // 2
+            guesser_score = max(1, round(10 - elapsed_ms / 6000))
+            drawer_score = max(1, guesser_score // 2)
             drawer = game["drawers"][rnd - 1]
             guesser = player
             game["scores"][guesser] += guesser_score
