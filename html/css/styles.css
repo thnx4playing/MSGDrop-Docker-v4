@@ -2630,16 +2630,16 @@ html{overscroll-behavior-y:contain}
   z-index:20;
 }
 
-/* Sprite strip fire animation (9 frames, horizontal) */
+/* Sprite strip fire animation (6 frames, horizontal) */
 .celebrate-fire-sprite{
   width:150px;
-  height:146px;
-  background:url('/images/fire-sprite.png') 0 0 / 1350px 146px no-repeat;
-  animation:fire-sprite-play 0.9s steps(8) infinite;
+  height:219px;
+  background:url('/images/fire-sprite.png') 0 0 / 900px 219px no-repeat;
+  animation:fire-sprite-play 0.5s steps(5) infinite;
 }
 @keyframes fire-sprite-play{
   0%  {background-position:0 0;}
-  100%{background-position:-1200px 0;}
+  100%{background-position:-750px 0;}
 }
 
 /* Ambient glow behind fire */
