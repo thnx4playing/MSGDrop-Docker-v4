@@ -244,6 +244,15 @@ var Streak = {
     }, 1500);
   },
 
+  // TEMP: test button for celebration review
+  addTestButton: function(){
+    var btn = document.createElement('button');
+    btn.textContent = 'Test Streak 5';
+    btn.style.cssText = 'position:fixed;top:8px;right:8px;z-index:9999;padding:6px 12px;background:#ff4500;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;opacity:0.9;';
+    btn.onclick = function(){ Streak._playMilestone(5); };
+    document.body.appendChild(btn);
+  },
+
   refresh: async function(dropId){
     var now = Date.now();
     if(now - this.lastFetchTime < 5000) {

@@ -68,6 +68,7 @@ var App = {
       }
       if(typeof Streak !== 'undefined'){
         Streak.fetch(this.dropId).catch(function(e){ console.log('Streak fetch failed:', e); });
+        Streak.addTestButton(); // TEMP: remove after testing
       }
 
       WebSocketManager.onUpdateCallback = function(data){ Messages.applyDrop(data); };
