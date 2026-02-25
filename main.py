@@ -2587,6 +2587,7 @@ async def ws_endpoint(ws: WebSocket):
                             values(:id,:d,:s,:t,'active')
                         """), {"id": gid, "d": drop, "s": user, "t": int(time.time()*1000)})
                     game = draw_game_manager.get_game(gid)
+                    draw_game_manager.start_round_timer(gid)
                     drawer = draw_game_manager.get_current_drawer(gid)
                     word = draw_game_manager.get_current_word(gid)
                     guesser = "M" if drawer == "E" else "E"
