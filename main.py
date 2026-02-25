@@ -107,6 +107,14 @@ BLOB_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- Connection / auth log (persistent volume) ---
+_conn_log = logging.getLogger("connlog")
+_conn_log.setLevel(logging.INFO)
+_conn_log.propagate = False
+_conn_fh = logging.FileHandler(DATA_DIR / "connections.log")
+_conn_fh.setFormatter(logging.Formatter("%(asctime)s  %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+_conn_log.addHandler(_conn_fh)
+
 def init_db():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with engine.begin() as conn:
@@ -593,8 +601,12 @@ def _verify_token(token: str) -> bool:
 
 def require_session(req: Request):
     c = req.cookies.get(SESSION_COOKIE)
-    if not c: raise HTTPException(401, "no session")
+    client_ip = req.client.host if getattr(req, "client", None) else "unknown"
+    if not c:
+        _conn_log.info(f"HTTP_NO_SESS ip={client_ip}  path={req.url.path}")
+        raise HTTPException(401, "no session")
     if not _verify_token(c):
+        _conn_log.info(f"HTTP_BAD_SESS ip={client_ip}  path={req.url.path}")
         raise HTTPException(401, "bad session")
 
 # --- Health ---
@@ -635,6 +647,7 @@ def unlock(body: UnlockBody, req: Request, response: Response):
     attempts = unlock_attempts.get(client_ip, [])
     attempts = [t for t in attempts if now - t < 300]
     if len(attempts) >= 5:
+        _conn_log.info(f"UNLOCK_LIMIT ip={client_ip}  blocked=5min")
         raise HTTPException(429, "Too many attempts. Try again in 5 minutes.")
     code = (body.code or "").strip()
     if not (len(code) == 4 and code.isdigit()):
@@ -644,10 +657,12 @@ def unlock(body: UnlockBody, req: Request, response: Response):
     if not verify_code(code):
         attempts.append(now)
         unlock_attempts[client_ip] = attempts
+        _conn_log.info(f"UNLOCK_FAIL  ip={client_ip}  attempts={len(attempts)}")
         raise HTTPException(401, "invalid code")
     unlock_attempts.pop(client_ip, None)
     token = _generate_token()
     _set_session_cookies(response, token)
+    _conn_log.info(f"UNLOCK_OK    ip={client_ip}")
     return {"success": True}
 
 @app.post("/api/logout")
@@ -1873,18 +1888,22 @@ def _build_full_drop(drop: str) -> dict:
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     params = dict(ws.query_params)
+    client_ip = ws.client.host if getattr(ws, "client", None) else "unknown"
     session_token = params.get("sessionToken") or params.get("sess")
     if not session_token or not _verify_token(session_token):
+        _conn_log.info(f"WS_AUTH_FAIL ip={client_ip}  reason={'no_token' if not session_token else 'bad_token'}")
         await ws.close(code=1008)
         return
 
     drop = params.get("drop") or params.get("dropId") or "default"
     edge = params.get("edge")
     if EDGE_AUTH_TOKEN and edge != EDGE_AUTH_TOKEN:
+        _conn_log.info(f"WS_EDGE_FAIL ip={client_ip}  drop={drop}")
         await ws.close(code=4401)
         return
 
     user = params.get("user") or params.get("role") or "anon"
+    _conn_log.info(f"WS_CONNECT   ip={client_ip}  user={user}  drop={drop}")
     await hub.join(drop, ws, user)
 
     # ── Replay pending call for late joiners ──────────────────────────────
