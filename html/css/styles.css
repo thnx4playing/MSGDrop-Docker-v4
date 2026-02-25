@@ -177,33 +177,31 @@ body.no-scroll{
 .streak-display{
   display:inline-flex;
   align-items:center;
-  gap:4px;
-  padding:4px 8px;
-  border-radius:12px;
-  background:linear-gradient(135deg, rgba(251, 146, 60, 0.1), rgba(239, 68, 68, 0.1));
-  border:1px solid rgba(251, 146, 60, 0.3);
+  gap:2px;
+  padding:3px 8px 3px 5px;
+  border-radius:14px;
+  background:var(--surface);
+  border:1.5px solid var(--border);
   transition:all 0.3s ease;
-  font-size:12px;
-  min-width:48px;
+  cursor:default;
 }
 
 .streak-display:hover{
-  transform:scale(1.05);
-  box-shadow:0 4px 12px rgba(251, 146, 60, 0.2);
+  transform:scale(1.04);
 }
 
 .streak-flame{
-  font-size:14px;
+  font-size:15px;
   line-height:1;
   animation:flame-flicker 2s ease-in-out infinite;
   flex-shrink:0;
 }
 
 .streak-count{
-  font-size:11px;
-  font-weight:600;
+  font-size:13px;
+  font-weight:800;
   color:var(--text);
-  letter-spacing:0.3px;
+  letter-spacing:-0.3px;
   min-width:auto;
   text-align:center;
 }
@@ -323,7 +321,7 @@ body.no-scroll{
   content: '';
   position: absolute;
   inset: -2px;
-  border-radius: 14px;
+  border-radius: 16px;
   border: 2px solid rgba(239, 68, 68, 0.8);
   animation: broken-border-fade 1.5s ease-out forwards;
   pointer-events: none;
@@ -372,12 +370,14 @@ body.no-scroll{
 
 /* Pulse when both posted today */
 #streakDisplay.streak-complete {
-  animation: pulse 2s infinite;
+  border-color: rgba(251, 146, 60, 0.5);
+  background: rgba(251, 146, 60, 0.08);
+  animation: streak-pulse 2s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); }
-  50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.8); }
+@keyframes streak-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(251, 146, 60, 0.15); }
+  50% { box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.08); }
 }
 
 /* Force reset after animation ends - but allow broken animation */
@@ -391,8 +391,8 @@ body.no-scroll{
 }
 
 [data-theme="dark"] .streak-display{
-  background:linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(239, 68, 68, 0.15));
-  border-color:rgba(251, 146, 60, 0.4);
+  background:var(--surface);
+  border-color:var(--border);
 }
 
 /* Connection indicator - small dot only */
