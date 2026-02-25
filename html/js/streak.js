@@ -296,11 +296,11 @@ var Streak = {
       var el = document.createElement('span');
       el.className = 'fx-spark';
       // Start from top-right corner
-      el.style.top = (Math.random() * 10) + '%';
-      el.style.right = (Math.random() * 10) + '%';
-      // Fan out across the full screen — wide angle spread
-      var angle = Math.PI * 0.25 + Math.random() * Math.PI * 0.6;
-      var dist = 300 + Math.random() * 400;
+      el.style.top = (Math.random() * 8) + '%';
+      el.style.right = (Math.random() * 8) + '%';
+      // Fan from horizontal-left to ~70° down — all travel leftward
+      var angle = Math.random() * Math.PI * 0.4;
+      var dist = 350 + Math.random() * 500;
       el.style.setProperty('--tx', -Math.cos(angle) * dist + 'px');
       el.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
       el.style.background = colors[Math.floor(Math.random() * colors.length)];
