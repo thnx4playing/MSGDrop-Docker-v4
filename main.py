@@ -1434,7 +1434,7 @@ class WordleGameManager(BaseGameManager):
     def create_game(self, game_id, drop_id, starter, words):
         self.games[game_id] = {
             "gameId": game_id, "dropId": drop_id, "starter": starter,
-            "status": "active", "currentRound": 1, "totalRounds": 5,
+            "status": "active", "currentRound": 1, "totalRounds": 1,
             "words": words, "scores": {"E": 0, "M": 0},
             "guesses": {}, "playerDone": {}, "roundResults": {},
             "playerGrids": {}, "playerKeyStates": {},
@@ -2286,7 +2286,7 @@ async def ws_endpoint(ws: WebSocket):
 
                 elif op == "wordle_invite_accepted":
                     pending_invites.clear("wordle", drop)
-                    words = random.sample(WORDLE_SOLUTIONS, 5)
+                    words = random.sample(WORDLE_SOLUTIONS, 1)
                     gid = f"wordle_{secrets.token_hex(8)}"
                     wordle_game_manager.create_game(gid, drop, user, words)
                     with engine.begin() as conn:
@@ -2296,7 +2296,7 @@ async def ws_endpoint(ws: WebSocket):
                         """), {"id": gid, "d": drop, "s": user, "t": int(time.time()*1000)})
                     await hub.broadcast(drop, {"type": "game", "payload": {
                         "op": "wordle_started", "gameId": gid, "gameType": "wordle",
-                        "round": 1, "totalRounds": 5, "wordLength": 5
+                        "round": 1, "totalRounds": 1, "wordLength": 5
                     }})
 
                 elif op == "wordle_invite_declined":
@@ -2358,7 +2358,7 @@ async def ws_endpoint(ws: WebSocket):
                                     """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
                                            "ms": game["scores"]["M"], "w": winner, "gid": gid})
                                 all_rounds = [{"round": r, "result": game["roundResults"].get(r, {})}
-                                              for r in range(1, 6)]
+                                              for r in range(1, game["totalRounds"] + 1)]
                                 await hub.broadcast(drop, {"type": "game", "payload": {
                                     "op": "wordle_game_end", "gameId": gid,
                                     "totalScores": game["scores"], "winner": winner,
@@ -2375,7 +2375,7 @@ async def ws_endpoint(ws: WebSocket):
                     if new_round > 0:
                         await hub.broadcast(drop, {"type": "game", "payload": {
                             "op": "wordle_next_round", "gameId": gid,
-                            "round": new_round, "totalRounds": 5, "wordLength": 5
+                            "round": new_round, "totalRounds": 1, "wordLength": 5
                         }})
 
                 elif op == "wordle_timeout":
@@ -2404,7 +2404,7 @@ async def ws_endpoint(ws: WebSocket):
                                 """), {"ts": int(time.time()*1000), "es": game["scores"]["E"],
                                        "ms": game["scores"]["M"], "w": winner, "gid": gid})
                             all_rounds = [{"round": r, "result": game["roundResults"].get(r, {})}
-                                          for r in range(1, 6)]
+                                          for r in range(1, game["totalRounds"] + 1)]
                             await hub.broadcast(drop, {"type": "game", "payload": {
                                 "op": "wordle_game_end", "gameId": gid,
                                 "totalScores": game["scores"], "winner": winner,

@@ -13,7 +13,7 @@ window.WordleGame = new (class extends GameEngine {
 
     // ── Wordle-specific state (extends this.state from GameEngine) ──
     this.state.round          = 0;
-    this.state.totalRounds    = 5;
+    this.state.totalRounds    = 1;
     this.state.wordLength     = 5;
     this.state.currentRow     = 0;
     this.state.currentCol     = 0;
@@ -336,7 +336,7 @@ window.WordleGame = new (class extends GameEngine {
 
   renderPlaying() {
     var roundLabel = document.getElementById('wordleRoundLabel');
-    if (roundLabel) roundLabel.textContent = 'Round ' + this.state.round + ' of ' + this.state.totalRounds;
+    if (roundLabel) roundLabel.textContent = 'Wordle Battle';
     this.updateScoreDisplay();
 
     var gameArea       = document.getElementById('wordleGameArea');
@@ -362,7 +362,10 @@ window.WordleGame = new (class extends GameEngine {
     var container = document.getElementById('wordleGrid');
     if (!container) return;
     container.innerHTML = '';
+    var self = this;
     for (var r = 0; r < this.state.maxAttempts; r++) {
+      var rowEl = document.createElement('div');
+      rowEl.className = 'wordle-row';
       for (var c = 0; c < this.state.wordLength; c++) {
         var cell = document.createElement('div');
         cell.className = 'wordle-cell';
@@ -377,8 +380,19 @@ window.WordleGame = new (class extends GameEngine {
             cell.classList.add('filled');
           }
         }
-        container.appendChild(cell);
+        rowEl.appendChild(cell);
       }
+      // GO button: show on current row when all 5 letters filled, still playing
+      if (r === this.state.currentRow && this.state.currentCol === this.state.wordLength
+          && this.state.phase === 'playing' && !this.state.solved) {
+        var goBtn = document.createElement('button');
+        goBtn.className = 'wordle-row-submit';
+        goBtn.type = 'button';
+        goBtn.textContent = 'GO';
+        goBtn.addEventListener('click', function() { self.submitGuess(); });
+        rowEl.appendChild(goBtn);
+      }
+      container.appendChild(rowEl);
     }
   }
 
@@ -472,27 +486,44 @@ window.WordleGame = new (class extends GameEngine {
     var summaryArea = document.getElementById('wordleSummaryArea');
     if (gameArea) gameArea.style.display = 'none';
     if (resultArea) resultArea.style.display = 'none';
-    if (summaryArea) summaryArea.style.display = 'block';
+    if (summaryArea) summaryArea.style.display = 'flex';
 
+    // Title — win/lose/tie
     var html = '<div class="wordle-summary-title">';
     if (data.winner === 'tie') html += "It's a tie!";
-    else if (data.winner === Messages.myRole) html += 'You win!';
-    else html += data.winner + ' wins!';
+    else if (data.winner === Messages.myRole) html += 'You won!';
+    else html += 'You lost!';
     html += '</div>';
-    html += '<div class="wordle-summary-scores">';
-    html += '<div class="wordle-summary-player' + (data.winner === 'E' ? ' winner' : '') + '">E: ' + data.totalScores.E + '</div>';
-    html += '<div class="wordle-summary-player' + (data.winner === 'M' ? ' winner' : '') + '">M: ' + data.totalScores.M + '</div>';
-    html += '</div>';
-    html += '<div class="wordle-summary-rounds">';
-    (data.roundResults || []).forEach(function(rd) {
-      html += '<div class="wordle-summary-round">';
-      html += '<span class="wordle-sr-num">R' + rd.round + '</span>';
-      html += '<span class="wordle-sr-word">' + (rd.word || '?').toUpperCase() + '</span>';
-      html += '<span class="wordle-sr-e">' + ((rd.results && rd.results.E) ? rd.results.E.score : '0') + '</span>';
-      html += '<span class="wordle-sr-m">' + ((rd.results && rd.results.M) ? rd.results.M.score : '0') + '</span>';
+
+    // Reveal the word
+    var rd = (data.roundResults && data.roundResults[0]) || {};
+    var rdResult = rd.result || {};
+    var word = rdResult.word || rd.word || '?';
+    html += '<div class="wordle-summary-word">' + word.toUpperCase() + '</div>';
+
+    // Both players' mini grids side by side
+    html += '<div class="wordle-result-grids">';
+    ['E','M'].forEach(function(p) {
+      var pr = (rdResult.results || {})[p];
+      if (!pr) return;
+      var scoreText = pr.solved ? 'Solved in ' + pr.attempts : 'Not solved';
+      var pts = pr.score || 0;
+      html += '<div class="wordle-result-player">';
+      html += '<div class="wordle-result-player-label" style="color:' + (p === 'E' ? '#ef4444' : '#3b82f6') + '">' + p + '</div>';
+      html += '<div class="wordle-mini-grid">';
+      if (pr.grid) {
+        pr.grid.forEach(function(row) {
+          row.forEach(function(cell) {
+            html += '<div class="wordle-mini-cell ' + (cell.state || 'empty') + '"></div>';
+          });
+        });
+      }
+      html += '</div>';
+      html += '<div class="wordle-result-score">' + scoreText + ' &middot; ' + pts + ' pts</div>';
       html += '</div>';
     });
     html += '</div>';
+
     summaryArea.innerHTML = html;
   }
 
@@ -529,7 +560,7 @@ window.WordleGame = new (class extends GameEngine {
     var self = this;
     var timerEl = document.getElementById('wordleTimer');
 
-    this.startTimer(120,
+    this.startTimer(300,
       // onTick
       function(s) {
         if (timerEl) {
@@ -598,7 +629,7 @@ window.WordleGame = new (class extends GameEngine {
   prefix:        'wordle',
   icon:          '\uD83D\uDCDD',
   title:         'Wordle Battle',
-  subtitle:      '5 rounds \u00b7 2 min each',
+  subtitle:      '1 round \u00b7 5 min',
   modalId:       'wordleModal',
   panelClass:    'wordle-panel',
   showModal:     function() { UI.showWordleModal(); },
