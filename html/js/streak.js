@@ -176,12 +176,24 @@ var Streak = {
     }
   },
 
+  // Fire color palette (37 entries: black → red → orange → yellow → white)
+  _firePalette: (function(){
+    var p = [];
+    for(var i = 0; i < 37; i++){
+      if(i === 0){ p.push([0,0,0,0]); }
+      else if(i < 12){ p.push([Math.min(255, i * 25), 0, 0, 255]); }
+      else if(i < 24){ p.push([255, Math.min(255, (i - 12) * 22), 0, 255]); }
+      else { p.push([255, 255, Math.min(255, (i - 24) * 20), 255]); }
+    }
+    return p;
+  })(),
+
   _playMilestone: function(streak){
     var chat = document.getElementById('chatContainer');
     if(!chat) return;
-    console.log('[Streak] Milestone ' + streak + '! Confetti + flame');
+    console.log('[Streak] Milestone ' + streak + '! Confetti + fire');
 
-    // Create a fixed overlay matching the chat area so particles aren't clipped
+    // Create a fixed overlay matching the chat area
     var rect = chat.getBoundingClientRect();
     var overlay = document.createElement('div');
     overlay.className = 'celebrate-overlay';
@@ -205,21 +217,72 @@ var Streak = {
       overlay.appendChild(el);
     }
 
-    // Flame with streak count
+    // Fire + streak count container
     var flame = document.createElement('div');
     flame.className = 'celebrate-flame';
-    flame.innerHTML = '<div class="celebrate-flame-glow"></div>' +
-      '<div class="css-fire">' +
-        '<div class="css-fire-flame f1"></div>' +
-        '<div class="css-fire-flame f2"></div>' +
-        '<div class="css-fire-flame f3"></div>' +
-        '<div class="css-fire-flame f4"></div>' +
-        '<div class="css-fire-flame f5"></div>' +
-      '</div>' +
-      '<span class="celebrate-flame-count">' + streak + '</span>';
+
+    // Canvas fire simulation
+    var fw = 50, fh = 70;
+    var canvas = document.createElement('canvas');
+    canvas.width = fw;
+    canvas.height = fh;
+    canvas.className = 'celebrate-fire-canvas';
+    flame.appendChild(canvas);
+
+    // Glow layer behind canvas
+    var glow = document.createElement('div');
+    glow.className = 'celebrate-flame-glow';
+    flame.appendChild(glow);
+
+    // Streak number
+    var countEl = document.createElement('span');
+    countEl.className = 'celebrate-flame-count';
+    countEl.textContent = streak;
+    flame.appendChild(countEl);
+
     overlay.appendChild(flame);
 
-    setTimeout(function(){ overlay.remove(); }, 2600);
+    // Fire simulation
+    var ctx = canvas.getContext('2d');
+    var pixels = new Uint8Array(fw * fh);
+    var imgData = ctx.createImageData(fw, fh);
+    var palette = this._firePalette;
+    var running = true;
+
+    // Ignite bottom row
+    for(var x = 0; x < fw; x++){
+      pixels[(fh - 1) * fw + x] = 36;
+    }
+
+    function tick(){
+      if(!running) return;
+      // Spread fire upward
+      for(var y = 0; y < fh - 1; y++){
+        for(var x = 0; x < fw; x++){
+          var src = (y + 1) * fw + x;
+          var decay = (Math.random() * 3.5) | 0;
+          var nx = x - decay + 1;
+          if(nx < 0) nx = 0;
+          if(nx >= fw) nx = fw - 1;
+          pixels[y * fw + nx] = Math.max(0, pixels[src] - (decay & 1));
+        }
+      }
+      // Render pixels
+      var d = imgData.data;
+      for(var i = 0; i < pixels.length; i++){
+        var c = palette[pixels[i]];
+        var p = i * 4;
+        d[p] = c[0]; d[p+1] = c[1]; d[p+2] = c[2]; d[p+3] = c[3];
+      }
+      ctx.putImageData(imgData, 0, 0);
+      requestAnimationFrame(tick);
+    }
+    tick();
+
+    setTimeout(function(){
+      running = false;
+      overlay.remove();
+    }, 2600);
   },
 
   showBroken: function(lostStreak){
