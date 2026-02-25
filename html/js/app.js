@@ -387,8 +387,12 @@ var App = {
     }, CONFIG.POLL_MS);
   },
 
+  _countdownInterval: null,
+
   startCountdownTimer: function(){
     if(!UI.els.composeTimer) return;
+    // Clear any previous interval to prevent stacking
+    if(this._countdownInterval) clearInterval(this._countdownInterval);
     // Read real expiry from the session-ok token cookie
     var expiry = 0;
     try {
@@ -402,16 +406,19 @@ var App = {
           if(payload.exp) expiry = payload.exp;
         }
       }
-    } catch(e){}
+    } catch(e){ console.warn('[Timer] Failed to parse session token:', e); }
+    if(!expiry){
+      console.warn('[Timer] Could not read expiry from cookie');
+      UI.els.composeTimer.textContent = '--';
+      return;
+    }
     function fmt(s){
-      if(s >= 60) return Math.ceil(s / 60) + 'm';
+      if(s >= 60) return Math.floor(s / 60) + 'm';
       return s + 's';
     }
     function remaining(){ return Math.max(0, expiry - Math.floor(Date.now() / 1000)); }
-    // Fall back to 1198s if we couldn't read the token
-    if(!expiry) expiry = Math.floor(Date.now() / 1000) + 1198;
     UI.els.composeTimer.textContent = fmt(remaining());
-    setInterval(function(){
+    this._countdownInterval = setInterval(function(){
       var secs = remaining();
       if(UI.els.composeTimer) UI.els.composeTimer.textContent = fmt(secs);
       if(UI.els.composeTimer){
