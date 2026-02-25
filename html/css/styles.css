@@ -448,7 +448,6 @@ body.no-scroll{
 
 /* ================== CHAT AREA ================== */
 .chat-container{
-  position:relative;
   flex:1;
   overflow-y:auto;
   overflow-x:hidden;
@@ -2595,6 +2594,14 @@ html{overscroll-behavior-y:contain}
 }
 
 /* ================== STREAK MILESTONE CELEBRATIONS ================== */
+
+/* Fixed overlay so particles aren't clipped by chat container overflow */
+.celebrate-overlay{
+  position:fixed;
+  z-index:100;
+  pointer-events:none;
+  overflow:hidden;
+}
 
 /* Confetti particles */
 .celebrate-particle{

@@ -177,14 +177,34 @@ var Streak = {
   },
 
   _playMilestone: function(streak){
-    var container = document.getElementById('chatContainer');
-    if(!container) return;
+    var chat = document.getElementById('chatContainer');
+    if(!chat) return;
     var cycle = (streak % 20) / 5; // 1,2,3,0
     console.log('[Streak] Milestone ' + streak + '! Effect cycle:', cycle);
-    if(cycle === 1) this._confetti(container);
-    else if(cycle === 2) this._emojiRain(container);
-    else if(cycle === 3) this._shimmer(container);
-    else this._sparkle(container);
+
+    // Shimmer applies directly to the chat container (no overlay needed)
+    if(cycle === 3){ this._shimmer(chat); return; }
+
+    // Create a fixed overlay matching the chat area so particles aren't clipped by overflow
+    var overlay = this._createOverlay(chat);
+    var duration = cycle === 2 ? 2800 : cycle === 0 ? 1600 : 2200;
+    setTimeout(function(){ overlay.remove(); }, duration + 400);
+
+    if(cycle === 1) this._confetti(overlay);
+    else if(cycle === 2) this._emojiRain(overlay);
+    else this._sparkle(overlay);
+  },
+
+  _createOverlay: function(chat){
+    var rect = chat.getBoundingClientRect();
+    var overlay = document.createElement('div');
+    overlay.className = 'celebrate-overlay';
+    overlay.style.top = rect.top + 'px';
+    overlay.style.left = rect.left + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+    document.body.appendChild(overlay);
+    return overlay;
   },
 
   _confetti: function(container){
@@ -199,7 +219,6 @@ var Streak = {
       el.style.width = (6 + Math.random() * 6) + 'px';
       el.style.height = el.style.width;
       container.appendChild(el);
-      (function(e){ setTimeout(function(){ e.remove(); }, 2200); })(el);
     }
   },
 
@@ -212,7 +231,6 @@ var Streak = {
       el.style.left = (Math.random() * 90 + 5) + '%';
       el.style.animationDelay = (Math.random() * 0.8) + 's';
       container.appendChild(el);
-      (function(e){ setTimeout(function(){ e.remove(); }, 2800); })(el);
     }
   },
 
@@ -235,7 +253,6 @@ var Streak = {
       el.style.top = cy + 'px';
       el.style.animationDelay = (Math.random() * 0.2) + 's';
       container.appendChild(el);
-      (function(e){ setTimeout(function(){ e.remove(); }, 1600); })(el);
     }
   },
 
