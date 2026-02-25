@@ -2633,8 +2633,8 @@ html{overscroll-behavior-y:contain}
 /* Sprite strip fire animation (6 frames, horizontal) */
 .celebrate-fire-sprite{
   width:150px;
-  height:219px;
-  background:url('/images/fire-sprite.png') 0 0 / 900px 219px no-repeat;
+  height:225px;
+  background:url('/images/fire-sprite.png') 0 0 / 900px 225px no-repeat;
   animation:fire-sprite-play 0.5s steps(5) infinite;
 }
 @keyframes fire-sprite-play{
