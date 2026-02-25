@@ -413,7 +413,7 @@ window.WordleGame = new (class extends GameEngine {
         var btn = document.createElement('button');
         btn.className = 'wordle-key';
         btn.type = 'button';
-        btn.textContent = key;
+        btn.textContent = key === 'ENTER' ? '\u21B5' : key;
         if (key === 'ENTER' || key === '\u2190') btn.classList.add('wide');
         var state = self.state.keyStates[key];
         if (state) btn.classList.add(state);
