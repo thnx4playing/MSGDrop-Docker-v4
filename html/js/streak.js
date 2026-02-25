@@ -179,23 +179,9 @@ var Streak = {
   _playMilestone: function(streak){
     var chat = document.getElementById('chatContainer');
     if(!chat) return;
-    var cycle = (streak % 20) / 5; // 1,2,3,0
-    console.log('[Streak] Milestone ' + streak + '! Effect cycle:', cycle);
+    console.log('[Streak] Milestone ' + streak + '! Confetti + flame');
 
-    // Shimmer applies directly to the chat container (no overlay needed)
-    if(cycle === 3){ this._shimmer(chat); return; }
-
-    // Create a fixed overlay matching the chat area so particles aren't clipped by overflow
-    var overlay = this._createOverlay(chat);
-    var duration = cycle === 2 ? 2800 : cycle === 0 ? 1600 : 2200;
-    setTimeout(function(){ overlay.remove(); }, duration + 400);
-
-    if(cycle === 1) this._confetti(overlay);
-    else if(cycle === 2) this._emojiRain(overlay);
-    else this._sparkle(overlay);
-  },
-
-  _createOverlay: function(chat){
+    // Create a fixed overlay matching the chat area so particles aren't clipped
     var rect = chat.getBoundingClientRect();
     var overlay = document.createElement('div');
     overlay.className = 'celebrate-overlay';
@@ -204,10 +190,8 @@ var Streak = {
     overlay.style.width = rect.width + 'px';
     overlay.style.height = rect.height + 'px';
     document.body.appendChild(overlay);
-    return overlay;
-  },
 
-  _confetti: function(container){
+    // Confetti
     var colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6ed4','#a855f7'];
     for(var i = 0; i < 30; i++){
       var el = document.createElement('span');
@@ -218,42 +202,16 @@ var Streak = {
       if(Math.random() > 0.5) el.style.borderRadius = '50%';
       el.style.width = (6 + Math.random() * 6) + 'px';
       el.style.height = el.style.width;
-      container.appendChild(el);
+      overlay.appendChild(el);
     }
-  },
 
-  _emojiRain: function(container){
-    var emojis = ['\uD83D\uDCF8','\uD83C\uDF1F','\uD83C\uDF89','\uD83D\uDC96','\uD83D\uDD25','\uD83C\uDF08','\u2728','\uD83C\uDF1E','\uD83C\uDFA8'];
-    for(var i = 0; i < 15; i++){
-      var el = document.createElement('span');
-      el.className = 'celebrate-emoji';
-      el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-      el.style.left = (Math.random() * 90 + 5) + '%';
-      el.style.animationDelay = (Math.random() * 0.8) + 's';
-      container.appendChild(el);
-    }
-  },
+    // Flame with streak count
+    var flame = document.createElement('div');
+    flame.className = 'celebrate-flame';
+    flame.innerHTML = '<span class="celebrate-flame-emoji">\uD83D\uDD25</span><span class="celebrate-flame-count">' + streak + '</span>';
+    overlay.appendChild(flame);
 
-  _shimmer: function(container){
-    container.classList.add('chat-celebrate-shimmer');
-    setTimeout(function(){ container.classList.remove('chat-celebrate-shimmer'); }, 2000);
-  },
-
-  _sparkle: function(container){
-    var cx = container.offsetWidth / 2;
-    var cy = container.offsetHeight / 2;
-    for(var i = 0; i < 20; i++){
-      var el = document.createElement('span');
-      el.className = 'celebrate-sparkle';
-      var angle = (Math.PI * 2 * i) / 20;
-      var dist = 60 + Math.random() * 80;
-      el.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
-      el.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
-      el.style.left = cx + 'px';
-      el.style.top = cy + 'px';
-      el.style.animationDelay = (Math.random() * 0.2) + 's';
-      container.appendChild(el);
-    }
+    setTimeout(function(){ overlay.remove(); }, 2600);
   },
 
   showBroken: function(lostStreak){

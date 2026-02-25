@@ -2617,57 +2617,34 @@ html{overscroll-behavior-y:contain}
   100%{transform:translateY(400px) rotate(720deg); opacity:0;}
 }
 
-/* Emoji rain */
-.celebrate-emoji{
+/* Flame with streak count */
+.celebrate-flame{
   position:absolute;
-  top:-30px;
-  z-index:10;
-  font-size:22px;
-  pointer-events:none;
-  animation:emoji-float 2.2s ease-in forwards;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%) scale(0);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  animation:flame-pop 2.4s ease-out forwards;
 }
-@keyframes emoji-float{
-  0%{transform:translateY(0) translateX(0); opacity:1;}
-  25%{transform:translateY(100px) translateX(10px);}
-  50%{transform:translateY(200px) translateX(-8px);}
-  75%{transform:translateY(300px) translateX(6px); opacity:1;}
-  100%{transform:translateY(420px) translateX(-4px); opacity:0;}
+.celebrate-flame-emoji{
+  font-size:80px;
+  line-height:1;
+  filter:drop-shadow(0 0 20px rgba(255,100,0,0.6));
 }
-
-/* Shimmer glow on chat container */
-.chat-celebrate-shimmer{
-  animation:shimmer-chat 2s ease-in-out;
+.celebrate-flame-count{
+  font-size:36px;
+  font-weight:800;
+  color:#fff;
+  text-shadow:0 0 12px rgba(255,100,0,0.8), 0 2px 4px rgba(0,0,0,0.4);
+  margin-top:-10px;
+  letter-spacing:-1px;
 }
-@keyframes shimmer-chat{
-  0%{box-shadow:none;}
-  20%{box-shadow:inset 0 0 30px 8px rgba(255,200,50,0.25);}
-  40%{box-shadow:inset 0 0 50px 12px rgba(255,170,30,0.2);}
-  60%{box-shadow:inset 0 0 30px 8px rgba(255,200,50,0.25);}
-  80%{box-shadow:inset 0 0 15px 4px rgba(255,200,50,0.1);}
-  100%{box-shadow:none;}
-}
-
-/* Sparkle burst */
-.celebrate-sparkle{
-  position:absolute;
-  width:6px;
-  height:6px;
-  background:gold;
-  border-radius:50%;
-  z-index:10;
-  pointer-events:none;
-  animation:sparkle-expand 1.2s ease-out forwards;
-}
-.celebrate-sparkle:nth-child(odd){
-  background:#ffd93d;
-  width:4px;
-  height:4px;
-}
-.celebrate-sparkle:nth-child(3n){
-  background:#ff6ed4;
-}
-@keyframes sparkle-expand{
-  0%{transform:translate(0,0) scale(1); opacity:1;}
-  60%{opacity:1;}
-  100%{transform:translate(var(--tx),var(--ty)) scale(0.3); opacity:0;}
+@keyframes flame-pop{
+  0%{transform:translate(-50%,-50%) scale(0); opacity:0;}
+  15%{transform:translate(-50%,-50%) scale(1.2); opacity:1;}
+  25%{transform:translate(-50%,-50%) scale(1); opacity:1;}
+  75%{transform:translate(-50%,-50%) scale(1); opacity:1;}
+  100%{transform:translate(-50%,-50%) scale(0.8); opacity:0;}
 }
