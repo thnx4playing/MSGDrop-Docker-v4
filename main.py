@@ -1615,7 +1615,7 @@ async def _fetch_trivia_questions(count=10, category_id=None):
     """Fetch questions from Open Trivia DB, fall back to embedded set."""
     import html as html_mod
     try:
-        url = f"https://opentdb.com/api.php?amount={count}&type=multiple&encode=url3986"
+        url = f"https://opentdb.com/api.php?amount={count}&type=multiple&encode=url3986&difficulty=medium"
         if category_id is not None:
             url += f"&category={category_id}"
         async with httpx.AsyncClient(timeout=8.0) as client:
