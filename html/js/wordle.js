@@ -486,45 +486,10 @@ window.WordleGame = new (class extends GameEngine {
     var summaryArea = document.getElementById('wordleSummaryArea');
     if (gameArea) gameArea.style.display = 'none';
     if (resultArea) resultArea.style.display = 'none';
-    if (summaryArea) summaryArea.style.display = 'flex';
-
-    // Title — win/lose/tie
-    var html = '<div class="wordle-summary-title">';
-    if (data.winner === 'tie') html += "It's a tie!";
-    else if (data.winner === Messages.myRole) html += 'You won!';
-    else html += 'You lost!';
-    html += '</div>';
-
-    // Reveal the word
-    var rd = (data.roundResults && data.roundResults[0]) || {};
-    var rdResult = rd.result || {};
-    var word = rdResult.word || rd.word || '?';
-    html += '<div class="wordle-summary-word">' + word.toUpperCase() + '</div>';
-
-    // Both players' mini grids side by side
-    html += '<div class="wordle-result-grids">';
-    ['E','M'].forEach(function(p) {
-      var pr = (rdResult.results || {})[p];
-      if (!pr) return;
-      var scoreText = pr.solved ? 'Solved in ' + pr.attempts : 'Not solved';
-      var pts = pr.score || 0;
-      html += '<div class="wordle-result-player">';
-      html += '<div class="wordle-result-player-label" style="color:' + (p === 'E' ? '#ef4444' : '#3b82f6') + '">' + p + '</div>';
-      html += '<div class="wordle-mini-grid">';
-      if (pr.grid) {
-        pr.grid.forEach(function(row) {
-          row.forEach(function(cell) {
-            html += '<div class="wordle-mini-cell ' + (cell.state || 'empty') + '"></div>';
-          });
-        });
-      }
-      html += '</div>';
-      html += '<div class="wordle-result-score">' + scoreText + ' &middot; ' + pts + ' pts</div>';
-      html += '</div>';
-    });
-    html += '</div>';
-
-    summaryArea.innerHTML = html;
+    if (summaryArea) {
+      summaryArea.style.display = 'flex';
+      summaryArea.innerHTML = this.buildEndSummaryHTML(data);
+    }
   }
 
   renderForfeitMessage() {

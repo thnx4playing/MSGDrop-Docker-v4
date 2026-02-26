@@ -139,52 +139,6 @@
   text-align: center;
 }
 
-/* ── Summary area ── */
-.trivia-summary-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 20px;
-}
-.trivia-summary-title {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text);
-  text-align: center;
-  margin-bottom: 16px;
-}
-.trivia-summary-scores {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  margin-bottom: 20px;
-}
-.trivia-summary-player {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.trivia-summary-player.winner {
-  color: #22c55e;
-  font-weight: 800;
-}
-.trivia-wins-tracker {
-  text-align: center;
-  font-size: 14px;
-  color: var(--muted);
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-.trivia-wins-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-
 /* ── Scoreboard area ── */
 .trivia-scoreboard-area {
   flex: 1;

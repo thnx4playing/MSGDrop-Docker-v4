@@ -560,60 +560,10 @@ window.GeoGame = new (class extends GameEngine {
     var summaryArea = document.getElementById('geoSummaryArea');
     if (guessArea) guessArea.style.display = 'none';
     if (resultArea) resultArea.style.display = 'none';
-    if (summaryArea) summaryArea.style.display = 'block';
-
-    var isTie = data.winner === 'tie';
-    var iWin = data.winner === Messages.myRole;
-    var icon = isTie ? '\uD83E\uDD1D' : '\uD83C\uDFC6';
-    var title = isTie ? "It's a tie!" : (iWin ? 'You win!' : data.winner + ' wins!');
-
-    var eTotal = data.totalScores.E || 0;
-    var mTotal = data.totalScores.M || 0;
-
-    var html = '<div class="geo-summary-header">' +
-      '<div class="geo-summary-icon">' + icon + '</div>' +
-      '<div class="geo-summary-title">' + title + '</div>' +
-      '</div>';
-
-    html += '<div class="geo-summary-cards">' +
-      '<div class="geo-summary-card geo-summary-card-e' + (data.winner === 'E' ? ' geo-summary-card-winner' : '') + '">' +
-        '<div class="geo-sc-label">E</div>' +
-        '<div class="geo-sc-score">' + eTotal + '</div>' +
-        '<div class="geo-sc-pts">pts</div>' +
-      '</div>' +
-      '<div class="geo-summary-vs">vs</div>' +
-      '<div class="geo-summary-card geo-summary-card-m' + (data.winner === 'M' ? ' geo-summary-card-winner' : '') + '">' +
-        '<div class="geo-sc-label">M</div>' +
-        '<div class="geo-sc-score">' + mTotal + '</div>' +
-        '<div class="geo-sc-pts">pts</div>' +
-      '</div>' +
-      '</div>';
-
-    if (data.allTimeWins) {
-      var aw = data.allTimeWins;
-      var eW = aw.E || 0;
-      var mW = aw.M || 0;
-      var tieW = aw.tie || 0;
-      html += '<div class="geo-summary-alltime">' +
-        '<div class="geo-alltime-label">All-Time Record</div>' +
-        '<div class="geo-alltime-cards">' +
-          '<div class="geo-alltime-card">' +
-            '<div class="geo-aw-num geo-aw-e">' + eW + '</div>' +
-            '<div class="geo-aw-sub">E wins</div>' +
-          '</div>' +
-          '<div class="geo-alltime-card">' +
-            '<div class="geo-aw-num geo-aw-tie">' + tieW + '</div>' +
-            '<div class="geo-aw-sub">Ties</div>' +
-          '</div>' +
-          '<div class="geo-alltime-card">' +
-            '<div class="geo-aw-num geo-aw-m">' + mW + '</div>' +
-            '<div class="geo-aw-sub">M wins</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
+    if (summaryArea) {
+      summaryArea.style.display = 'flex';
+      summaryArea.innerHTML = this.buildEndSummaryHTML(data);
     }
-
-    summaryArea.innerHTML = html;
   }
 
   // =========================================================================

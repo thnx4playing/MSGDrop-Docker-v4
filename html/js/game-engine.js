@@ -370,6 +370,50 @@ window.GameEngine = class GameEngine {
   // =========================================================================
 
   /**
+   * Build unified end-game summary HTML (trophy, score cards, all-time record).
+   */
+  buildEndSummaryHTML(data) {
+    var isTie = data.winner === 'tie';
+    var iWin = data.winner === Messages.myRole;
+    var icon = isTie ? '\uD83E\uDD1D' : '\uD83C\uDFC6';
+    var title = isTie ? "It's a tie!" : (iWin ? 'You win!' : data.winner + ' wins!');
+    var eTotal = (data.totalScores && data.totalScores.E) || 0;
+    var mTotal = (data.totalScores && data.totalScores.M) || 0;
+
+    var html = '<div class="game-end-header">' +
+      '<div class="game-end-icon">' + icon + '</div>' +
+      '<div class="game-end-title">' + title + '</div>' +
+      '</div>';
+
+    html += '<div class="game-end-cards">' +
+      '<div class="game-end-card game-end-card-e' + (data.winner === 'E' ? ' game-end-card-winner' : '') + '">' +
+        '<div class="game-end-card-label">E</div>' +
+        '<div class="game-end-card-score">' + eTotal + '</div>' +
+        '<div class="game-end-card-pts">pts</div>' +
+      '</div>' +
+      '<div class="game-end-vs">vs</div>' +
+      '<div class="game-end-card game-end-card-m' + (data.winner === 'M' ? ' game-end-card-winner' : '') + '">' +
+        '<div class="game-end-card-label">M</div>' +
+        '<div class="game-end-card-score">' + mTotal + '</div>' +
+        '<div class="game-end-card-pts">pts</div>' +
+      '</div>' +
+      '</div>';
+
+    if (data.allTimeWins) {
+      var aw = data.allTimeWins;
+      html += '<div class="game-end-alltime">' +
+        '<div class="game-end-alltime-label">All-Time Record</div>' +
+        '<div class="game-end-alltime-cards">' +
+          '<div class="game-end-alltime-card"><div class="game-end-aw-num game-end-aw-e">' + (aw.E || 0) + '</div><div class="game-end-aw-sub">E wins</div></div>' +
+          '<div class="game-end-alltime-card"><div class="game-end-aw-num game-end-aw-tie">' + (aw.tie || 0) + '</div><div class="game-end-aw-sub">Ties</div></div>' +
+          '<div class="game-end-alltime-card"><div class="game-end-aw-num game-end-aw-m">' + (aw.M || 0) + '</div><div class="game-end-aw-sub">M wins</div></div>' +
+        '</div></div>';
+    }
+
+    return html;
+  }
+
+  /**
    * Fetch and render the scoreboard for this game.
    * Uses this.scoreboardUrl + dropId to fetch scores from the API.
    *

@@ -200,35 +200,6 @@
   color: var(--accent);
 }
 
-/* ── Summary area ── */
-.draw-summary-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px 20px;
-}
-.draw-summary-title {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text);
-  text-align: center;
-  margin-bottom: 16px;
-}
-.draw-summary-scores {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  margin-bottom: 20px;
-}
-.draw-summary-player {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--muted);
-}
-.draw-summary-player.winner {
-  color: #22c55e;
-  font-weight: 800;
-}
-
 /* ── Scoreboard area ── */
 .draw-scoreboard-area {
   flex: 1;

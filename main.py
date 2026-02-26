@@ -2271,21 +2271,11 @@ async def ws_endpoint(ws: WebSocket):
                                 loc_r = game["locations"][r_num - 1]
                                 all_rounds.append({"round": r_num, "location": loc_r,
                                                    "results": game["roundResults"].get(r_num, {})})
-                            with engine.begin() as conn2:
-                                stats_rows = conn2.execute(text("""
-                                    select winner, count(*) as cnt from geo_games
-                                    where drop_id=:d and status='ended'
-                                    group by winner
-                                """), {"d": drop}).mappings().all()
-                            all_time = {"E": 0, "M": 0, "tie": 0}
-                            for sr in stats_rows:
-                                if sr["winner"] in all_time:
-                                    all_time[sr["winner"]] = sr["cnt"]
                             await hub.broadcast(drop, {"type": "game", "payload": {
                                 "op": "geo_game_end", "gameId": gid,
                                 "totalScores": game["scores"], "winner": winner,
                                 "roundResults": all_rounds,
-                                "allTimeWins": all_time
+                                "allTimeWins": _get_alltime_wins("geo_games", drop)
                             }})
                             geo_game_manager.end_game(gid)
 
@@ -2404,7 +2394,8 @@ async def ws_endpoint(ws: WebSocket):
                                 await hub.broadcast(drop, {"type": "game", "payload": {
                                     "op": "wordle_game_end", "gameId": gid,
                                     "totalScores": game["scores"], "winner": winner,
-                                    "roundResults": all_rounds
+                                    "roundResults": all_rounds,
+                                    "allTimeWins": _get_alltime_wins("wordle_games", drop)
                                 }})
                                 wordle_game_manager.end_game(gid)
 
@@ -2546,7 +2537,8 @@ async def ws_endpoint(ws: WebSocket):
                             await hub.broadcast(drop, {"type": "game", "payload": {
                                 "op": "trivia_game_end", "gameId": gid,
                                 "totalScores": game["scores"], "winner": winner,
-                                "questionResults": all_results
+                                "questionResults": all_results,
+                                "allTimeWins": _get_alltime_wins("trivia_games", drop)
                             }})
                             trivia_game_manager.end_game(gid)
 
@@ -2579,7 +2571,8 @@ async def ws_endpoint(ws: WebSocket):
                             await hub.broadcast(drop, {"type": "game", "payload": {
                                 "op": "trivia_game_end", "gameId": gid,
                                 "totalScores": game["scores"], "winner": winner,
-                                "questionResults": all_results
+                                "questionResults": all_results,
+                                "allTimeWins": _get_alltime_wins("trivia_games", drop)
                             }})
                             trivia_game_manager.end_game(gid)
 
@@ -2724,7 +2717,8 @@ async def ws_endpoint(ws: WebSocket):
                             await hub.broadcast(drop, {"type": "game", "payload": {
                                 "op": "draw_game_end", "gameId": gid,
                                 "totalScores": game["scores"], "winner": winner,
-                                "roundResults": all_rounds
+                                "roundResults": all_rounds,
+                                "allTimeWins": _get_alltime_wins("draw_games", drop)
                             }})
                             draw_game_manager.end_game(gid)
                     else:
@@ -2766,7 +2760,8 @@ async def ws_endpoint(ws: WebSocket):
                         await hub.broadcast(drop, {"type": "game", "payload": {
                             "op": "draw_game_end", "gameId": gid,
                             "totalScores": game["scores"], "winner": winner,
-                            "roundResults": all_rounds
+                            "roundResults": all_rounds,
+                            "allTimeWins": _get_alltime_wins("draw_games", drop)
                         }})
                         draw_game_manager.end_game(gid)
 
@@ -2865,6 +2860,18 @@ async def ws_endpoint(ws: WebSocket):
 def geo_config(req: Request):
     require_session(req)
     return {"mapsApiKey": GOOGLE_MAPS_API_KEY}
+
+def _get_alltime_wins(table: str, drop_id: str) -> dict:
+    with engine.begin() as conn:
+        rows = conn.execute(text(f"""
+            select winner, count(*) as cnt from {table}
+            where drop_id=:d and status='ended' group by winner
+        """), {"d": drop_id}).mappings().all()
+    result = {"E": 0, "M": 0, "tie": 0}
+    for r in rows:
+        if r["winner"] in result:
+            result[r["winner"]] = r["cnt"]
+    return result
 
 def _get_game_scores(table: str, drop_id: str, limit: int):
     with engine.begin() as conn:

@@ -321,19 +321,12 @@ window.DrawingGame = new (class extends GameEngine {
     var gameArea    = document.getElementById('drawGameArea');
     var resultArea  = document.getElementById('drawResultArea');
     var summaryArea = document.getElementById('drawSummaryArea');
-    if (gameArea) gameArea.style.display     = 'none';
+    if (gameArea) gameArea.style.display = 'none';
     if (resultArea) resultArea.style.display = 'none';
-    if (summaryArea) summaryArea.style.display = 'block';
-
-    var html = '<div class="draw-summary-title">';
-    if (data.winner === 'tie') html += "It's a tie!";
-    else if (data.winner === Messages.myRole) html += 'You win!';
-    else html += data.winner + ' wins!';
-    html += '</div><div class="draw-summary-scores">';
-    html += '<div class="draw-summary-player' + (data.winner === 'E' ? ' winner' : '') + '">E: ' + data.totalScores.E + '</div>';
-    html += '<div class="draw-summary-player' + (data.winner === 'M' ? ' winner' : '') + '">M: ' + data.totalScores.M + '</div>';
-    html += '</div>';
-    summaryArea.innerHTML = html;
+    if (summaryArea) {
+      summaryArea.style.display = 'flex';
+      summaryArea.innerHTML = this.buildEndSummaryHTML(data);
+    }
   }
 
   updateScoreDisplay() {
