@@ -27,6 +27,7 @@ window.WordleGame = new (class extends GameEngine {
     this.state.solved         = false;
     this.state.otherPlayerDone = false;
     this.state.roundWord      = null;
+    this.state.hintUsed        = false;
 
     this._keyboardHandler = null;
   }
@@ -88,6 +89,7 @@ window.WordleGame = new (class extends GameEngine {
 
     this.state.myAttempts = data.myAttempts || 0;
     this.state.solved     = data.mySolved || false;
+    this.state.hintUsed   = data.hintUsed || false;
     this.state.currentRow = this.state.myAttempts;
     this.state.currentCol = 0;
 
@@ -150,6 +152,31 @@ window.WordleGame = new (class extends GameEngine {
       if (data.player !== Messages.myRole) {
         this.updateMessage(data.player + ': attempt ' + data.attempt + '/6');
       }
+    }
+
+    else if (op === 'wordle_hint_result') {
+      this.state.hintUsed = true;
+      var pos = data.position;
+      var letter = data.letter.toUpperCase();
+      var row = this.state.currentRow;
+      if (row < this.state.maxAttempts) {
+        this.state.grid[row][pos].letter = letter;
+        if (this.state.currentCol <= pos) {
+          this.state.currentCol = pos + 1;
+        }
+      }
+      this.renderGrid();
+      this.renderHintButton();
+      var cell = document.querySelector('.wordle-cell[data-row="' + row + '"][data-col="' + pos + '"]');
+      if (cell) cell.classList.add('hint-reveal');
+      this.updateMessage('Position ' + (pos + 1) + ' is ' + letter);
+      var self = this;
+      setTimeout(function() { self.updateMessage(''); }, 2000);
+    }
+
+    else if (op === 'wordle_hint_denied') {
+      this.state.hintUsed = true;
+      this.renderHintButton();
     }
 
     else if (op === 'wordle_round_result') {
@@ -224,6 +251,7 @@ window.WordleGame = new (class extends GameEngine {
     this.state.otherPlayerDone = false;
     this.state.myAttempts      = 0;
     this.state.roundWord       = null;
+    this.state.hintUsed        = false;
   }
 
   /**
@@ -246,6 +274,7 @@ window.WordleGame = new (class extends GameEngine {
     this.state.solved     = false;
     this.state.otherPlayerDone = false;
     this.state.myAttempts = 0;
+    this.state.hintUsed = false;
     for (var i = 0; i < this.state.maxAttempts; i++) {
       var row = [];
       for (var j = 0; j < this.state.wordLength; j++) {
@@ -351,6 +380,7 @@ window.WordleGame = new (class extends GameEngine {
     this.renderGrid();
     this.renderKeyboard();
     this.updateMessage('');
+    this.renderHintButton();
 
     if (this.state.phase === 'playing') {
       this.startWordleTimer();
@@ -422,6 +452,32 @@ window.WordleGame = new (class extends GameEngine {
       });
       container.appendChild(rowEl);
     });
+  }
+
+  renderHintButton() {
+    var area = document.getElementById('wordleHintArea');
+    if (!area) return;
+    if (this.state.phase !== 'playing' && this.state.phase !== 'waiting') {
+      area.innerHTML = '';
+      return;
+    }
+    if (this.state.hintUsed) {
+      area.innerHTML = '<span style="color:var(--muted);font-size:12px;">Hint used</span>';
+      return;
+    }
+    var self = this;
+    area.innerHTML = '';
+    var btn = document.createElement('button');
+    btn.className = 'wordle-hint-btn';
+    btn.type = 'button';
+    btn.innerHTML = '\uD83D\uDCA1 Hint';
+    btn.addEventListener('click', function() { self.requestHint(); });
+    area.appendChild(btn);
+  }
+
+  requestHint() {
+    if (this.state.hintUsed || this.state.phase !== 'playing') return;
+    this._sendOp('wordle_hint', {gameId: this.state.gameId});
   }
 
   setupKeyboardListener() {

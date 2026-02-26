@@ -1465,7 +1465,7 @@ class WordleGameManager(BaseGameManager):
             "status": "active", "currentRound": 1, "totalRounds": 1,
             "words": words, "scores": {"E": 0, "M": 0},
             "guesses": {}, "playerDone": {}, "roundResults": {},
-            "playerGrids": {}, "playerKeyStates": {},
+            "playerGrids": {}, "playerKeyStates": {}, "hintsUsed": {},
             "createdAt": int(time.time() * 1000),
         }
 
@@ -1509,6 +1509,25 @@ class WordleGameManager(BaseGameManager):
                 result[i]["state"] = "present"
                 target_chars[target_chars.index(guess[i])] = None
         return result
+
+    def get_hint(self, gid, player):
+        game = self.games.get(gid)
+        if not game: return None
+        rnd = game["currentRound"]
+        game.setdefault("hintsUsed", {}).setdefault(rnd, {})
+        if player in game["hintsUsed"][rnd]:
+            return None
+        target = game["words"][rnd - 1].lower()
+        known = set()
+        for row in game.get("playerGrids", {}).get(rnd, {}).get(player, []):
+            for i, fb in enumerate(row):
+                if fb["state"] == "correct":
+                    known.add(i)
+        available = [i for i in range(len(target)) if i not in known]
+        if not available: return None
+        pos = random.choice(available)
+        game["hintsUsed"][rnd][player] = {"position": pos, "letter": target[pos]}
+        return {"position": pos, "letter": target[pos]}
 
     def mark_player_done(self, gid, player, solved, attempts):
         game = self.games.get(gid)
@@ -1561,6 +1580,7 @@ class WordleGameManager(BaseGameManager):
             "myAttempts": len(my_guesses),
             "mySolved": my_done["solved"] if my_done else False,
             "otherPlayerDone": other in done_info,
+            "hintUsed": for_player in game.get("hintsUsed", {}).get(rnd, {}),
             "roundResult": game["roundResults"].get(rnd),
             "roundHistory": [game["roundResults"][r] for r in sorted(game["roundResults"]) if r < rnd],
         }
@@ -2444,6 +2464,26 @@ async def ws_endpoint(ws: WebSocket):
                                 "roundResults": all_rounds
                             }})
                             wordle_game_manager.end_game(gid)
+
+                elif op == "wordle_hint":
+                    gid = payload.get("gameId")
+                    game = wordle_game_manager.get_game(gid)
+                    if not game or game.get("status") not in ("active", "paused"):
+                        continue
+                    rnd = game["currentRound"]
+                    done_info = game.get("playerDone", {}).get(rnd, {})
+                    if user in done_info:
+                        continue
+                    hint = wordle_game_manager.get_hint(gid, user)
+                    if hint:
+                        await ws.send_json({"type": "game", "payload": {
+                            "op": "wordle_hint_result", "gameId": gid,
+                            "position": hint["position"], "letter": hint["letter"]
+                        }})
+                    else:
+                        await ws.send_json({"type": "game", "payload": {
+                            "op": "wordle_hint_denied", "gameId": gid
+                        }})
 
                 elif op == "wordle_forfeit":
                     gid = payload.get("gameId")
