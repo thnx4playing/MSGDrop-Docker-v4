@@ -485,8 +485,11 @@ window.GeoGame = new (class extends GameEngine {
       var eScore = (data.results.E && data.results.E.score) || 0;
       var mScore = (data.results.M && data.results.M.score) || 0;
       var roundWinner = eScore > mScore ? 'E' : (mScore > eScore ? 'M' : null);
+      var totalE = (this.state.scores && this.state.scores.E) || 0;
+      var totalM = (this.state.scores && this.state.scores.M) || 0;
 
-      var html = '<div class="geo-result-location">' + loc.name + ', ' + loc.country + '</div>';
+      var html = '<div class="geo-result-round-badge">Round ' + this.state.round + ' of ' + this.state.totalRounds + '</div>';
+      html += '<div class="geo-result-location">\uD83D\uDCCD ' + loc.name + ', ' + loc.country + '</div>';
       ['E', 'M'].forEach(function(p) {
         if (!data.results[p]) return;
         var r = data.results[p];
@@ -503,6 +506,12 @@ window.GeoGame = new (class extends GameEngine {
           (isWinner ? '<span class="geo-round-winner-badge">&#9733;</span>' : '') +
           '</div>';
       });
+      html += '<div class="geo-result-total">' +
+        '<span class="geo-result-total-label">Total</span>' +
+        '<span class="geo-result-total-e">E: ' + totalE + '</span>' +
+        '<span class="geo-result-total-sep">\u2014</span>' +
+        '<span class="geo-result-total-m">M: ' + totalM + '</span>' +
+        '</div>';
       resultText.innerHTML = html;
     }
 

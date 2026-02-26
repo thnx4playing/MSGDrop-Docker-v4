@@ -270,7 +270,7 @@ def haversine(lat1, lng1, lat2, lng2):
     return R * 2 * math.asin(math.sqrt(a))
 
 def geo_score(distance_km):
-    return max(0, round(5000 * math.exp(-distance_km / 1500)))
+    return max(0, round(100 * math.exp(-distance_km / 1500)))
 
 GEO_LOCATIONS = [
     # EUROPE
@@ -1421,8 +1421,12 @@ class GeoGameManager(BaseGameManager):
         game = self.games.get(game_id)
         if not game:
             return 0
-        if game["currentRound"] >= game["totalRounds"]:
+        rnd = game["currentRound"]
+        if rnd >= game["totalRounds"]:
             game["status"] = "ended"
+            return 0
+        # Only advance if current round has been scored (idempotent guard)
+        if rnd not in game.get("roundResults", {}):
             return 0
         game["currentRound"] += 1
         return game["currentRound"]
