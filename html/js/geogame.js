@@ -567,49 +567,48 @@ window.GeoGame = new (class extends GameEngine {
     var icon = isTie ? '\uD83E\uDD1D' : '\uD83C\uDFC6';
     var title = isTie ? "It's a tie!" : (iWin ? 'You win!' : data.winner + ' wins!');
 
+    var eTotal = data.totalScores.E || 0;
+    var mTotal = data.totalScores.M || 0;
+
     var html = '<div class="geo-summary-header">' +
       '<div class="geo-summary-icon">' + icon + '</div>' +
       '<div class="geo-summary-title">' + title + '</div>' +
       '</div>';
 
-    var eTotal = data.totalScores.E || 0;
-    var mTotal = data.totalScores.M || 0;
     html += '<div class="geo-summary-cards">' +
       '<div class="geo-summary-card geo-summary-card-e' + (data.winner === 'E' ? ' geo-summary-card-winner' : '') + '">' +
         '<div class="geo-sc-label">E</div>' +
         '<div class="geo-sc-score">' + eTotal + '</div>' +
+        '<div class="geo-sc-pts">pts</div>' +
       '</div>' +
       '<div class="geo-summary-vs">vs</div>' +
       '<div class="geo-summary-card geo-summary-card-m' + (data.winner === 'M' ? ' geo-summary-card-winner' : '') + '">' +
         '<div class="geo-sc-label">M</div>' +
         '<div class="geo-sc-score">' + mTotal + '</div>' +
+        '<div class="geo-sc-pts">pts</div>' +
       '</div>' +
       '</div>';
 
-    html += '<div class="geo-summary-rounds">';
-    (data.roundResults || []).forEach(function(rd) {
-      var loc = rd.location || {};
-      var eS = (rd.results && rd.results.E) ? rd.results.E.score : 0;
-      var mS = (rd.results && rd.results.M) ? rd.results.M.score : 0;
-      var rdWinner = eS > mS ? 'E' : (mS > eS ? 'M' : null);
-      html += '<div class="geo-summary-round">' +
-        '<span class="geo-sr-num">' + rd.round + '</span>' +
-        '<span class="geo-sr-loc">' + (loc.name || '?') + '</span>' +
-        '<span class="geo-sr-score geo-sr-e' + (rdWinner === 'E' ? ' geo-sr-won' : '') + '">' + (eS || '-') + '</span>' +
-        '<span class="geo-sr-score geo-sr-m' + (rdWinner === 'M' ? ' geo-sr-won' : '') + '">' + (mS || '-') + '</span>' +
-        '</div>';
-    });
-    html += '</div>';
-
     if (data.allTimeWins) {
       var aw = data.allTimeWins;
+      var eW = aw.E || 0;
+      var mW = aw.M || 0;
+      var tieW = aw.tie || 0;
       html += '<div class="geo-summary-alltime">' +
         '<div class="geo-alltime-label">All-Time Record</div>' +
-        '<div class="geo-alltime-stats">' +
-          '<span class="geo-alltime-e">E: ' + (aw.E || 0) + '</span>' +
-          '<span class="geo-alltime-sep">\u2013</span>' +
-          '<span class="geo-alltime-m">M: ' + (aw.M || 0) + '</span>' +
-          (aw.tie ? '<span class="geo-alltime-ties">(' + aw.tie + ' tied)</span>' : '') +
+        '<div class="geo-alltime-cards">' +
+          '<div class="geo-alltime-card">' +
+            '<div class="geo-aw-num geo-aw-e">' + eW + '</div>' +
+            '<div class="geo-aw-sub">E wins</div>' +
+          '</div>' +
+          '<div class="geo-alltime-card">' +
+            '<div class="geo-aw-num geo-aw-tie">' + tieW + '</div>' +
+            '<div class="geo-aw-sub">Ties</div>' +
+          '</div>' +
+          '<div class="geo-alltime-card">' +
+            '<div class="geo-aw-num geo-aw-m">' + mW + '</div>' +
+            '<div class="geo-aw-sub">M wins</div>' +
+          '</div>' +
         '</div>' +
       '</div>';
     }
