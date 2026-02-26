@@ -601,6 +601,19 @@ window.GeoGame = new (class extends GameEngine {
     });
     html += '</div>';
 
+    if (data.allTimeWins) {
+      var aw = data.allTimeWins;
+      html += '<div class="geo-summary-alltime">' +
+        '<div class="geo-alltime-label">All-Time Record</div>' +
+        '<div class="geo-alltime-stats">' +
+          '<span class="geo-alltime-e">E: ' + (aw.E || 0) + '</span>' +
+          '<span class="geo-alltime-sep">\u2013</span>' +
+          '<span class="geo-alltime-m">M: ' + (aw.M || 0) + '</span>' +
+          (aw.tie ? '<span class="geo-alltime-ties">(' + aw.tie + ' tied)</span>' : '') +
+        '</div>' +
+      '</div>';
+    }
+
     summaryArea.innerHTML = html;
   }
 

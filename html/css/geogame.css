@@ -270,6 +270,32 @@
 .geo-sr-e { color: #ef4444; }
 .geo-sr-m { color: #3b82f6; }
 .geo-sr-won { font-weight: 800; }
+.geo-summary-alltime {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.geo-alltime-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.geo-alltime-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.geo-alltime-e { color: #ef4444; }
+.geo-alltime-m { color: #3b82f6; }
+.geo-alltime-sep { color: var(--muted); font-weight: 400; }
+.geo-alltime-ties { color: var(--muted); font-weight: 400; font-size: 12px; }
 
 /* Scoreboard area */
 .geo-scoreboard-area {

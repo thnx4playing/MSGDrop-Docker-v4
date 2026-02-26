@@ -2271,10 +2271,21 @@ async def ws_endpoint(ws: WebSocket):
                                 loc_r = game["locations"][r_num - 1]
                                 all_rounds.append({"round": r_num, "location": loc_r,
                                                    "results": game["roundResults"].get(r_num, {})})
+                            with engine.begin() as conn2:
+                                stats_rows = conn2.execute(text("""
+                                    select winner, count(*) as cnt from geo_games
+                                    where drop_id=:d and status='ended'
+                                    group by winner
+                                """), {"d": drop}).mappings().all()
+                            all_time = {"E": 0, "M": 0, "tie": 0}
+                            for sr in stats_rows:
+                                if sr["winner"] in all_time:
+                                    all_time[sr["winner"]] = sr["cnt"]
                             await hub.broadcast(drop, {"type": "game", "payload": {
                                 "op": "geo_game_end", "gameId": gid,
                                 "totalScores": game["scores"], "winner": winner,
-                                "roundResults": all_rounds
+                                "roundResults": all_rounds,
+                                "allTimeWins": all_time
                             }})
                             geo_game_manager.end_game(gid)
 
