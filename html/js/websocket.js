@@ -292,7 +292,7 @@ var WebSocketManager = {
         this.updatePresence(user, false);
         this.presenceState.delete(user);
         this.presenceTimeouts.delete(user);
-      }.bind(this), 60000);
+      }.bind(this), 180000);
       this.presenceTimeouts.set(user, timeout);
     }
   },
