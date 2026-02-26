@@ -489,7 +489,7 @@ window.GeoGame = new (class extends GameEngine {
       var totalM = (this.state.scores && this.state.scores.M) || 0;
 
       var html = '<div class="geo-result-round-badge">Round ' + this.state.round + ' of ' + this.state.totalRounds + '</div>';
-      html += '<div class="geo-result-location">\uD83D\uDCCD ' + loc.name + ', ' + loc.country + '</div>';
+      html += '<div class="geo-result-location">\uD83D\uDCCD ' + loc.name + '</div>';
       ['E', 'M'].forEach(function(p) {
         if (!data.results[p]) return;
         var r = data.results[p];
@@ -562,25 +562,41 @@ window.GeoGame = new (class extends GameEngine {
     if (resultArea) resultArea.style.display = 'none';
     if (summaryArea) summaryArea.style.display = 'block';
 
-    var html = '<div class="geo-summary-title">';
-    if (data.winner === 'tie') html += "It's a tie!";
-    else if (data.winner === Messages.myRole) html += 'You win!';
-    else html += data.winner + ' wins!';
-    html += '</div>';
+    var isTie = data.winner === 'tie';
+    var iWin = data.winner === Messages.myRole;
+    var icon = isTie ? '\uD83E\uDD1D' : '\uD83C\uDFC6';
+    var title = isTie ? "It's a tie!" : (iWin ? 'You win!' : data.winner + ' wins!');
 
-    html += '<div class="geo-summary-scores">' +
-      '<div class="geo-summary-player' + (data.winner === 'E' ? ' winner' : '') + '">E: ' + data.totalScores.E + '</div>' +
-      '<div class="geo-summary-player' + (data.winner === 'M' ? ' winner' : '') + '">M: ' + data.totalScores.M + '</div>' +
+    var html = '<div class="geo-summary-header">' +
+      '<div class="geo-summary-icon">' + icon + '</div>' +
+      '<div class="geo-summary-title">' + title + '</div>' +
+      '</div>';
+
+    var eTotal = data.totalScores.E || 0;
+    var mTotal = data.totalScores.M || 0;
+    html += '<div class="geo-summary-cards">' +
+      '<div class="geo-summary-card geo-summary-card-e' + (data.winner === 'E' ? ' geo-summary-card-winner' : '') + '">' +
+        '<div class="geo-sc-label">E</div>' +
+        '<div class="geo-sc-score">' + eTotal + '</div>' +
+      '</div>' +
+      '<div class="geo-summary-vs">vs</div>' +
+      '<div class="geo-summary-card geo-summary-card-m' + (data.winner === 'M' ? ' geo-summary-card-winner' : '') + '">' +
+        '<div class="geo-sc-label">M</div>' +
+        '<div class="geo-sc-score">' + mTotal + '</div>' +
+      '</div>' +
       '</div>';
 
     html += '<div class="geo-summary-rounds">';
     (data.roundResults || []).forEach(function(rd) {
       var loc = rd.location || {};
+      var eS = (rd.results && rd.results.E) ? rd.results.E.score : 0;
+      var mS = (rd.results && rd.results.M) ? rd.results.M.score : 0;
+      var rdWinner = eS > mS ? 'E' : (mS > eS ? 'M' : null);
       html += '<div class="geo-summary-round">' +
-        '<span class="geo-sr-num">R' + rd.round + '</span>' +
-        '<span class="geo-sr-loc">' + (loc.name || loc.country || '?') + '</span>' +
-        '<span class="geo-sr-e">' + ((rd.results && rd.results.E) ? rd.results.E.score : '-') + '</span>' +
-        '<span class="geo-sr-m">' + ((rd.results && rd.results.M) ? rd.results.M.score : '-') + '</span>' +
+        '<span class="geo-sr-num">' + rd.round + '</span>' +
+        '<span class="geo-sr-loc">' + (loc.name || '?') + '</span>' +
+        '<span class="geo-sr-score geo-sr-e' + (rdWinner === 'E' ? ' geo-sr-won' : '') + '">' + (eS || '-') + '</span>' +
+        '<span class="geo-sr-score geo-sr-m' + (rdWinner === 'M' ? ' geo-sr-won' : '') + '">' + (mS || '-') + '</span>' +
         '</div>';
     });
     html += '</div>';
