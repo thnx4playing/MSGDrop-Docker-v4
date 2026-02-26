@@ -1423,7 +1423,6 @@ class GeoGameManager(BaseGameManager):
             return 0
         rnd = game["currentRound"]
         if rnd >= game["totalRounds"]:
-            game["status"] = "ended"
             return 0
         # Only advance if current round has been scored (idempotent guard)
         if rnd not in game.get("roundResults", {}):
