@@ -374,6 +374,7 @@ window.WordleGame = new (class extends GameEngine {
     this.renderKeyboard();
     this.updateMessage('');
     this.renderHintButton();
+    this.sizeGrid();
 
     if (this.state.phase === 'playing') {
       this.startWordleTimer();
@@ -447,6 +448,17 @@ window.WordleGame = new (class extends GameEngine {
         rowEl.appendChild(btn);
       });
       container.appendChild(rowEl);
+    });
+  }
+
+  sizeGrid() {
+    requestAnimationFrame(function() {
+      var wrap = document.querySelector('.wordle-grid-wrap');
+      var grid = document.getElementById('wordleGrid');
+      if (!wrap || !grid) return;
+      var maxW = Math.min(window.innerWidth * 0.72, 340);
+      var fromH = wrap.clientHeight * 5 / 6;
+      grid.style.width = Math.min(maxW, fromH) + 'px';
     });
   }
 

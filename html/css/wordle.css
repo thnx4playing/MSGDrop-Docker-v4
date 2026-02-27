@@ -32,15 +32,15 @@
   justify-content: center;
   min-height: 0;
   padding: 4px;
-  container-type: size;
+  overflow: hidden;
 }
 
-/* Grid — flex column of rows; width shrinks with height so cells stay square */
+/* Grid — flex column of rows; JS shrinks width when height is tight */
 .wordle-grid {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: min(72vw, 340px, 83cqh);
+  width: min(72vw, 340px);
 }
 
 /* Row wrapper — 5 cells + optional GO button */
