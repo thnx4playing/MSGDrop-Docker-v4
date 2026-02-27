@@ -40,12 +40,15 @@
   flex-direction: column;
   gap: 4px;
   width: min(72vw, 340px);
+  max-height: 100%;
 }
 
 /* Row wrapper — 5 cells + optional GO button */
 .wordle-row {
   display: flex;
   gap: 4px;
+  flex: 1;
+  min-height: 0;
   position: relative;
 }
 .wordle-row .wordle-cell {
