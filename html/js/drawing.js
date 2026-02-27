@@ -82,8 +82,8 @@ window.DrawingGame = new (class extends GameEngine {
       this.state.phase = this.state.isDrawer ? 'drawing' : 'guessing';
       this.showModal();
       this.renderRound();
-      // Replay accumulated strokes for guesser
-      if (!this.state.isDrawer && data.strokes) {
+      // Replay accumulated strokes for both drawer and guesser
+      if (data.strokes && data.strokes.length > 0) {
         this.replayStrokes(data.strokes);
       }
     }
@@ -366,8 +366,8 @@ window.DrawingGame = new (class extends GameEngine {
       self.ctx.fillRect(0, 0, self.canvas.width, self.canvas.height);
       self.ctx.lineCap  = 'round';
       self.ctx.lineJoin = 'round';
-      // Re-replay strokes if guesser (canvas clear wiped them)
-      if (!self.state.isDrawer && self.state.allStrokes.length > 0) {
+      // Re-replay strokes after canvas resize (fillRect wiped them)
+      if (self.state.allStrokes.length > 0) {
         var strokes = self.state.allStrokes.slice();
         self.state.allStrokes = [];
         self.replayStrokes(strokes);
