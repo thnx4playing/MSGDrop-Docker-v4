@@ -186,11 +186,13 @@ var QA = {
 
     if (badge) {
       badge.style.display = showBadge ? '' : 'none';
-      badge.textContent = showBadge ? '1' : '';
+      badge.textContent = showBadge ? '!' : '';
+      if (showBadge) badge.classList.add('qa-notify'); else badge.classList.remove('qa-notify');
     }
     if (launcherBadge) {
       launcherBadge.style.display = showBadge ? '' : 'none';
-      launcherBadge.textContent = showBadge ? '1' : '';
+      launcherBadge.textContent = showBadge ? '!' : '';
+      if (showBadge) launcherBadge.classList.add('qa-notify'); else launcherBadge.classList.remove('qa-notify');
     }
   },
 
