@@ -452,13 +452,24 @@ window.WordleGame = new (class extends GameEngine {
   }
 
   sizeGrid() {
+    var self = this;
     requestAnimationFrame(function() {
       var wrap = document.querySelector('.wordle-grid-wrap');
       var grid = document.getElementById('wordleGrid');
       if (!wrap || !grid) return;
-      var maxW = Math.min(window.innerWidth * 0.72, 340);
-      var fromH = wrap.clientHeight * 5 / 6;
-      grid.style.width = Math.min(maxW, fromH) + 'px';
+      var wrapH = wrap.clientHeight;
+      var wrapW = wrap.clientWidth;
+      var rows = self.state.maxAttempts;   // 6
+      var cols = self.state.wordLength;    // 5
+      var gap  = 4;
+      // Max cell size that fits height: (wrapH - gaps) / rows
+      var cellFromH = (wrapH - gap * (rows - 1)) / rows;
+      // Max cell size that fits width: (wrapW - gaps) / cols
+      var cellFromW = (wrapW - gap * (cols - 1)) / cols;
+      // Use whichever is smaller, cap at 64px
+      var cell = Math.min(cellFromH, cellFromW, 64);
+      var gridW = cell * cols + gap * (cols - 1);
+      grid.style.width = gridW + 'px';
     });
   }
 
