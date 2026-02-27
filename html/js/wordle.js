@@ -28,6 +28,7 @@ window.WordleGame = new (class extends GameEngine {
     this.state.otherPlayerDone = false;
     this.state.roundWord      = null;
     this.state.hintUsed        = false;
+    this.state.hintData        = null;
 
     this._keyboardHandler = null;
   }
@@ -156,20 +157,10 @@ window.WordleGame = new (class extends GameEngine {
 
     else if (op === 'wordle_hint_result') {
       this.state.hintUsed = true;
-      var pos = data.position;
-      var letter = data.letter.toUpperCase();
-      var row = this.state.currentRow;
-      if (row < this.state.maxAttempts) {
-        this.state.grid[row][pos].letter = letter;
-        if (this.state.currentCol <= pos) {
-          this.state.currentCol = pos + 1;
-        }
-      }
+      this.state.hintData = {position: data.position, letter: data.letter.toUpperCase()};
       this.renderGrid();
       this.renderHintButton();
-      var cell = document.querySelector('.wordle-cell[data-row="' + row + '"][data-col="' + pos + '"]');
-      if (cell) cell.classList.add('hint-reveal');
-      this.updateMessage('Position ' + (pos + 1) + ' is ' + letter);
+      this.updateMessage('Position ' + (data.position + 1) + ' is ' + data.letter.toUpperCase());
       var self = this;
       setTimeout(function() { self.updateMessage(''); }, 2000);
     }
@@ -252,6 +243,7 @@ window.WordleGame = new (class extends GameEngine {
     this.state.myAttempts      = 0;
     this.state.roundWord       = null;
     this.state.hintUsed        = false;
+    this.state.hintData        = null;
   }
 
   /**
@@ -275,6 +267,7 @@ window.WordleGame = new (class extends GameEngine {
     this.state.otherPlayerDone = false;
     this.state.myAttempts = 0;
     this.state.hintUsed = false;
+    this.state.hintData = null;
     for (var i = 0; i < this.state.maxAttempts; i++) {
       var row = [];
       for (var j = 0; j < this.state.wordLength; j++) {
@@ -409,6 +402,9 @@ window.WordleGame = new (class extends GameEngine {
           } else {
             cell.classList.add('filled');
           }
+        } else if (self.state.hintData && r === self.state.currentRow && c === self.state.hintData.position) {
+          cell.textContent = self.state.hintData.letter;
+          cell.classList.add('hint-ghost');
         }
         rowEl.appendChild(cell);
       }
