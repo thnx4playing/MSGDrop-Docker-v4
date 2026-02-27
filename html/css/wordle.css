@@ -165,6 +165,7 @@
   max-width: 36px;
   min-width: 0;
   text-transform: uppercase;
+  touch-action: manipulation;
   transition: background 0.15s, transform 0.08s, box-shadow 0.08s;
 }
 .wordle-key:active {
