@@ -1014,7 +1014,6 @@ var Messages = {
       if(e.target.closest('.rich-link-preview')) return;
       if(e.target.classList.contains('image-thumbnail') || e.target.classList.contains('gif-image')) return;
       if(e.target.closest('.image-container') || e.target.closest('.gif-container')) return;
-      if(e.target.closest('.audio-message')) return;
       var group = msgEl.closest('.message-group');
       if(group && Reactions && Reactions.openPicker) Reactions.openPicker(msgEl);
     });
