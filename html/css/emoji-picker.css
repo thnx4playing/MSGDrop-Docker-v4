@@ -214,15 +214,25 @@
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:4px;
+  padding:3px;
   transition:background .12s, transform .12s;
   -webkit-tap-highlight-color:transparent;
 }
-/* Apple emoji image inside buttons */
+/* Apple emoji image inside picker buttons */
 .emoji-picker-img{
   width:100%;
   height:100%;
+  max-width:30px;
+  max-height:30px;
   object-fit:contain;
+  pointer-events:none;
+  -webkit-user-select:none;
+  user-select:none;
+}
+/* Inline Apple emoji in chat messages & reaction chips */
+.apple-emoji{
+  display:inline-block;
+  vertical-align:-4px;
   pointer-events:none;
   -webkit-user-select:none;
   user-select:none;

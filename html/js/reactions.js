@@ -257,14 +257,26 @@ var Reactions = {
       chip.type = 'button';
       chip.className = 'reaction-chip';
       
-      if(count > 1){
-        chip.textContent = emoji + ' ' + count;
-        chip.style.minWidth = '36px';
-        chip.style.paddingLeft = '6px';
-        chip.style.paddingRight = '6px';
-        chip.style.borderRadius = '12px';
+      if(typeof AppleEmoji !== 'undefined'){
+        if(count > 1){
+          chip.innerHTML = AppleEmoji.img(emoji, 18) + ' ' + count;
+          chip.style.minWidth = '36px';
+          chip.style.paddingLeft = '6px';
+          chip.style.paddingRight = '6px';
+          chip.style.borderRadius = '12px';
+        } else {
+          chip.innerHTML = AppleEmoji.img(emoji, 18);
+        }
       } else {
-        chip.textContent = emoji;
+        if(count > 1){
+          chip.textContent = emoji + ' ' + count;
+          chip.style.minWidth = '36px';
+          chip.style.paddingLeft = '6px';
+          chip.style.paddingRight = '6px';
+          chip.style.borderRadius = '12px';
+        } else {
+          chip.textContent = emoji;
+        }
       }
       
       chip.setAttribute('data-emoji', emoji);

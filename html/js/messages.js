@@ -936,13 +936,21 @@ var Messages = {
         if(!isOnlyLink && msg.message){
           var textSpan = document.createElement('span');
           textSpan.className = 'message-text';
-          textSpan.textContent = msg.message;
+          if(typeof AppleEmoji !== 'undefined'){
+            textSpan.innerHTML = AppleEmoji.replaceInText(AppleEmoji._escapeHtml(msg.message), 20);
+          } else {
+            textSpan.textContent = msg.message;
+          }
           bubble.appendChild(textSpan);
         }
         if(hasRichLink && typeof RichLinks !== 'undefined'){
           RichLinks.renderInMessage(bubble, msg.message);
         } else if(!hasRichLink){
-          bubble.textContent = msg.message;
+          if(typeof AppleEmoji !== 'undefined'){
+            bubble.innerHTML = AppleEmoji.replaceInText(AppleEmoji._escapeHtml(msg.message), 20);
+          } else {
+            bubble.textContent = msg.message;
+          }
         }
       }
 

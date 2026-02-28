@@ -2,6 +2,83 @@
 // EMOJI-PICKER.JS — Shared emoji picker for compose + reactions
 // ============================================================================
 
+// ── Global utility: replace emoji chars with Apple <img> tags ──
+var AppleEmoji = {
+  _cdn: 'https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/',
+  _set: null, // Set of known emoji chars from EMOJI_DATA
+
+  _buildSet: function(){
+    if(this._set) return;
+    this._set = new Set();
+    if(typeof EMOJI_DATA !== 'undefined'){
+      EMOJI_DATA.emojis.forEach(function(e){ this._set.add(e.char); }.bind(this));
+    }
+  },
+
+  _toUrl: function(char){
+    var cps = [];
+    for(var i = 0; i < char.length; i++){
+      var cp = char.codePointAt(i);
+      cps.push(cp.toString(16));
+      if(cp > 0xFFFF) i++;
+    }
+    return this._cdn + cps.join('-') + '.png';
+  },
+
+  _toUrlNoVS: function(char){
+    var cps = [];
+    for(var i = 0; i < char.length; i++){
+      var cp = char.codePointAt(i);
+      if(cp !== 0xFE0F) cps.push(cp.toString(16));
+      if(cp > 0xFFFF) i++;
+    }
+    return this._cdn + cps.join('-') + '.png';
+  },
+
+  // Create a single Apple emoji <img> tag (HTML string)
+  img: function(char, sizePx){
+    var s = sizePx || 20;
+    var url = this._toUrl(char);
+    var urlFallback = this._toUrlNoVS(char);
+    return '<img class="apple-emoji" src="' + url + '" alt="' + char +
+      '" width="' + s + '" height="' + s +
+      '" onerror="this.onerror=null;this.src=\'' + urlFallback + '\'" ' +
+      'draggable="false" loading="lazy">';
+  },
+
+  // HTML-escape a string (safe to then inject Apple emoji <img> tags)
+  _escapeHtml: function(str){
+    if(!str) return '';
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  },
+
+  // Replace all known emoji chars in HTML-escaped text with Apple <img> tags
+  replaceInText: function(text, sizePx){
+    if(!text) return text;
+    this._buildSet();
+    if(!this._set.size) return text;
+
+    // Build regex from known emoji set (longest first to match multi-codepoint first)
+    if(!this._regex){
+      var chars = Array.from(this._set);
+      // Sort longest first so ZWJ sequences match before components
+      chars.sort(function(a, b){ return b.length - a.length; });
+      // Escape special regex chars
+      var escaped = chars.map(function(c){
+        return c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      });
+      this._regex = new RegExp('(' + escaped.join('|') + ')', 'g');
+    }
+
+    var self = this;
+    return text.replace(this._regex, function(match){
+      return self.img(match, sizePx);
+    });
+  }
+};
+
 var EmojiPicker = {
   mode: null,         // 'compose' or 'reaction'
   callback: null,     // function(emoji) on selection
