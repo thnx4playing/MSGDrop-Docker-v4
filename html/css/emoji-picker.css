@@ -237,6 +237,23 @@
   -webkit-user-select:none;
   user-select:none;
 }
+/* Inline Apple emoji inside compose box */
+.compose-textarea .apple-emoji{
+  vertical-align:-3px;
+}
+
+/* ── Contenteditable compose placeholder ── */
+.compose-textarea:empty::before{
+  content:attr(data-placeholder);
+  color:var(--muted);
+  pointer-events:none;
+}
+.compose-textarea[contenteditable]{
+  overflow-y:auto;
+  white-space:pre-wrap;
+  word-break:break-word;
+  min-height:1.4em;
+}
 .emoji-picker-emoji:hover{
   background:var(--field);
 }

@@ -217,16 +217,89 @@ var UI = {
     document.body.classList.remove('no-scroll');
   },
 
+  // Insert text (or HTML for emoji) at cursor in a contenteditable element
   insertAtCursor: function(el, text){
     if(!el) return;
-    el.focus && el.focus();
-    var s = el.selectionStart ?? (el.value ? el.value.length : 0);
-    var e = el.selectionEnd ?? s;
-    var before = el.value.slice(0,s), after = el.value.slice(e);
-    el.value = before + text + after;
-    var pos = s + text.length;
-    try{ el.setSelectionRange(pos,pos); }catch(e){}
+    el.focus();
+    var sel = window.getSelection();
+    // If no selection inside the element, move cursor to end
+    if(!sel.rangeCount || !el.contains(sel.anchorNode)){
+      var range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    // Build HTML: if it's an emoji in our data, use Apple img
+    var html = text;
+    if(typeof AppleEmoji !== 'undefined'){
+      html = AppleEmoji.replaceInText(AppleEmoji._escapeHtml(text), 20);
+    }
+    // Insert as HTML fragment
+    var range = sel.getRangeAt(0);
+    range.deleteContents();
+    var temp = document.createElement('span');
+    temp.innerHTML = html;
+    var frag = document.createDocumentFragment();
+    var lastNode;
+    while(temp.firstChild){ lastNode = frag.appendChild(temp.firstChild); }
+    range.insertNode(frag);
+    // Move cursor after inserted content
+    if(lastNode){
+      var newRange = document.createRange();
+      newRange.setStartAfter(lastNode);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    }
     el.dispatchEvent(new Event('input',{bubbles:true}));
+  },
+
+  // Get plain text from contenteditable reply, converting Apple emoji <img> back to chars
+  getReplyText: function(){
+    var el = this.els.reply;
+    if(!el) return '';
+    // Walk child nodes, extract text and img alt attributes
+    var text = '';
+    function walk(node){
+      if(node.nodeType === 3){ // text node
+        text += node.textContent;
+      } else if(node.nodeName === 'IMG' && node.alt){
+        text += node.alt;
+      } else if(node.nodeName === 'BR'){
+        text += '\n';
+      } else if(node.nodeName === 'DIV' || node.nodeName === 'P'){
+        if(text.length > 0 && text[text.length - 1] !== '\n') text += '\n';
+        for(var c = node.firstChild; c; c = c.nextSibling) walk(c);
+        return;
+      }
+      // Recurse for other element nodes
+      if(node.nodeType === 1 && node.nodeName !== 'IMG'){
+        for(var c = node.firstChild; c; c = c.nextSibling) walk(c);
+      }
+    }
+    for(var c = el.firstChild; c; c = c.nextSibling) walk(c);
+    return text;
+  },
+
+  // Clear the contenteditable reply box
+  clearReply: function(){
+    if(this.els.reply){
+      this.els.reply.innerHTML = '';
+      this.els.reply.style.height = 'auto';
+    }
+  },
+
+  // Set text in the contenteditable reply (with Apple emoji rendering)
+  setReplyText: function(text){
+    if(!this.els.reply) return;
+    if(typeof AppleEmoji !== 'undefined'){
+      this.els.reply.innerHTML = AppleEmoji.replaceInText(AppleEmoji._escapeHtml(text), 20);
+    } else {
+      this.els.reply.textContent = text;
+    }
+    this.els.reply.style.height = 'auto';
+    this.els.reply.style.height = Math.min(this.els.reply.scrollHeight, 100) + 'px';
   },
 
   updatePresence: function(role, isActive){

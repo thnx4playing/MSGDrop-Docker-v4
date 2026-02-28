@@ -1030,9 +1030,7 @@ var Messages = {
   enterEditMode: function(seq, currentText){
     this.editingSeq = seq;
     this.exitReplyMode();
-    UI.els.reply.value = currentText;
-    UI.els.reply.style.height = 'auto';
-    UI.els.reply.style.height = Math.min(UI.els.reply.scrollHeight, 100) + 'px';
+    UI.setReplyText(currentText);
     UI.els.composeSection.classList.add('editing');
     UI.els.editHeader.classList.add('show');
     UI.els.reply.focus();
@@ -1040,8 +1038,7 @@ var Messages = {
 
   exitEditMode: function(){
     this.editingSeq = null;
-    UI.els.reply.value = '';
-    UI.els.reply.style.height = 'auto';
+    UI.clearReply();
     UI.els.composeSection.classList.remove('editing');
     UI.els.editHeader.classList.remove('show');
   },

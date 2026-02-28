@@ -204,12 +204,78 @@ var App = {
     // Theme toggle
     if(UI.els.themeToggle){ UI.els.themeToggle.addEventListener('click', function(){ Storage.toggleTheme(); }); }
 
-    // Typing handler
+    // Typing handler + auto-resize + live emoji replacement for contenteditable
     if(UI.els.reply){
       UI.els.reply.addEventListener('input', function(){
         WebSocketManager.sendTyping();
+        // Auto-resize
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+        // Replace any native emoji text nodes with Apple images
+        if(typeof AppleEmoji !== 'undefined' && AppleEmoji._set){
+          AppleEmoji._buildSet();
+          var textNodes = [];
+          var walker = document.createTreeWalker(this, NodeFilter.SHOW_TEXT, null, false);
+          var n;
+          while(n = walker.nextNode()) textNodes.push(n);
+          textNodes.forEach(function(tn){
+            var original = tn.textContent;
+            if(!AppleEmoji._regex) AppleEmoji.replaceInText('', 20); // build regex
+            if(!AppleEmoji._regex || !AppleEmoji._regex.test(original)) return;
+            // Save cursor position
+            var sel = window.getSelection();
+            var cursorInThis = sel.rangeCount && sel.anchorNode === tn;
+            var cursorOffset = cursorInThis ? sel.anchorOffset : -1;
+            // Replace text node with HTML
+            var span = document.createElement('span');
+            AppleEmoji._regex.lastIndex = 0;
+            span.innerHTML = AppleEmoji.replaceInText(AppleEmoji._escapeHtml(original), 20);
+            var parent = tn.parentNode;
+            // Insert new nodes before the text node
+            while(span.firstChild) parent.insertBefore(span.firstChild, tn);
+            parent.removeChild(tn);
+            // Restore cursor to end of replaced content
+            if(cursorInThis){
+              try {
+                var newRange = document.createRange();
+                // Find the last node we inserted (approximate: put cursor at end)
+                var lastChild = parent.lastChild;
+                if(lastChild){
+                  if(lastChild.nodeType === 3){
+                    newRange.setStart(lastChild, lastChild.textContent.length);
+                  } else {
+                    newRange.setStartAfter(lastChild);
+                  }
+                  newRange.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+                }
+              } catch(e){}
+            }
+          });
+        }
+      });
+      // Handle paste — strip formatting, keep only text + Apple emojis
+      UI.els.reply.addEventListener('paste', function(e){
+        e.preventDefault();
+        var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        if(!text) return;
+        if(typeof AppleEmoji !== 'undefined'){
+          var html = AppleEmoji.replaceInText(AppleEmoji._escapeHtml(text), 20);
+          document.execCommand('insertHTML', false, html);
+        } else {
+          document.execCommand('insertText', false, text);
+        }
+      });
+      // Prevent Enter from creating div/p — insert \n or send
+      UI.els.reply.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' && !e.shiftKey){
+          e.preventDefault();
+          if(UI.els.postBtn) UI.els.postBtn.click();
+        } else if(e.key === 'Enter' && e.shiftKey){
+          e.preventDefault();
+          document.execCommand('insertLineBreak');
+        }
       });
     }
 
@@ -460,7 +526,7 @@ var App = {
 
   postMessage: async function(){
     if(!UI.els.reply) return;
-    var text = (UI.els.reply.value||"").trim();
+    var text = (UI.getReplyText()||"").trim();
     if(!text) return;
     if(UI.els.postBtn && UI.els.postBtn.disabled) return;
     if(UI.els.postBtn) UI.els.postBtn.disabled = true;
@@ -469,8 +535,7 @@ var App = {
       if(WebSocketManager.ws && WebSocketManager.ws.readyState === 1){
         var sent = WebSocketManager.sendMessage(text, this.myRole, this.myClientId, replyToSeq);
         if(sent){
-          UI.els.reply.value = '';
-          UI.els.reply.style.height = 'auto';
+          UI.clearReply();
           Messages.exitReplyMode();
           setTimeout(function(){ if(UI.els.postBtn) UI.els.postBtn.disabled = false; }, 500);
           return;
@@ -483,8 +548,7 @@ var App = {
       }
       var data = await res.json();
       Messages.applyDrop(data);
-      UI.els.reply.value = '';
-      UI.els.reply.style.height = 'auto';
+      UI.clearReply();
       Messages.exitReplyMode();
     }catch(e){ console.error('Post error:', e); }
     finally{ setTimeout(function(){ if(UI.els.postBtn) UI.els.postBtn.disabled = false; }, 500); }
@@ -492,7 +556,7 @@ var App = {
 
   editMessage: async function(){
     if(!UI.els.reply || Messages.editingSeq === null) return;
-    var text = (UI.els.reply.value||"").trim();
+    var text = (UI.getReplyText()||"").trim();
     if(!text) return;
     if(UI.els.postBtn && UI.els.postBtn.disabled) return;
     if(UI.els.postBtn) UI.els.postBtn.disabled = true;
