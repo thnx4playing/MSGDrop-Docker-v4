@@ -13,6 +13,44 @@ var EmojiPicker = {
   _grid: null,
   _debounceTimer: null,
   _observer: null,
+  // Apple emoji CDN base (64px PNGs from emoji-datasource-apple)
+  _cdnBase: 'https://cdn.jsdelivr.net/npm/emoji-datasource-apple@15.1.2/img/apple/64/',
+
+  // Convert emoji character(s) to the hex codepoint filename used by the CDN
+  _emojiToCodepoints: function(char){
+    var codepoints = [];
+    for(var i = 0; i < char.length; i++){
+      var cp = char.codePointAt(i);
+      codepoints.push(cp.toString(16));
+      // Skip low surrogate of astral codepoints
+      if(cp > 0xFFFF) i++;
+    }
+    return codepoints;
+  },
+
+  _emojiToUrl: function(char){
+    return this._cdnBase + this._emojiToCodepoints(char).join('-') + '.png';
+  },
+
+  // Create an <img> element for an Apple-style emoji
+  _createEmojiImg: function(char, size){
+    var img = document.createElement('img');
+    img.src = this._emojiToUrl(char);
+    img.alt = char;
+    img.loading = 'lazy';
+    img.draggable = false;
+    img.className = 'emoji-picker-img';
+    if(size){ img.style.width = size + 'px'; img.style.height = size + 'px'; }
+    // Fallback: if CDN 404s with fe0f, try without it
+    var self = this;
+    img.onerror = function(){
+      if(this._triedFallback) return;
+      this._triedFallback = true;
+      var cps = self._emojiToCodepoints(char).filter(function(c){ return c !== 'fe0f'; });
+      img.src = self._cdnBase + cps.join('-') + '.png';
+    };
+    return img;
+  },
 
   init: function(){
     this.loadRecent();
@@ -102,7 +140,7 @@ var EmojiPicker = {
       tab.type = 'button';
       tab.className = 'emoji-picker-tab';
       tab.setAttribute('data-cat', cat.id);
-      tab.textContent = cat.icon;
+      tab.appendChild(this._createEmojiImg(cat.icon, 20));
       tab.title = cat.name;
       tab.addEventListener('click', function(){
         this.scrollToCategory(cat.id);
@@ -209,7 +247,7 @@ var EmojiPicker = {
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'emoji-picker-emoji';
-      btn.textContent = emoji.char;
+      btn.appendChild(this._createEmojiImg(emoji.char));
       btn.setAttribute('aria-label', emoji.name || emoji.char);
       btn.addEventListener('click', function(){
         this._selectEmoji(emoji.char);
@@ -239,7 +277,7 @@ var EmojiPicker = {
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'emoji-picker-emoji';
-      btn.textContent = emoji.char;
+      btn.appendChild(this._createEmojiImg(emoji.char));
       btn.setAttribute('aria-label', emoji.name || emoji.char);
       btn.addEventListener('click', function(){
         this._selectEmoji(emoji.char);
