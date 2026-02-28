@@ -29,6 +29,7 @@ var App = {
 
     this.setupEventListeners();
     Reactions.setup();
+    if(typeof EmojiPicker !== 'undefined') EmojiPicker.init();
     this.setupEmoji();
     this.startCountdownTimer();
     this.loadInitialData();
@@ -335,6 +336,7 @@ var App = {
         Messages.exitReplyMode();
         if(self.giphyPicker && self.giphyPicker.modal && self.giphyPicker.modal.style.display === 'flex') self.giphyPicker.hide();
         if(typeof Camera !== 'undefined' && Camera.isOpen) Camera.hide();
+        if(typeof EmojiPicker !== 'undefined' && EmojiPicker._overlay && EmojiPicker._overlay.classList.contains('open')) EmojiPicker.close();
         UI.hideQAModal();
         UI.hideWordleModal();
         UI.hideTriviaModal();
@@ -345,28 +347,14 @@ var App = {
   },
 
   setupEmoji: function(){
-    if(!UI.els.emojiBtn || !UI.els.emojiPopover || !UI.els.emojiGrid) return;
-    UI.els.emojiGrid.innerHTML = '';
-    var curated = ["😀","😂","🥲","🙂","🙄","🤔","🤢","🤤","😣","😫","😴","🥶","😈","💩","🤡"];
-    var frag = document.createDocumentFragment();
-    curated.forEach(function(emoji){
-      var b = document.createElement('button');
-      b.type = 'button'; b.textContent = emoji; b.className = 'emoji-btn'; b.setAttribute('aria-label', emoji);
-      b.addEventListener('click', function(){
-        UI.insertAtCursor(UI.els.reply, emoji);
-        UI.els.emojiPopover.style.display = 'none';
-      });
-      frag.appendChild(b);
-    });
-    UI.els.emojiGrid.appendChild(frag);
+    if(!UI.els.emojiBtn) return;
     UI.els.emojiBtn.onclick = function(){
-      UI.els.emojiPopover.style.display = (UI.els.emojiPopover.style.display === 'block' ? 'none' : 'block');
+      if(typeof EmojiPicker !== 'undefined'){
+        EmojiPicker.open('compose', function(emoji){
+          UI.insertAtCursor(UI.els.reply, emoji);
+        });
+      }
     };
-    document.addEventListener('click', function(ev){
-      if(!UI.els.emojiPopover || !UI.els.emojiBtn) return;
-      if(ev.target === UI.els.emojiBtn || UI.els.emojiBtn.contains(ev.target) || UI.els.emojiPopover.contains(ev.target)) return;
-      UI.els.emojiPopover.style.display = 'none';
-    });
   },
 
   startPolling: function(){

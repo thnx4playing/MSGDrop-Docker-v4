@@ -1,0 +1,293 @@
+/* ============================================================================
+   EMOJI-PICKER.CSS — Shared emoji picker modal styles
+   ============================================================================ */
+
+/* ── Overlay ── */
+.emoji-picker-overlay{
+  position:fixed;
+  inset:0;
+  z-index:10000;
+  background:rgba(0,0,0,.45);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s ease;
+  -webkit-backdrop-filter:blur(4px);
+  backdrop-filter:blur(4px);
+}
+.emoji-picker-overlay.open{
+  opacity:1;
+  pointer-events:auto;
+}
+
+/* ── Container ── */
+.emoji-picker-container{
+  width:min(420px, 92vw);
+  max-height:min(70dvh, 520px);
+  display:flex;
+  flex-direction:column;
+  border-radius:16px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  box-shadow:0 20px 60px rgba(0,0,0,.35);
+  overflow:hidden;
+  transform:translateY(16px) scale(.96);
+  transition:transform .2s ease;
+}
+.emoji-picker-overlay.open .emoji-picker-container{
+  transform:translateY(0) scale(1);
+}
+
+/* ── Header / Search ── */
+.emoji-picker-header{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:12px 12px 8px;
+  flex-shrink:0;
+}
+.emoji-picker-search-wrap{
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  background:var(--field);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:0 10px;
+  height:36px;
+}
+.emoji-picker-search-icon{
+  flex-shrink:0;
+  color:var(--muted);
+  display:flex;
+  align-items:center;
+}
+.emoji-picker-search{
+  flex:1;
+  border:none;
+  background:transparent;
+  color:var(--text);
+  font-size:14px;
+  outline:none;
+  font-family:inherit;
+  min-width:0;
+}
+.emoji-picker-search::placeholder{
+  color:var(--muted);
+}
+.emoji-picker-clear-btn{
+  flex-shrink:0;
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  border:none;
+  background:var(--muted);
+  color:var(--panel);
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+}
+.emoji-picker-close-btn{
+  flex-shrink:0;
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  border:none;
+  background:var(--field);
+  color:var(--muted);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  transition:background .15s, color .15s;
+}
+.emoji-picker-close-btn:hover{
+  background:var(--surface);
+  color:var(--text);
+}
+
+/* ── Category tabs ── */
+.emoji-picker-tabs{
+  display:flex;
+  gap:2px;
+  padding:0 12px 6px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  flex-shrink:0;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.emoji-picker-tabs::-webkit-scrollbar{
+  display:none;
+}
+.emoji-picker-tab{
+  flex-shrink:0;
+  width:34px;
+  height:30px;
+  border:none;
+  background:transparent;
+  border-radius:8px;
+  font-size:18px;
+  line-height:1;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  position:relative;
+  transition:background .15s;
+  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",emoji,sans-serif;
+}
+.emoji-picker-tab:hover{
+  background:var(--field);
+}
+.emoji-picker-tab.active{
+  background:var(--field);
+}
+.emoji-picker-tab.active::after{
+  content:'';
+  position:absolute;
+  bottom:1px;
+  left:50%;
+  transform:translateX(-50%);
+  width:16px;
+  height:2.5px;
+  border-radius:2px;
+  background:var(--accent, #007AFF);
+}
+
+/* ── Grid scroll area ── */
+.emoji-picker-grid{
+  flex:1;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:0 8px 12px;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
+.emoji-picker-grid::-webkit-scrollbar{
+  width:4px;
+}
+.emoji-picker-grid::-webkit-scrollbar-thumb{
+  background:var(--border);
+  border-radius:4px;
+}
+
+/* ── Section headers ── */
+.emoji-picker-section{
+  padding-top:4px;
+}
+.emoji-picker-section-label{
+  font-size:12px;
+  font-weight:600;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  padding:6px 4px 4px;
+  position:sticky;
+  top:0;
+  background:var(--panel);
+  z-index:1;
+}
+
+/* ── Emoji grid ── */
+.emoji-picker-emoji-grid{
+  display:grid;
+  grid-template-columns:repeat(8, 1fr);
+  gap:2px;
+}
+.emoji-picker-emoji{
+  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",emoji,sans-serif;
+  font-size:28px;
+  line-height:1;
+  aspect-ratio:1;
+  border:none;
+  background:transparent;
+  border-radius:8px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
+  transition:background .12s, transform .12s;
+  -webkit-tap-highlight-color:transparent;
+}
+.emoji-picker-emoji:hover{
+  background:var(--field);
+}
+.emoji-picker-emoji:active{
+  transform:scale(.85);
+  background:var(--surface);
+}
+
+/* ── Empty state ── */
+.emoji-picker-empty{
+  text-align:center;
+  color:var(--muted);
+  padding:40px 20px;
+  font-size:14px;
+}
+
+/* ── "+" button in reaction row ── */
+.action-emoji-plus{
+  border:2px dashed var(--border) !important;
+  background:transparent !important;
+  color:var(--muted) !important;
+  font-size:20px !important;
+  font-weight:600;
+  border-radius:50% !important;
+  width:38px;
+  height:38px;
+  min-width:38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:border-color .15s, color .15s, background .15s;
+}
+.action-emoji-plus:hover{
+  border-color:var(--accent, #007AFF) !important;
+  color:var(--accent, #007AFF) !important;
+  background:var(--field) !important;
+}
+
+/* ── Responsive: mobile ── */
+@media (max-width: 480px){
+  .emoji-picker-container{
+    width:100vw;
+    max-height:75dvh;
+    border-radius:16px 16px 0 0;
+    position:fixed;
+    bottom:0;
+    left:0;
+    right:0;
+    transform:translateY(100%);
+  }
+  .emoji-picker-overlay{
+    align-items:flex-end;
+  }
+  .emoji-picker-overlay.open .emoji-picker-container{
+    transform:translateY(0);
+  }
+  .emoji-picker-emoji-grid{
+    grid-template-columns:repeat(7, 1fr);
+  }
+  .emoji-picker-emoji{
+    font-size:26px;
+  }
+}
+
+/* ── Dark mode refinements ── */
+[data-theme="dark"] .emoji-picker-overlay{
+  background:rgba(0,0,0,.6);
+}
+[data-theme="dark"] .emoji-picker-container{
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+}

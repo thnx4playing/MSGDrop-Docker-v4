@@ -82,7 +82,24 @@ var Reactions = {
       }.bind(this));
       emojiRow.appendChild(btn);
     }.bind(this));
-    
+
+    // "+" button to open full emoji picker for reactions
+    var plusBtn = document.createElement('button');
+    plusBtn.type = 'button';
+    plusBtn.className = 'action-emoji-btn action-emoji-plus';
+    plusBtn.textContent = '+';
+    plusBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var seq = this.currentSeq;
+      this.closePicker();
+      if(typeof EmojiPicker !== 'undefined'){
+        EmojiPicker.open('reaction', function(emoji){
+          Reactions.reactToMessage(seq, emoji, 'add');
+        });
+      }
+    }.bind(this));
+    emojiRow.appendChild(plusBtn);
+
     // Setup action buttons
     var viewBtn = modal.querySelector('[data-action="view"]');
     var replyBtn = modal.querySelector('[data-action="reply"]');
