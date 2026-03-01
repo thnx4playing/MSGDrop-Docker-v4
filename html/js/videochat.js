@@ -133,8 +133,10 @@ var VideoChat = {
       debug: 0,
       config: {
         iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
+          { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
         ]
       }
     });
@@ -251,7 +253,7 @@ var VideoChat = {
 
     try {
       self.localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { width: { ideal: 640, max: 1280 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: 24, max: 30 }, facingMode: 'user' },
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: { ideal: 0.01 } }
       });
       self.localVideo.srcObject = self.localStream;
@@ -301,7 +303,7 @@ var VideoChat = {
 
     try {
       self.localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: { width: { ideal: 640, max: 1280 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: 24, max: 30 }, facingMode: 'user' },
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: { ideal: 0.01 } }
       });
       self.localVideo.srcObject = self.localStream;
@@ -554,8 +556,8 @@ var VideoChat = {
     self.isFrontCam = !self.isFrontCam;
     try {
       var newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: self.isFrontCam ? 'user' : 'environment' },
-        audio: true
+        video: { facingMode: self.isFrontCam ? 'user' : 'environment', width: { ideal: 640, max: 1280 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: 24, max: 30 } },
+        audio: false
       });
       var newVideoTrack = newStream.getVideoTracks()[0];
       var sender = self.currentCall.peerConnection.getSenders().find(function(s) {
