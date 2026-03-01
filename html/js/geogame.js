@@ -284,11 +284,42 @@ window.GeoGame = new (class extends GameEngine {
     if (submitBtn) { submitBtn.style.display = ''; submitBtn.disabled = true; submitBtn.textContent = 'Submit Guess'; }
     if (nextBtn) nextBtn.style.display = 'none';
 
-    // Street View panorama
+    // Street View panorama — always use StreetViewService to find a
+    // movable outdoor panorama (has navigation links) near the target.
     var panoDiv = document.getElementById('geoPanorama');
+    var loc = this.state.location;
+    var self = this;
+
+    function findOutdoorPano(center, radius, cb) {
+      var sv = new google.maps.StreetViewService();
+      sv.getPanorama({
+        location: {lat: center.lat, lng: center.lng},
+        radius: radius,
+        source: google.maps.StreetViewSource.OUTDOOR
+      }, function(data, status) {
+        if (status === 'OK' && data && data.location && data.location.latLng) {
+          // Check for movement links — reject non-movable panoramas
+          if (data.links && data.links.length > 0) {
+            cb(data.location.latLng);
+          } else if (radius < 2000) {
+            // No links — try wider radius to find a road/street pano
+            findOutdoorPano(center, radius + 500, cb);
+          } else {
+            // Give up, use whatever we got
+            cb(data.location.latLng);
+          }
+        } else if (radius < 2000) {
+          findOutdoorPano(center, radius + 500, cb);
+        } else {
+          cb({lat: center.lat, lng: center.lng});
+        }
+      });
+    }
+
     if (!this.panorama) {
+      // First round — create panorama then reposition via service
       this.panorama = new google.maps.StreetViewPanorama(panoDiv, {
-        position: {lat: this.state.location.lat, lng: this.state.location.lng},
+        position: {lat: loc.lat, lng: loc.lng},
         pov: {heading: 0, pitch: 0},
         zoom: 0,
         addressControl: false,
@@ -301,21 +332,14 @@ window.GeoGame = new (class extends GameEngine {
         motionTrackingControl: false,
         source: google.maps.StreetViewSource.OUTDOOR
       });
+      findOutdoorPano(loc, 500, function(pos) {
+        self.panorama.setPosition(pos);
+        self.panorama.setPov({heading: 0, pitch: 0});
+        self.panorama.setZoom(0);
+      });
     } else {
-      // Use StreetViewService to find nearest outdoor panorama
-      var sv = new google.maps.StreetViewService();
-      var loc = this.state.location;
-      var self = this;
-      sv.getPanorama({
-        location: {lat: loc.lat, lng: loc.lng},
-        radius: 500,
-        source: google.maps.StreetViewSource.OUTDOOR
-      }, function(data, status) {
-        if (status === 'OK' && data && data.location && data.location.latLng) {
-          self.panorama.setPosition(data.location.latLng);
-        } else {
-          self.panorama.setPosition({lat: loc.lat, lng: loc.lng});
-        }
+      findOutdoorPano(loc, 500, function(pos) {
+        self.panorama.setPosition(pos);
         self.panorama.setPov({heading: 0, pitch: 0});
         self.panorama.setZoom(0);
       });
