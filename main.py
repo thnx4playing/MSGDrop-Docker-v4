@@ -432,7 +432,7 @@ GEO_LOCATIONS = [
 # Cleared when op='ended', 'declined', or 'answered', or after 90 seconds.
 # ─────────────────────────────────────────────────────────────────────────────
 _pending_calls: Dict[str, Dict[str, Any]] = {}
-_PENDING_CALL_TTL_S = 90  # seconds before we auto-expire a pending call
+_PENDING_CALL_TTL_S = 300  # seconds before we auto-expire a pending call
 
 def _store_pending_call(drop_id: str, payload: Dict[str, Any]):
     _pending_calls[drop_id] = {**payload, "ts": time.time()}
@@ -1936,6 +1936,7 @@ async def ws_endpoint(ws: WebSocket):
     # If a call was initiated while this user was not connected, send them
     # the 'incoming' signal now so they can still answer it.
     pending = _get_pending_call(drop)
+    logger.info(f"[PendingCall] Check for {user} in drop={drop}: pending={'yes from=' + pending.get('from','?') if pending else 'none'}")
     if pending and pending.get("from") != user:
         # Only relay to the callee (not back to the caller)
         try:

@@ -166,10 +166,11 @@ var VideoChat = {
       if(err.type === 'peer-unavailable') {
         // Callee not yet on PeerJS. Null out currentCall so the
         // 'answered' handler knows to re-call when they show up.
-        if(self.currentCall) {
-          try { self.currentCall.close(); } catch(e) {}
-          self.currentCall = null;
-        }
+        // DON'T close the call — close() fires the 'close' event which
+        // tears down the entire calling UI (stops camera, hides overlay).
+        // We need to stay in the calling state so when the callee logs in
+        // and answers, we still have an active localStream to re-call with.
+        self.currentCall = null;
         self._setStatus('Waiting for answer...');
       } else if(err.type === 'unavailable-id') {
         // ID conflict — append short suffix and retry.
