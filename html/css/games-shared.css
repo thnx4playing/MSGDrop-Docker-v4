@@ -599,3 +599,13 @@
   color: var(--muted);
   margin-top: 2px;
 }
+.wordle-reveal {
+  margin-top: 16px;
+  font-size: 15px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+.wordle-reveal strong {
+  color: var(--text);
+  letter-spacing: 2px;
+}

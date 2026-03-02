@@ -563,7 +563,20 @@ window.WordleGame = new (class extends GameEngine {
     if (resultArea) resultArea.style.display = 'none';
     if (summaryArea) {
       summaryArea.style.display = 'flex';
-      summaryArea.innerHTML = this.buildEndSummaryHTML(data);
+      var html = this.buildEndSummaryHTML(data);
+      // Show the word(s) from each round
+      if (data.roundResults && data.roundResults.length) {
+        var words = data.roundResults.map(function(r) {
+          var w = (r.result && r.result.word) || '';
+          return w.toUpperCase();
+        }).filter(Boolean);
+        if (words.length) {
+          html += '<div class="wordle-reveal">' +
+            (words.length === 1 ? 'The word was: ' : 'Words: ') +
+            '<strong>' + words.join(', ') + '</strong></div>';
+        }
+      }
+      summaryArea.innerHTML = html;
     }
   }
 
