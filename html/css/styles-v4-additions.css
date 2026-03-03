@@ -414,6 +414,7 @@
   height: 100%;
   object-fit: cover;
   background: #222;
+  transform: scaleX(-1);
 }
 
 /* Controls bar at bottom */
