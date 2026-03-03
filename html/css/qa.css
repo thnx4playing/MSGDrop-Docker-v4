@@ -200,10 +200,7 @@
 /* ---- Mobile ---- */
 @media (max-width: 768px) {
   .qa-panel {
-    width: 100vw;
-    max-height: 100vh;
-    max-height: 100dvh;
-    border-radius: 0;
+    width: min(420px, 88vw);
   }
   .qa-header {
     padding: 16px 48px 14px 16px;
