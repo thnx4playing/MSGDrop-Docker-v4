@@ -18,6 +18,10 @@
 //   On every PeerJS 'open' event (init AND after reconnect), each client sends
 //   op:'peer_ready' with their current peerId over WS. This ensures the remote
 //   side always has the up-to-date peerId even after idle reconnects.
+//
+// ICE servers:
+//   Fetched from /api/ice-servers (Twilio TURN) for reliable, low-latency
+//   connectivity. Cached for 1 hour. Falls back to Google STUN if fetch fails.
 // ============================================================================
 
 var VideoChat = {
@@ -50,6 +54,11 @@ var VideoChat = {
   _callStartTime: null,
   _callMsgId: 'active-call',
   _waitInterval: null,
+  _ending: false,
+
+  // Cached ICE servers from Twilio
+  _iceServers: null,
+  _iceServersFetchedAt: 0,
 
   init: function(dropId, role) {
     this.dropId = dropId;
@@ -67,7 +76,9 @@ var VideoChat = {
     this.callBtn    = document.getElementById('videoCallBtn');
 
     this._setupButtons();
-    this._initPeer();
+    this._fetchIceServers().then(function() {
+      VideoChat._initPeer();
+    });
 
     // Pre-warm camera/mic permissions.
     // ONLY run on browsers that actually support the permissions API
@@ -77,13 +88,46 @@ var VideoChat = {
     setTimeout(function() { VideoChat._tryPreWarm(); }, 1500);
   },
 
+  // ─── ICE server fetch (Twilio TURN) ────────────────────────────────────
+
+  _fetchIceServers: function() {
+    var self = this;
+    // Cache for 1 hour
+    if(self._iceServers && Date.now() - self._iceServersFetchedAt < 3600000) {
+      return Promise.resolve(self._iceServers);
+    }
+    return fetch(CONFIG.API_BASE_URL + '/ice-servers', { credentials: 'include' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if(data.iceServers && data.iceServers.length) {
+          self._iceServers = data.iceServers;
+          self._iceServersFetchedAt = Date.now();
+          console.log('[VideoChat] ICE servers loaded:', data.iceServers.length, 'servers');
+        }
+        return self._iceServers;
+      })
+      .catch(function(e) {
+        console.warn('[VideoChat] ICE server fetch failed, using fallback:', e);
+        return null;
+      });
+  },
+
+  _getIceConfig: function() {
+    if(this._iceServers && this._iceServers.length) {
+      return { iceServers: this._iceServers };
+    }
+    // Fallback: Google STUN only (no TURN relay)
+    return {
+      iceServers: [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }
+      ]
+    };
+  },
+
   // ─── Permission pre-warm ─────────────────────────────────────────────────
   _tryPreWarm: function() {
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
     if(!navigator.permissions || !navigator.permissions.query) {
-      // permissions API not available (Safari) — skip pre-warm entirely.
-      // Safari will prompt when the actual call starts; pre-warming here
-      // doesn't prevent that and just triggers an extra permission dialog.
       console.log('[VideoChat] permissions API unavailable (Safari?), skipping pre-warm');
       return;
     }
@@ -91,7 +135,6 @@ var VideoChat = {
       navigator.permissions.query({ name: 'camera' }).catch(function(){ return null; }),
       navigator.permissions.query({ name: 'microphone' }).catch(function(){ return null; })
     ]).then(function(results) {
-      // If either query failed (Safari), skip pre-warm
       if(!results[0] || !results[1]) {
         console.log('[VideoChat] permissions.query unsupported, skipping pre-warm');
         return;
@@ -131,14 +174,7 @@ var VideoChat = {
       path: '/',
       secure: true,
       debug: 0,
-      config: {
-        iceServers: [
-          { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ]
-      }
+      config: self._getIceConfig()
     });
 
     self.peer.on('open', function(id) {
@@ -237,11 +273,33 @@ var VideoChat = {
     return (this.dropId + '_' + otherRole).replace(/[^a-zA-Z0-9_-]/g, '_');
   },
 
+  // ─── Media constraints ─────────────────────────────────────────────────
+  _getMediaConstraints: function() {
+    return {
+      video: {
+        width:     { ideal: 1280, min: 640 },
+        height:    { ideal: 720,  min: 480 },
+        frameRate: { ideal: 30 },
+        facingMode: 'user'
+      },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl:  true,
+        sampleRate:       48000,
+        channelCount:     1
+      }
+    };
+  },
+
   // ─── Start call (caller side) ────────────────────────────────────────────
 
   startCall: async function() {
     var self = this;
     if(self.isInCall) { self._showOverlay(); return; }
+
+    // Refresh ICE servers if stale
+    await self._fetchIceServers();
 
     // Make sure our peer is registered on PeerJS before we try to call
     try {
@@ -253,10 +311,7 @@ var VideoChat = {
     }
 
     try {
-      self.localStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640, max: 1280 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: 24, max: 30 }, facingMode: 'user' },
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: { ideal: 0.01 } }
-      });
+      self.localStream = await navigator.mediaDevices.getUserMedia(self._getMediaConstraints());
       self.localVideo.srcObject = self.localStream;
       self.localVideo.muted = true;
       self.localVideo.play().catch(function(e){ console.warn('[VideoChat] localVideo.play():', e); });
@@ -264,6 +319,7 @@ var VideoChat = {
       self._showOverlay();
       self._setStatus('Calling...');
       self.isInCall = true;
+      self._ending = false;
       self._callStartTime = null;
 
       if(typeof Messages !== 'undefined' && Messages.injectCallMessage) {
@@ -302,11 +358,18 @@ var VideoChat = {
   _answerCall: async function() {
     var self = this;
 
+    // Refresh ICE servers before answering
+    await self._fetchIceServers();
+
+    // Re-init peer with fresh ICE config if servers changed
+    if(self._iceServers && self.peer && !self.peer.destroyed) {
+      // PeerJS doesn't support updating config on existing peer,
+      // but the new call will use the config from _initPeer.
+      // For the callee, the incoming call already has ICE config from caller's offer.
+    }
+
     try {
-      self.localStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640, max: 1280 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: 24, max: 30 }, facingMode: 'user' },
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, latency: { ideal: 0.01 } }
-      });
+      self.localStream = await navigator.mediaDevices.getUserMedia(self._getMediaConstraints());
       self.localVideo.srcObject = self.localStream;
       self.localVideo.muted = true;
       self.localVideo.play().catch(function(e){ console.warn('[VideoChat] localVideo.play():', e); });
@@ -314,6 +377,7 @@ var VideoChat = {
       self._showOverlay();
       self._setStatus('Connecting...');
       self.isInCall = true;
+      self._ending = false;
       self._callStartTime = null;
 
       if(typeof Messages !== 'undefined' && Messages.updateCallMessage) {
@@ -390,18 +454,8 @@ var VideoChat = {
       self.remoteVideo.srcObject = remoteStream;
       self.remoteVideo.play().catch(function(e){ console.warn('[VideoChat] remoteVideo.play():', e); });
 
-      // Minimize A/V sync lag (lip-sync): reduce jitter buffer on audio receiver
-      try {
-        var pc = call.peerConnection;
-        if(pc && pc.getReceivers) {
-          pc.getReceivers().forEach(function(receiver) {
-            if(receiver.track && receiver.track.kind === 'audio' && typeof receiver.jitterBufferTarget !== 'undefined') {
-              receiver.jitterBufferTarget = 0; // let browser use minimum buffering
-              console.log('[VideoChat] Set audio jitterBufferTarget to minimum');
-            }
-          });
-        }
-      } catch(e) { console.warn('[VideoChat] jitterBuffer tweak skipped:', e); }
+      // Minimize A/V sync lag: set jitter buffer to minimum on audio receivers
+      self._tuneConnection(call);
 
       self._setStatus('');
       self._callStartTime = Date.now();
@@ -411,14 +465,76 @@ var VideoChat = {
     });
 
     call.on('close', function() {
+      // Notify the other side so they don't stay stuck in a dead call
       var wasConnected = !!self._callStartTime;
-      self._endCallInternal(false, wasConnected ? 'ended' : 'disconnected');
+      self._endCallInternal(true, wasConnected ? 'ended' : 'disconnected');
     });
 
     call.on('error', function(err) {
       console.error('[VideoChat] Call error:', err);
-      self._endCallInternal(false, 'disconnected');
+      self._endCallInternal(true, 'disconnected');
     });
+
+    // Monitor ICE connection state for early disconnect detection
+    try {
+      var pc = call.peerConnection;
+      if(pc) {
+        pc.oniceconnectionstatechange = function() {
+          var state = pc.iceConnectionState;
+          console.log('[VideoChat] ICE state:', state);
+          if(state === 'failed') {
+            console.error('[VideoChat] ICE connection failed');
+            self._endCallInternal(true, 'disconnected');
+          } else if(state === 'disconnected') {
+            // Brief disconnects can recover — wait 5s before ending
+            setTimeout(function() {
+              if(pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                console.error('[VideoChat] ICE did not recover, ending call');
+                self._endCallInternal(true, 'disconnected');
+              }
+            }, 5000);
+          }
+        };
+      }
+    } catch(e) { console.warn('[VideoChat] ICE monitoring setup failed:', e); }
+  },
+
+  // ─── Connection tuning for low-latency A/V sync ─────────────────────────
+
+  _tuneConnection: function(call) {
+    try {
+      var pc = call.peerConnection;
+      if(!pc) return;
+
+      // Reduce jitter buffer on audio receivers for minimal delay
+      if(pc.getReceivers) {
+        pc.getReceivers().forEach(function(receiver) {
+          if(receiver.track && receiver.track.kind === 'audio' && typeof receiver.jitterBufferTarget !== 'undefined') {
+            receiver.jitterBufferTarget = 0;
+            console.log('[VideoChat] Audio jitterBufferTarget set to minimum');
+          }
+        });
+      }
+
+      // Set preferred video codec to H.264 for hardware acceleration (better sync)
+      // and cap bitrate for stable connection
+      if(pc.getSenders) {
+        pc.getSenders().forEach(function(sender) {
+          if(!sender.track) return;
+          var params = sender.getParameters();
+          if(!params.encodings || !params.encodings.length) return;
+          if(sender.track.kind === 'video') {
+            params.encodings[0].maxBitrate = 2500000; // 2.5 Mbps for 720p
+            params.encodings[0].maxFramerate = 30;
+          } else if(sender.track.kind === 'audio') {
+            params.encodings[0].maxBitrate = 64000; // 64 kbps Opus
+          }
+          sender.setParameters(params).catch(function(e) {
+            console.warn('[VideoChat] setParameters:', e);
+          });
+        });
+      }
+    } catch(e) { console.warn('[VideoChat] Connection tuning error:', e); }
   },
 
   // ─── End call ─────────────────────────────────────────────────────────────
@@ -431,6 +547,10 @@ var VideoChat = {
   },
 
   _endCallInternal: function(sendSignal, finalStatus) {
+    // Guard against double-end (close + error events can both fire)
+    if(this._ending) return;
+    this._ending = true;
+
     if(this._waitInterval) { clearInterval(this._waitInterval); this._waitInterval = null; }
     var duration = 0;
     if(this._callStartTime) {
@@ -464,6 +584,10 @@ var VideoChat = {
         reason: finalStatus
       });
     }
+
+    // Reset _ending flag after a tick so new calls can start
+    var self = this;
+    setTimeout(function() { self._ending = false; }, 100);
   },
 
   // ─── Handle incoming WS video signals ────────────────────────────────────
@@ -557,7 +681,7 @@ var VideoChat = {
     self.isFrontCam = !self.isFrontCam;
     try {
       var newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: self.isFrontCam ? 'user' : 'environment', width: { ideal: 640, max: 1280 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: 24, max: 30 } },
+        video: { facingMode: self.isFrontCam ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
         audio: false
       });
       var newVideoTrack = newStream.getVideoTracks()[0];

@@ -610,6 +610,41 @@ def require_session(req: Request):
 def health():
     return {"ok": True, "service": "msgdrop-rest"}
 
+# --- ICE Servers (Twilio TURN) ---
+_ice_cache: Dict[str, Any] = {}
+
+@app.get("/api/ice-servers")
+def get_ice_servers(req: Request):
+    require_session(req)
+    now = time.time()
+    cached = _ice_cache.get("servers")
+    if cached and now - cached.get("ts", 0) < 3600:
+        return {"iceServers": cached["data"]}
+    if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN:
+        return {"iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}
+        ]}
+    try:
+        from twilio.rest import Client
+        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        token = client.tokens.create(ttl=86400)
+        servers = []
+        for s in token.ice_servers:
+            entry = {"urls": s.get("urls") or s.get("url")}
+            if s.get("username"):
+                entry["username"] = s["username"]
+            if s.get("credential"):
+                entry["credential"] = s["credential"]
+            servers.append(entry)
+        _ice_cache["servers"] = {"data": servers, "ts": now}
+        logger.info(f"[ICE] Fetched {len(servers)} Twilio ICE servers")
+        return {"iceServers": servers}
+    except Exception as e:
+        logger.error(f"[ICE] Twilio token error: {e}")
+        return {"iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}
+        ]}
+
 # --- Unlock ---
 class UnlockBody(BaseModel):
     code: str
