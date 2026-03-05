@@ -20,10 +20,6 @@ var WhatsNew = {
     {
       title: 'Update title here',
       body: 'Update description here.'
-    },
-    {
-      title: 'Update title here',
-      body: 'Update description here.'
     }
   ],
 
