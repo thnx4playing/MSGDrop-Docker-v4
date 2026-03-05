@@ -261,7 +261,7 @@ var Messages = {
 
       var subEl = document.createElement('div');
       subEl.className = 'call-card-sub';
-      subEl.textContent = 'FaceTime Video';
+      subEl.textContent = 'Video Call';
 
       label.appendChild(nameEl);
       label.appendChild(subEl);
@@ -337,7 +337,7 @@ var Messages = {
           callInfo.className = 'call-outgoing-info';
           var callTitle = document.createElement('div');
           callTitle.className = 'call-outgoing-title';
-          callTitle.textContent = 'FaceTime Video';
+          callTitle.textContent = 'Video Call';
           var callSub = document.createElement('div');
           callSub.className = 'call-outgoing-sub';
           callSub.textContent = 'Calling...';
