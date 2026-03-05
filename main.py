@@ -2036,6 +2036,12 @@ async def ws_endpoint(ws: WebSocket):
         except Exception as e:
             logger.warning(f"[QA] Failed to replay Q&A to {user}: {e}")
 
+    # Signal client that all replay is done and server is ready
+    try:
+        await ws.send_json({"type": "server_ready"})
+    except Exception:
+        pass
+
     try:
         while True:
             msg = await ws.receive_json()

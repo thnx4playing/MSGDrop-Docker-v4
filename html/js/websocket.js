@@ -20,6 +20,8 @@ var WebSocketManager = {
   presenceState: new Map(),
   presenceTimeouts: new Map(),
   heartbeatInterval: null,
+  serverReady: false,
+  _serverReadyResolve: null,
 
   // ── Reconnect state ──────────────────────────────────────────────────────
   _reconnectTimer: null,
@@ -62,8 +64,17 @@ var WebSocketManager = {
     } catch(e){ console.error('[WS] Init failed:', e); }
   },
 
+  waitForReady: function(){
+    if(this.serverReady) return Promise.resolve();
+    var self = this;
+    return new Promise(function(resolve){
+      self._serverReadyResolve = resolve;
+    });
+  },
+
   _onOpen: function(){
     console.log('[WS] Connected');
+    this.serverReady = false;
     this._reconnectAttempts = 0;
     if(this._reconnectTimer){ clearTimeout(this._reconnectTimer); this._reconnectTimer = null; }
     if(UI.setLive) UI.setLive('Connected (Live)');
@@ -88,6 +99,12 @@ var WebSocketManager = {
   _onMessage: function(ev){
     try {
       var msg = JSON.parse(ev.data || '{}');
+      if(msg.type === 'server_ready'){
+        this.serverReady = true;
+        if(this._serverReadyResolve){ this._serverReadyResolve(); this._serverReadyResolve = null; }
+        console.log('[WS] Server ready');
+        return;
+      }
       if(msg.type === 'update'){
         if(msg.data){ if(this.onUpdateCallback) this.onUpdateCallback(msg.data); }
         else {

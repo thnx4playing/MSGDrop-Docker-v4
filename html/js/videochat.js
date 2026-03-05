@@ -298,6 +298,9 @@ var VideoChat = {
     var self = this;
     if(self.isInCall) { self._showOverlay(); return; }
 
+    // Wait for server to be ready (replay complete after reconnect)
+    await WebSocketManager.waitForReady();
+
     // Refresh ICE servers if stale
     await self._fetchIceServers();
 

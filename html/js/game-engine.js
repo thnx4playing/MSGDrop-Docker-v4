@@ -79,6 +79,7 @@ window.GameEngine = class GameEngine {
    * Mirrors the pattern: check role + WS readiness, send {prefix}_invite, hide launcher.
    */
   startNewGame() {
+    var self = this;
     if (!Messages.myRole) {
       alert('Please select your role first');
       return;
@@ -87,7 +88,9 @@ window.GameEngine = class GameEngine {
       alert('Not connected to server');
       return;
     }
-    this._sendOp(this.prefix + '_invite');
+    WebSocketManager.waitForReady().then(function(){
+      self._sendOp(self.prefix + '_invite');
+    });
     UI.hideGamesMenu();
   }
 
