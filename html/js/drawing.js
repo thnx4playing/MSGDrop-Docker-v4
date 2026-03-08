@@ -617,7 +617,9 @@ window.DrawingGame = new (class extends GameEngine {
         }
       },
       function onExpire() {
-        // Server handles timeout
+        if (self._wsReady()) {
+          self._sendOp('draw_timeout', { gameId: self.state.gameId });
+        }
       }
     );
   }
