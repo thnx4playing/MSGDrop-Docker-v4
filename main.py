@@ -842,20 +842,20 @@ async def post_message(drop_id: str,
             # Remux fMP4 audio to fix duration=0 (iOS MediaRecorder issue)
             # Keeps original as .orig, replaces with properly-headered file
             try:
-                orig_path = dest.with_suffix(dest.suffix + ".orig")
                 import shutil
+                orig_path = Path(str(dest) + ".orig")
                 shutil.copy2(str(dest), str(orig_path))
-                remuxed = dest.with_suffix(".remux" + dest.suffix)
+                remuxed = Path("/tmp/remux_" + blob_id)
                 result = subprocess.run(
                     ["ffmpeg", "-y", "-i", str(dest), "-c", "copy",
                      "-movflags", "+faststart", str(remuxed)],
                     capture_output=True, timeout=30
                 )
                 if result.returncode == 0 and remuxed.exists() and remuxed.stat().st_size > 0:
-                    remuxed.replace(dest)
+                    shutil.move(str(remuxed), str(dest))
                     logger.info(f"[audio] Remuxed {blob_id} successfully")
                 else:
-                    logger.warning(f"[audio] Remux failed for {blob_id}: {result.stderr[:200]}")
+                    logger.warning(f"[audio] Remux failed for {blob_id}: {result.stderr.decode()[-200:]}")
                     if remuxed.exists():
                         remuxed.unlink()
             except Exception as e:
@@ -1160,25 +1160,25 @@ def admin_remux_audio(req: Request):
     require_session(req)
     fixed = []
     errors = []
+    import shutil
     for p in BLOB_DIR.iterdir():
-        if p.suffix.lower() in ('.m4a', '.webm') and '.orig' not in p.suffixes:
-            orig = p.with_suffix(p.suffix + ".orig")
+        if p.suffix.lower() in ('.m4a', '.webm') and '.orig' not in str(p):
+            orig = Path(str(p) + ".orig")
             if orig.exists():
                 continue  # already remuxed
             try:
-                import shutil
                 shutil.copy2(str(p), str(orig))
-                remuxed = p.with_suffix(".remux" + p.suffix)
+                remuxed = Path("/tmp/remux_" + p.name)
                 result = subprocess.run(
                     ["ffmpeg", "-y", "-i", str(p), "-c", "copy",
                      "-movflags", "+faststart", str(remuxed)],
                     capture_output=True, timeout=30
                 )
                 if result.returncode == 0 and remuxed.exists() and remuxed.stat().st_size > 0:
-                    remuxed.replace(p)
+                    shutil.move(str(remuxed), str(p))
                     fixed.append(p.name)
                 else:
-                    errors.append({"file": p.name, "err": result.stderr.decode()[:200]})
+                    errors.append({"file": p.name, "err": result.stderr.decode()[-200:]})
                     if remuxed.exists():
                         remuxed.unlink()
             except Exception as e:
