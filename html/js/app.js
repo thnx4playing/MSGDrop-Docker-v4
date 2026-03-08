@@ -34,7 +34,6 @@ var App = {
     this.startCountdownTimer();
     this.loadInitialData();
     this.startSessionChecks();
-    if (typeof WhatsNew !== 'undefined') WhatsNew.init();
   },
 
   initGiphy: function(){
