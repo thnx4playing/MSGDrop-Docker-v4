@@ -723,33 +723,41 @@ var Messages = {
             if(b._audioEl && !b._audioEl.paused) b._audioEl.pause();
           });
 
-          // Set/reset src so iOS re-fetches (handles session renewal too)
-          if(!audioEl.src || audioEl.ended) {
-            audioEl.src = url;
-            audioEl.load();
-          }
-
-          // ── Safe play() wrapper ──────────────────────────────────────
-          // On older Safari, play() returns undefined (not a Promise).
-          // Calling .then() on undefined throws a TypeError which silently
-          // swallows the whole handler — button never shows pause state.
-          var playResult;
-          try {
-            playResult = audioEl.play();
-          } catch(syncErr) {
-            console.error('[Audio] play() threw synchronously:', syncErr);
-            return;
-          }
-
-          if(playResult && typeof playResult.then === 'function'){
-            playResult.then(function(){
+          // Fetch full audio as blob to fix fMP4 duration=0 issue
+          // (MediaRecorder writes duration=0 in header; blob URL lets browser determine real length)
+          function doPlay() {
+            var playResult;
+            try { playResult = audioEl.play(); } catch(syncErr) {
+              console.error('[Audio] play() threw synchronously:', syncErr);
+              return;
+            }
+            if(playResult && typeof playResult.then === 'function'){
+              playResult.then(function(){ btn.classList.add('playing'); })
+              .catch(function(err){ console.error('[Audio] play() rejected:', err.name, err.message); });
+            } else {
               btn.classList.add('playing');
-            }).catch(function(err){
-              console.error('[Audio] play() rejected:', err.name, err.message, 'URL:', url);
-            });
+            }
+          }
+
+          if(btn._blobUrl) {
+            if(!audioEl.src || audioEl.ended) {
+              audioEl.src = btn._blobUrl;
+              audioEl.load();
+            }
+            doPlay();
           } else {
-            // Non-promise play() (old Safari) — assume it started; error event handles failure
-            btn.classList.add('playing');
+            btn.classList.add('playing'); // show loading state
+            fetch(url, { credentials: 'same-origin' }).then(function(resp) {
+              return resp.blob();
+            }).then(function(blob) {
+              btn._blobUrl = URL.createObjectURL(blob);
+              audioEl.src = btn._blobUrl;
+              audioEl.load();
+              doPlay();
+            }).catch(function(err) {
+              console.error('[Audio] Fetch failed:', err);
+              btn.classList.remove('playing');
+            });
           }
         });
       })(playBtn, audioUrl, durLabel, waveContainer, msg.seq, barCount);
