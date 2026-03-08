@@ -665,7 +665,7 @@ var Messages = {
         var audioEl = document.createElement('audio');
         audioEl.setAttribute('playsinline', '');
         audioEl.setAttribute('webkit-playsinline', '');
-        audioEl.preload = 'none'; // don't download until user taps play
+        audioEl.preload = 'metadata'; // load duration/headers but not full file
         // ── DO NOT set crossOrigin ──────────────────────────────────────
         // /blob/ is same-origin and needs session cookies.
         // crossOrigin='anonymous' strips cookies → 401 → silent failure.

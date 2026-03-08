@@ -1133,7 +1133,7 @@ def api_post_streak(drop_id: str, req: Request = None):
     require_session(req)
     return get_streak(drop_id)
 
-# --- Blob serving ---
+# --- Blob serving (with Range request support for audio/video) ---
 @app.get("/blob/{blob_id}")
 def get_blob(blob_id: str, req: Request):
     require_session(req)
@@ -1148,7 +1148,45 @@ def get_blob(blob_id: str, req: Request):
             mime_type = 'audio/webm'
         else:
             mime_type = 'application/octet-stream'
-    return FileResponse(path, media_type=mime_type)
+
+    file_size = path.stat().st_size
+    range_header = req.headers.get("range")
+
+    if range_header:
+        # Parse "bytes=START-END"
+        range_spec = range_header.replace("bytes=", "").strip()
+        parts = range_spec.split("-")
+        start = int(parts[0]) if parts[0] else 0
+        end = int(parts[1]) if parts[1] else file_size - 1
+        end = min(end, file_size - 1)
+        length = end - start + 1
+
+        def iter_range():
+            with open(path, "rb") as f:
+                f.seek(start)
+                remaining = length
+                while remaining > 0:
+                    chunk = f.read(min(8192, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        return StreamingResponse(
+            iter_range(),
+            status_code=206,
+            media_type=mime_type,
+            headers={
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(length),
+            },
+        )
+
+    return FileResponse(path, media_type=mime_type, headers={
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(file_size),
+    })
 
 # --- Camera Stream Proxy ---
 def verify_session(token: str) -> bool:
