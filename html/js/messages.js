@@ -759,6 +759,28 @@ var Messages = {
 
   render: function(){
     if(!UI.els.chatContainer) return;
+
+    // If audio is currently playing, defer the re-render until it ends
+    var playingAudio = document.querySelector('.audio-play-btn.playing');
+    if(playingAudio && playingAudio._audioEl && !playingAudio._audioEl.paused){
+      if(!this._deferredRender){
+        this._deferredRender = true;
+        var self = this;
+        playingAudio._audioEl.addEventListener('ended', function onEnd(){
+          playingAudio._audioEl.removeEventListener('ended', onEnd);
+          self._deferredRender = false;
+          self.render();
+        });
+        playingAudio._audioEl.addEventListener('pause', function onPause(){
+          playingAudio._audioEl.removeEventListener('pause', onPause);
+          self._deferredRender = false;
+          self.render();
+        });
+      }
+      return;
+    }
+    this._deferredRender = false;
+
     var isFirstRender = !this._hasRendered;
     this._hasRendered = true;
     var wasAtBottom = isFirstRender || UI.els.chatContainer.scrollHeight - UI.els.chatContainer.scrollTop <= UI.els.chatContainer.clientHeight + 50;
