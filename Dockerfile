@@ -4,7 +4,7 @@ FROM python:3.12-slim
 
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tini && \
+    tini ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # App deps

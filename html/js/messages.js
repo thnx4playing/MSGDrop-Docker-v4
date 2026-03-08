@@ -723,10 +723,6 @@ var Messages = {
             if(b._audioEl && !b._audioEl.paused) b._audioEl.pause();
           });
 
-          // Fetch full audio as blob to fix fMP4 duration=0 issue
-          // iOS MediaRecorder produces fMP4 with duration=0 in moov header.
-          // Fix: after loading blob, seek to Infinity to force browser to scan
-          // the entire file and compute real duration, then seek back to 0 and play.
           function doPlay() {
             var playResult;
             try { playResult = audioEl.play(); } catch(syncErr) {
@@ -741,56 +737,11 @@ var Messages = {
             }
           }
 
-          // Force browser to discover real duration for fMP4 files
-          function fixDurationAndPlay() {
-            // If duration is already known, just play
-            if(audioEl.duration && isFinite(audioEl.duration) && audioEl.duration > 0.5) {
-              audioEl.currentTime = 0;
-              doPlay();
-              return;
-            }
-            // Seek to huge value — browser scans entire file to find end
-            function onSeeked() {
-              audioEl.removeEventListener('seeked', onSeeked);
-              console.log('[Audio] Duration after seek trick:', audioEl.duration);
-              audioEl.currentTime = 0;
-              doPlay();
-            }
-            audioEl.addEventListener('seeked', onSeeked);
-            audioEl.currentTime = 1e101;
+          if(!audioEl.src || audioEl.ended) {
+            audioEl.src = url;
+            audioEl.load();
           }
-
-          if(btn._blobUrl) {
-            if(!audioEl.src || audioEl.ended) {
-              audioEl.src = btn._blobUrl;
-              audioEl.load();
-            }
-            // If already loaded, duration may be cached
-            if(audioEl.readyState >= 1) {
-              fixDurationAndPlay();
-            } else {
-              audioEl.addEventListener('loadedmetadata', function onLM() {
-                audioEl.removeEventListener('loadedmetadata', onLM);
-                fixDurationAndPlay();
-              });
-            }
-          } else {
-            btn.classList.add('playing'); // show loading state
-            fetch(url, { credentials: 'same-origin' }).then(function(resp) {
-              return resp.blob();
-            }).then(function(blob) {
-              btn._blobUrl = URL.createObjectURL(blob);
-              audioEl.src = btn._blobUrl;
-              audioEl.load();
-              audioEl.addEventListener('loadedmetadata', function onLM() {
-                audioEl.removeEventListener('loadedmetadata', onLM);
-                fixDurationAndPlay();
-              });
-            }).catch(function(err) {
-              console.error('[Audio] Fetch failed:', err);
-              btn.classList.remove('playing');
-            });
-          }
+          doPlay();
         });
       })(playBtn, audioUrl, durLabel, waveContainer, msg.seq, barCount);
     } else {

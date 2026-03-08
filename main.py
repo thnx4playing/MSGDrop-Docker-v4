@@ -839,6 +839,27 @@ async def post_message(drop_id: str,
         
         if mime.startswith("audio/") or suffix in (".m4a", ".webm", ".mp3", ".ogg", ".wav"):
             message_type = "audio"
+            # Remux fMP4 audio to fix duration=0 (iOS MediaRecorder issue)
+            # Keeps original as .orig, replaces with properly-headered file
+            try:
+                orig_path = dest.with_suffix(dest.suffix + ".orig")
+                import shutil
+                shutil.copy2(str(dest), str(orig_path))
+                remuxed = dest.with_suffix(".remux" + dest.suffix)
+                result = subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(dest), "-c", "copy",
+                     "-movflags", "+faststart", str(remuxed)],
+                    capture_output=True, timeout=30
+                )
+                if result.returncode == 0 and remuxed.exists() and remuxed.stat().st_size > 0:
+                    remuxed.replace(dest)
+                    logger.info(f"[audio] Remuxed {blob_id} successfully")
+                else:
+                    logger.warning(f"[audio] Remux failed for {blob_id}: {result.stderr[:200]}")
+                    if remuxed.exists():
+                        remuxed.unlink()
+            except Exception as e:
+                logger.warning(f"[audio] Remux error for {blob_id}: {e}")
             audio_url_path = f"/blob/{blob_id}"
             image_url = audio_url_path
             if not text_:
@@ -1132,6 +1153,37 @@ def api_get_streak(drop_id: str, req: Request = None):
 def api_post_streak(drop_id: str, req: Request = None):
     require_session(req)
     return get_streak(drop_id)
+
+# --- Remux existing audio blobs (one-time fix for fMP4 duration=0) ---
+@app.post("/api/admin/remux-audio")
+def admin_remux_audio(req: Request):
+    require_session(req)
+    fixed = []
+    errors = []
+    for p in BLOB_DIR.iterdir():
+        if p.suffix.lower() in ('.m4a', '.webm') and '.orig' not in p.suffixes:
+            orig = p.with_suffix(p.suffix + ".orig")
+            if orig.exists():
+                continue  # already remuxed
+            try:
+                import shutil
+                shutil.copy2(str(p), str(orig))
+                remuxed = p.with_suffix(".remux" + p.suffix)
+                result = subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(p), "-c", "copy",
+                     "-movflags", "+faststart", str(remuxed)],
+                    capture_output=True, timeout=30
+                )
+                if result.returncode == 0 and remuxed.exists() and remuxed.stat().st_size > 0:
+                    remuxed.replace(p)
+                    fixed.append(p.name)
+                else:
+                    errors.append({"file": p.name, "err": result.stderr.decode()[:200]})
+                    if remuxed.exists():
+                        remuxed.unlink()
+            except Exception as e:
+                errors.append({"file": p.name, "err": str(e)})
+    return {"fixed": fixed, "errors": errors}
 
 # --- Blob serving (with Range request support for audio/video) ---
 @app.get("/blob/{blob_id}")
